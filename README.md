@@ -49,14 +49,25 @@ Saat server dijalankan lagi, data dari browser akan disinkronkan ke database
 pada penyimpanan berikutnya.
 
 ## Panel designer
-- **Panel size (L × T)** — pilih `Auto` (tinggi dihitung dari layout) atau ukuran
+- **Panel size (Tinggi × Lebar)** — ditulis **tinggi dulu**, seperti katalog
+  enclosure: `400 × 300` = 400 tinggi × 300 lebar, jadi selalu **portrait**.
+  Pilih `Auto` (tinggi dihitung dari layout, tetap dijaga portrait) atau ukuran
   katalog: 400×300, 500×400, 600×400, 800×600, 1000×800, 1200×800 mm. Ukuran yang
   dipilih dipakai apa adanya; kalau isinya tidak muat, muncul error
   `PANEL_TOO_SMALL` yang menyebutkan tinggi yang dibutuhkan. Panel lebih sempit
   biasanya butuh lebih tinggi karena rail terpaksa wrap.
 - **Tab 2D panel layout / Front cover layout** — backplate (rail, duct, terminal)
   dan pintu (E-stop, HMI, tombol ON/OFF, selector, pilot lamp). Perangkat pintu
-  ikut masuk BOM, wiring list, dan laporan (dengan tag S0–S5 / H1–H3 + posisi X/Y).
+  ikut masuk BOM, wiring list, dan laporan.
+- **Atur posisi front cover manual** — tarik komponen di tab Front cover.
+  Posisi dibulatkan ke 5 mm, ditahan di dalam pintu, dan disimpan per proyek.
+  Hanya komponen yang kamu pindah yang dipatok; sisanya tetap otomatis.
+  Tombol **Reset posisi** mengembalikan semuanya ke otomatis.
+- **Export** — dua tombol terpisah: **Layout PDF** (hanya gambar backplate +
+  front cover, plus tabel koordinat X/Y) dan **Report PDF** (laporan lengkap:
+  gambar kedua layout, tabel koordinat, kalkulasi, BOM, temuan review).
+  Semua komponen punya tag (Q1, G1, S1, H1, HMI1 …) yang sama di gambar,
+  tabel koordinat, dan BOM.
 - **PLC → No PLC** — untuk panel tanpa PLC (relay logic / motor starter). CPU,
   modul I/O, dan Ethernet switch tidak dipasang; kontaktor dikomando dari tombol
   pintu lewat kontak latching. Angka I/O tetap tersimpan, jadi memilih PLC lagi

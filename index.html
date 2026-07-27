@@ -120,6 +120,14 @@
     box-shadow:inset 0 0 0 1px #fff;}
   .comp.round,.comp .ph.round{border-radius:50%;}
   .comp.round img{border-radius:50%;}
+  .comp.drag{cursor:grab;}
+  .comp.drag:hover{outline:2px solid var(--blue-500);outline-offset:1px;}
+  .comp.drag.manual .ph{border-style:solid;box-shadow:0 0 0 1.5px var(--blue-500);}
+  .comp.drag.dragging{cursor:grabbing;opacity:.85;z-index:5;
+    outline:2px dashed var(--blue-600);outline-offset:2px;}
+  .dtag{position:absolute;transform:translate(-50%,-100%);background:var(--navy);color:#fff;
+    font-family:'IBM Plex Mono',monospace;font-size:9px;border-radius:3px;padding:1px 4px;
+    white-space:nowrap;pointer-events:none;}
   .gridlayer{position:absolute;inset:0;background-image:linear-gradient(#2478CE1A 1px,transparent 1px),linear-gradient(90deg,#2478CE1A 1px,transparent 1px);background-size:20px 20px;pointer-events:none;}
   .rail{position:absolute;background:#AEB9C4 url('assets/textures/din-rail.png');background-size:auto 100%;border-top:1px solid #8A98A5;border-bottom:2px solid #7A8894;}
   .duct{position:absolute;background:#D4DAE0 url('assets/textures/wire-duct-45.png');background-size:auto 100%;border:1px solid #B9C2CB;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#6B7885;letter-spacing:.5px;}
@@ -227,12 +235,27 @@
   .rep-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--navy);padding-bottom:12px;margin-bottom:6px;}
   .rep-head img{height:40px;display:none;}
   .rep-head.has-logo img{display:block;} .rep-head.has-logo .rep-mark{display:none;}
+  /* Static drawings (report + layout export) */
+  #print-area{display:none;}
+  .sd{position:relative;}
+  .sd-row{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;margin:6px 0 14px;}
+  .sd-row h3,.report h3{font-size:12px;font-weight:600;margin:10px 0 4px;}
+  .sd .comp .ph{border-width:1px;}
+  .sd .dtag{font-size:7.5px;padding:0 2px;}
+
   @media print{
     .mask,.toast{display:none!important;}
     body *{visibility:hidden;}
+    /* default: cetak laporan */
     #view-reports,#view-reports *{visibility:visible;}
     #view-reports{position:absolute;left:0;top:0;width:100%;padding:0;}
+    /* Layout PDF: cetak hanya gambar layout */
+    body.printing-layout #view-reports{display:none;}
+    body.printing-layout #print-area{display:block;position:absolute;left:0;top:0;width:100%;}
+    body.printing-layout #print-area,body.printing-layout #print-area *{visibility:visible;}
     .no-print{display:none!important;}
+    .sd-row{break-inside:avoid;}
+    table.data{break-inside:auto;} table.data tr{break-inside:avoid;}
   }
   @media (max-width:1160px){
     .workspace,.dash-grid{grid-template-columns:1fr;}
@@ -313,7 +336,7 @@
               <div class="field"><label>Ambient (°C)</label>
                 <input id="cfg-ambient" type="number" value="30" min="-10" max="60"></div>
             </div>
-            <div class="field"><label>Panel size (L × T)</label>
+            <div class="field"><label>Panel size (Tinggi × Lebar)</label>
               <select id="cfg-size" onchange="generate(true)"></select></div>
             <div class="field"><label>PLC</label>
               <select id="cfg-plc" onchange="syncPlcFields();generate(true)">
@@ -361,6 +384,9 @@
             <div class="sep"></div>
             <label><input type="checkbox" id="chk-grid" checked onchange="draw()"> Grid</label>
             <label><input type="checkbox" id="chk-tags" checked onchange="draw()"> Labels</label>
+            <div class="sep"></div>
+            <button class="btn" style="padding:5px 10px;" onclick="printLayout()">Export drawing (PDF)</button>
+            <button class="btn" style="padding:5px 10px;display:none;" id="btn-door-reset" onclick="resetDoorLayout()">Reset posisi</button>
             <span style="margin-left:auto;font-size:11px;color:var(--gray-500);" id="zoom-pct">100%</span>
           </div>
           <div class="cab-scroll" id="scroll">
@@ -517,9 +543,12 @@
   </main>
 </div>
 
+<div id="print-area" class="report"></div>
+
 <footer class="toolbar">
   <span class="lbl">Export:</span>
-  <button class="btn" onclick="printReport()">PDF</button>
+  <button class="btn" onclick="printLayout()" title="Hanya gambar layout (backplate + front cover)">Layout PDF</button>
+  <button class="btn" onclick="printReport()" title="Laporan lengkap termasuk gambar, BOM, dan skedul">Report PDF</button>
   <button class="btn" onclick="exportBomCsv()">Excel/CSV</button>
   <button class="btn" title="Placeholder — butuh backend CAD">DWG</button>
   <button class="btn" title="Placeholder — butuh backend CAD">DXF</button>
@@ -859,9 +888,9 @@ async function newProject(){
       {id:'plc',      label:'PLC', type:'select', value:'Mitsubishi FX5U',
        options:[['none','— No PLC —'],['Mitsubishi FX5U','Mitsubishi FX5U'],
                 ['Mitsubishi FX5UJ','Mitsubishi FX5UJ']]},
-      {id:'size',     label:'Panel size (L × T)', type:'select', value:'auto',
+      {id:'size',     label:'Panel size (T × L)', type:'select', value:'auto',
        options:[['auto','Auto — dari layout']].concat(
-         PanelEngine.STD_SIZES.map(s=>[`${s.w}x${s.h}`, `${s.w} × ${s.h} mm`]))},
+         PanelEngine.STD_SIZES.map(s=>[`${s.h}x${s.w}`, `${s.h} × ${s.w} mm`]))},
     ],
     validate:v=>state.projects.some(p=>p.name.toLowerCase()===v.name.toLowerCase())
       ? 'Sudah ada proyek dengan nama itu.' : null,
@@ -916,20 +945,24 @@ function readCfgForm(){
     supplyV:+v('cfg-supplyv'), ambientC:+v('cfg-ambient'),
     ...sizeFromValue(v('cfg-size'))});
 }
-/* Nilai dropdown: "auto" atau "LxT" */
+/* Nilai dropdown: "auto" atau "TxL" — tinggi dulu, seperti katalog enclosure,
+   jadi 400×300 berarti 400 tinggi × 300 lebar (portrait). */
 function sizeFromValue(s){
-  if(s==='auto') return {cabW:800, cabH:0};
-  const [w,h]=String(s).split('x').map(Number);
-  return {cabW:w||800, cabH:h||0};
+  if(s==='auto') return {cabW:600, cabH:0};
+  const [h,w]=String(s).split('x').map(Number);
+  return {cabW:w||600, cabH:h||0};
 }
+function sizeToValue(c){ return c.cabH>0 ? `${c.cabH}x${c.cabW}` : 'auto'; }
 function buildSizeOptions(){
+  const opts=PanelEngine.STD_SIZES.map(s=>
+    `<option value="${s.h}x${s.w}">${s.h} × ${s.w} mm — T${s.h} × L${s.w}</option>`).join('');
   const el=document.getElementById('cfg-size');
-  el.innerHTML=`<option value="auto">Auto — tinggi dari layout</option>`+
-    PanelEngine.STD_SIZES.map(s=>`<option value="${s.w}x${s.h}">${s.w} × ${s.h} mm</option>`).join('');
+  if(el) el.innerHTML=`<option value="auto">Auto — tinggi dari layout</option>`+opts;
+  return opts;
 }
 function fillCfgForm(c){
   document.getElementById('cfg-plc').value=c.hasPlc?c.plc:'none';
-  document.getElementById('cfg-size').value = c.cabH>0 ? `${c.cabW}x${c.cabH}` : 'auto';
+  document.getElementById('cfg-size').value = sizeToValue(c);
   const m={'cfg-di':c.di,'cfg-do':c.do_,'cfg-ai':c.ai,'cfg-ao':c.ao,'cfg-vfd':c.vfd,
            'cfg-servo':c.servo,'cfg-hmi':c.hmi,'cfg-motor':c.motor,'cfg-valve':c.valve,
            'cfg-supplyv':c.supplyV,'cfg-ambient':c.ambientC};
@@ -1015,6 +1048,7 @@ function setDrawMode(m){
   drawMode=m;
   document.getElementById('tab-plate').classList.toggle('on',m==='plate');
   document.getElementById('tab-door').classList.toggle('on',m==='door');
+  document.getElementById('btn-door-reset').style.display=m==='door'?'':'none';
   draw(); zoomFit();
 }
 /* Chip menjelaskan gambar yang sedang tampil, jadi ikut berubah saat tab pindah
@@ -1046,30 +1080,84 @@ function drawDoor(){
   html+=`<div class="handle" style="right:-6px;top:${H/2-26}px;"></div>`;
   for(const z of R.door.zones)
     html+=`<div class="rail-tag" style="left:${M}px;top:${z.y0-13}px;">${esc(z.label)}</div>`;
-  const tagged=new Set();
   for(const it of R.door.items){
     const d=R.specs[it.type], l=it.x-d.w/2, t=it.y-d.h/2;
     const src=imgSrc(d);
-    html+=`<div class="comp${d.round?' round':''}" style="left:${l}px;top:${t}px;width:${d.w}px;height:${d.h}px;">
+    html+=`<div class="comp drag${d.round?' round':''}${it.manual?' manual':''}"
+        data-id="${esc(it.id)}" title="${esc(it.tag+' — '+d.desc)}${it.manual?' (manual)':''} · tarik untuk memindahkan"
+        style="left:${l}px;top:${t}px;width:${d.w}px;height:${d.h}px;">
       <div class="ph${d.round?' round':''}" style="border-color:${d.color};background:${d.bg}CC;color:${d.color};">
         ${d.w>=60?`<b>${esc(d.desc.split(' ').slice(0,2).join(' '))}</b><i>${esc(d.pn)}</i>`:''}
       </div>
       ${src?`<img src="${esc(src)}" alt="${esc(d.desc)}" onload="this.parentNode.classList.add('has-img')">`:''}</div>`;
-    if(showTags && d.label && !tagged.has(it.type)){
-      tagged.add(it.type);
-      html+=`<div class="tag" style="left:${it.x}px;top:${t-4}px;">${esc(d.label)}</div>`;
-    }
+    if(showTags)
+      html+=`<div class="dtag" style="left:${it.x}px;top:${t-3}px;">${esc(it.tag)}</div>`;
   }
   html+=`</div>`;
   html+=`<div class="dim dim-h" style="left:${OX+FRAME}px;top:${OY-24}px;width:${W}px;">${W} mm</div>`;
   html+=`<div class="dim dim-v" style="left:${OX+W+FRAME*2+8}px;top:${OY+FRAME}px;height:${H}px;">${H} mm</div>`;
-  html+=`<div class="dim mono" style="left:${OX+FRAME}px;top:${OY+H+FRAME*2+6}px;">Front cover · ${R.door.items.length} devices · margin ${M} mm</div>`;
+  html+=`<div class="dim mono" style="left:${OX+FRAME}px;top:${OY+H+FRAME*2+6}px;">Front cover · ${R.door.items.length} devices · margin ${M} mm · tarik komponen untuk mengatur posisi</div>`;
   stage.innerHTML=html;
   stage.style.width=totW+'px'; stage.style.height=totH+'px';
   stage.style.transform=`scale(${zoom})`;
   const wrap=document.getElementById('stage-wrap');
   wrap.style.width=totW*zoom+'px'; wrap.style.height=totH*zoom+'px';
   set('zoom-pct',Math.round(zoom*100)+'%');
+  attachDoorDrag(OX+FRAME, OY+FRAME);
+}
+
+/* ── tarik-lepas penempatan manual di front cover ─────────────────────── */
+const DOOR_SNAP=5;                                /* bulatkan ke 5 mm */
+function attachDoorDrag(originX, originY){
+  const stage=document.getElementById('stage');
+  stage.querySelectorAll('.comp.drag').forEach(el=>{
+    el.addEventListener('mousedown',e=>{
+      e.preventDefault();
+      const id=el.dataset.id;
+      const it=R.door.items.find(x=>x.id===id); if(!it) return;
+      const d=R.specs[it.type];
+      /* offset kursor→pusat komponen, dalam mm (zoom dibagi balik) */
+      const startX=e.clientX, startY=e.clientY, ox=it.x, oy=it.y;
+      el.classList.add('dragging');
+      const move=ev=>{
+        const dx=(ev.clientX-startX)/zoom, dy=(ev.clientY-startY)/zoom;
+        let nx=Math.round((ox+dx)/DOOR_SNAP)*DOOR_SNAP;
+        let ny=Math.round((oy+dy)/DOOR_SNAP)*DOOR_SNAP;
+        /* jaga di dalam pintu */
+        nx=Math.min(R.W-d.w/2, Math.max(d.w/2, nx));
+        ny=Math.min(R.H-d.h/2, Math.max(d.h/2, ny));
+        el.style.left=(nx-d.w/2)+'px'; el.style.top=(ny-d.h/2)+'px';
+        el.dataset.nx=nx; el.dataset.ny=ny;
+        set('toolbar-meta',`${it.tag} → X ${nx} / Y ${ny} mm`);
+      };
+      const up=()=>{
+        document.removeEventListener('mousemove',move);
+        document.removeEventListener('mouseup',up);
+        el.classList.remove('dragging');
+        const nx=+el.dataset.nx, ny=+el.dataset.ny;
+        if(!Number.isFinite(nx)||!Number.isFinite(ny)) return;
+        if(nx===ox && ny===oy) return;
+        const p=activeProject();
+        (p.cfg.doorPos||(p.cfg.doorPos={}))[id]={x:nx,y:ny};
+        p.updated=Date.now(); persist();
+        generate(false);
+        setDrawMode('door');
+        toast(`${it.tag} dipindah ke X ${nx} / Y ${ny} mm`);
+      };
+      document.addEventListener('mousemove',move);
+      document.addEventListener('mouseup',up);
+    });
+  });
+}
+async function resetDoorLayout(){
+  const p=activeProject();
+  const n=Object.keys(p.cfg.doorPos||{}).length;
+  if(!n){ toast('Front cover sudah memakai posisi otomatis'); return; }
+  if(!await modalConfirm({title:'Reset front cover',confirmLabel:'Reset',
+    message:`${n} komponen yang kamu posisikan manual akan kembali ke tata letak otomatis.`})) return;
+  p.cfg.doorPos={}; p.updated=Date.now(); persist();
+  generate(false); setDrawMode('door');
+  toast('Front cover kembali otomatis');
 }
 
 function drawPlate(){
@@ -1117,6 +1205,103 @@ function drawPlate(){
   const wrap=document.getElementById('stage-wrap');
   wrap.style.width=totW*zoom+'px'; wrap.style.height=totH*zoom+'px';
   set('zoom-pct',Math.round(zoom*100)+'%');
+}
+/* ══════════ GAMBAR STATIS (laporan & export) ══════════
+   Koordinat langsung dikalikan skala — bukan CSS transform — supaya hasil
+   cetak/PDF akurat dan tidak tergantung dukungan transform di print engine. */
+function staticDrawing(mode, maxW){
+  if(!R) return '';
+  const {W,H}=R, FRAME=14, PAD=R.assumptions.layout.pad;
+  const k=Math.min(1,(maxW-70)/(W+FRAME*2));            /* sisakan ruang dimensi */
+  const p=v=>Math.round(v*k*100)/100;
+  const OX=34, OY=22;
+  const boxW=p(W+FRAME*2), boxH=p(H+FRAME*2);
+  let h=`<div class="sd" style="width:${OX+boxW+40}px;height:${OY+boxH+30}px;">`;
+  h+=`<div class="enclosure" style="left:${OX}px;top:${OY}px;width:${boxW}px;height:${boxH}px;"></div>`;
+  h+=`<div class="${mode==='door'?'doorplate':'backplate'}" style="left:${OX+p(FRAME)}px;top:${OY+p(FRAME)}px;width:${p(W)}px;height:${p(H)}px;">`;
+
+  if(mode==='door'){
+    const M=R.door.margin;
+    h+=`<div class="door-margin" style="inset:${p(M)}px;"></div>`;
+    h+=`<div class="hinge" style="left:-3px;top:${p(H*0.18)}px;height:${p(120)}px;width:6px;"></div>`;
+    h+=`<div class="hinge" style="left:-3px;top:${p(H*0.78)}px;height:${p(120)}px;width:6px;"></div>`;
+    for(const it of R.door.items){
+      const d=R.specs[it.type];
+      h+=`<div class="comp${d.round?' round':''}" style="left:${p(it.x-d.w/2)}px;top:${p(it.y-d.h/2)}px;width:${p(d.w)}px;height:${p(d.h)}px;">
+        <div class="ph${d.round?' round':''}" style="border-color:${d.color};background:${d.bg}CC;"></div>
+        ${imgSrc(d)?`<img src="${esc(imgSrc(d))}" alt="" onload="this.parentNode.classList.add('has-img')">`:''}</div>`;
+      h+=`<div class="dtag" style="left:${p(it.x)}px;top:${p(it.y-d.h/2)-2}px;">${esc(it.tag)}</div>`;
+    }
+  }else{
+    for(const row of R.rows){
+      if(row.list){
+        h+=`<div class="rail-tag" style="left:${p(PAD)}px;top:${p(row.railY-row.h/2)-11}px;font-size:8px;">${esc(row.name)}</div>`;
+        h+=`<div class="rail" style="left:${p(PAD-6)}px;top:${p(row.railY-17.5)}px;width:${p(W-PAD*2+12)}px;height:${p(35)}px;"></div>`;
+      }else{
+        h+=`<div class="${row.kind==='duct'?'duct':'tstrip'}" style="left:${p(PAD-6)}px;top:${p(row.y0)}px;width:${p(W-PAD*2+12)}px;height:${p(row.h)}px;font-size:7px;">${esc(row.label)}</div>`;
+      }
+    }
+    for(const it of R.items){
+      const d=R.specs[it.type];
+      h+=`<div class="comp" style="left:${p(it.x-d.w/2)}px;top:${p(it.y-d.h/2)}px;width:${p(d.w)}px;height:${p(d.h)}px;">
+        <div class="ph" style="border-color:${d.color};background:${d.bg}CC;"></div>
+        ${imgSrc(d)?`<img src="${esc(imgSrc(d))}" alt="" onload="this.parentNode.classList.add('has-img')">`:''}</div>`;
+      h+=`<div class="dtag" style="left:${p(it.x)}px;top:${p(it.y-d.h/2)-2}px;">${esc(it.tag)}</div>`;
+    }
+  }
+  h+=`</div>`;
+  /* dimensi */
+  h+=`<div class="dim dim-h" style="left:${OX+p(FRAME)}px;top:${OY-18}px;width:${p(W)}px;font-size:9px;">${W} mm</div>`;
+  h+=`<div class="dim dim-v" style="left:${OX+boxW+6}px;top:${OY+p(FRAME)}px;height:${p(H)}px;font-size:9px;">${H} mm</div>`;
+  if(mode!=='door')
+    h+=`<div class="dim mono" style="left:${OX}px;top:${OY+boxH+8}px;font-size:9px;">Depth ${R.D} mm · skala 1:${Math.round(1/k)}</div>`;
+  else
+    h+=`<div class="dim mono" style="left:${OX}px;top:${OY+boxH+8}px;font-size:9px;">Zona bebas bor ${R.door.margin} mm · skala 1:${Math.round(1/k)}</div>`;
+  h+=`</div>`;
+  return h;
+}
+/* Tabel koordinat: titik tengah lubang / komponen dari sudut kiri-atas */
+function coordTable(items){
+  return `<table class="data"><tr><th>Tag</th><th>Component</th><th>Part number</th>
+      <th>X (mm)</th><th>Y (mm)</th><th>W × H (mm)</th><th>Note</th></tr>`+
+    items.map(it=>{
+      const d=R.specs[it.type];
+      return `<tr><td class="pn"><b>${esc(it.tag)}</b></td><td>${esc(d.desc)}</td>
+        <td class="pn">${esc(d.pn||'—')}</td>
+        <td><b>${Math.round(it.x)}</b></td><td><b>${Math.round(it.y)}</b></td>
+        <td>${d.w} × ${d.h}</td>
+        <td style="color:var(--gray-500);">${it.manual?'manual':(d.mount==='door'?'door':'rail')}</td></tr>`;
+    }).join('')+`</table>`;
+}
+/* Export hanya gambar layout — terpisah dari Report PDF. */
+function printLayout(){
+  recompute();
+  const p=activeProject();
+  document.getElementById('print-area').innerHTML=`
+    <div class="rep-head">
+      <div class="rep-mark" style="display:flex;align-items:center;gap:10px;">
+        <div style="width:34px;height:34px;border-radius:8px;background:var(--blue-500);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;">PB</div>
+        <div><b style="font-size:14px;">Panel Layout Drawing</b><br>
+          <span style="font-size:11px;color:var(--gray-500);">MicroPlus Engineering</span></div>
+      </div>
+      <div style="text-align:right;font-size:11px;color:var(--gray-500);">
+        ${esc(p.name)} · Rev ${esc(p.rev)}<br>${esc(p.customer)}<br>
+        ${R.W} × ${R.H} × ${R.D} mm · IP55<br>${fmtDate(Date.now())}
+      </div>
+    </div>
+    <div class="sd-row">
+      <div><h3>Inside panel — backplate</h3>${staticDrawing('plate',380)}</div>
+      <div><h3>Front cover</h3>${staticDrawing('door',380)}</div>
+    </div>
+    <h3>Front cover — device positions</h3>${coordTable(R.door.items)}
+    <h3>Inside panel — component positions</h3>${coordTable(R.items)}
+    <p style="font-size:10.5px;color:var(--gray-500);line-height:1.6;margin-top:10px;">
+      X / Y diukur dari sudut kiri-atas ke titik tengah komponen (front cover: titik tengah lubang).
+      Dimensi komponen adalah estimasi engineering — verifikasi datasheet sebelum pengeboran.
+    </p>`;
+  document.body.classList.add('printing-layout');
+  setTimeout(()=>{ window.print();
+    setTimeout(()=>document.body.classList.remove('printing-layout'),300); },150);
 }
 function zoomBy(f){ zoom=Math.min(2,Math.max(.4,zoom*f)); draw(); }
 function zoomFit(){
@@ -1535,23 +1720,24 @@ function renderReport(){
       <tr><td>Starting current</td><td>${R.startA.toFixed(1)} A</td><td>Cooling</td><td>${esc(R.thermal.note)}</td></tr>
       <tr><td>Incoming breaker</td><td>${esc(R.mccb.pn)}</td><td>Terminal / wires</td><td>${R.termPoints} / ${R.wires}</td></tr>
       <tr><td>PSU</td><td>${esc(R.psu.pn)} (${Math.round(R.util)}%)</td><td>Rail spare</td><td>${Math.round(R.railFreeMm)} mm</td></tr></table>
-    <h2>3. Front cover layout</h2>
-    <table class="data"><tr><th>Tag</th><th>Device</th><th>Part number</th><th>Qty</th><th>Posisi X / Y (mm)</th></tr>
-      ${(()=>{ const tags={estop:'S1',disconnect:'S0',sel_auto:'S2',pb_start:'S3',pb_stop:'S4',
-                          pb_reset:'S5',lamp_pwr:'H1',lamp_run:'H2',lamp_flt:'H3',hmi:'HMI'};
-        const seen={};
-        return R.door.items.map(it=>{
-          const d=R.specs[it.type]; seen[it.type]=(seen[it.type]||0)+1;
-          const n=R.door.items.filter(x=>x.type===it.type).length;
-          const tag=(tags[it.type]||it.type)+(n>1?'.'+seen[it.type]:'');
-          return `<tr><td class="pn">${esc(tag)}</td><td>${esc(d.desc)}</td>
-            <td class="pn">${esc(d.pn)}</td><td>1</td>
-            <td>${Math.round(it.x)} / ${Math.round(it.y)}</td></tr>`;
-        }).join(''); })()}</table>
+    <h2>3. Layout drawing</h2>
+    <div class="sd-row">
+      <div><h3>3.1 Inside panel — backplate</h3>${staticDrawing('plate',370)}</div>
+      <div><h3>3.2 Front cover</h3>${staticDrawing('door',370)}</div>
+    </div>
+    <h3>3.3 Front cover — device positions</h3>
+    ${coordTable(R.door.items)}
     <p style="font-size:11px;color:var(--gray-500);line-height:1.7;">
-      Posisi diukur dari sudut kiri-atas pintu ke titik tengah lubang. Zona bebas bor
-      ${R.door.margin} mm di semua sisi (gasket + flange).
+      X / Y diukur dari sudut kiri-atas pintu ke <b>titik tengah lubang</b>. Zona bebas bor
+      ${R.door.margin} mm di semua sisi (gasket + flange pintu).
+      ${R.door.manual.length?`${R.door.manual.length} komponen diposisikan manual.`:'Semua posisi otomatis.'}
       ${R.door.fits?'':'<b style="color:var(--red-600);">Perangkat pintu tidak muat pada ukuran panel ini.</b>'}</p>
+    <h3>3.4 Inside panel — component positions</h3>
+    ${coordTable(R.items)}
+    <p style="font-size:11px;color:var(--gray-500);line-height:1.7;">
+      X / Y ke titik tengah komponen, dari sudut kiri-atas backplate. Backplate
+      ${R.W} × ${R.H} mm, margin ${R.assumptions.layout.pad} mm, rail spare
+      ${Math.round(R.railFreeMm)} mm dari ${Math.round(R.railLengthMm)} mm.</p>
     ${R.warnings.length?`<h2>4. Temuan review</h2>
     <table class="data"><tr><th>Level</th><th>Kode</th><th>Temuan</th></tr>
       ${R.warnings.map(w=>`<tr><td style="color:${WARN_COLOR[w.level]};">${w.level}</td>

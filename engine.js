@@ -92,15 +92,17 @@
   const STD_HEIGHTS = [500, 600, 700, 800, 1000, 1200, 1400, 1600, 1800, 2000];
   const STD_WIDTHS  = [400, 600, 800, 1000, 1200];
   const STD_DEPTHS  = [200, 250, 300, 400];
-  /* Catalogue W×H the designer offers. cabH = 0 keeps automatic sizing, where
-     the height comes from the packed layout instead. */
+  /* Catalogue sizes the designer offers, written the way enclosure catalogues
+     write them: HEIGHT first, then width — so 400×300 is 400 tall by 300 wide,
+     a portrait panel. cabH = 0 keeps automatic sizing, where the height comes
+     from the packed layout instead. */
   const STD_SIZES = [
-    { w: 400,  h: 300 },
-    { w: 500,  h: 400 },
-    { w: 600,  h: 400 },
-    { w: 800,  h: 600 },
-    { w: 1000, h: 800 },
-    { w: 1200, h: 800 },
+    { h: 400,  w: 300 },
+    { h: 500,  w: 400 },
+    { h: 600,  w: 400 },
+    { h: 800,  w: 600 },
+    { h: 1000, w: 800 },
+    { h: 1200, w: 800 },
   ];
 
   /* Wiring clearance in front of the deepest component, mm */
@@ -207,6 +209,48 @@
   const DOOR_KEYS = ['estop','hmi','disconnect','pb_start','pb_stop','pb_reset',
                      'sel_auto','lamp_pwr','lamp_run','lamp_flt'];
 
+  /* Reference designation prefixes, loosely IEC 81346:
+     Q switching/protection · F fuse-overload · G supply · K relay/contactor
+     A assembly (CPU, module, HMI) · S control switch · H indicator · T converter
+     E cooling. Devices of one kind number in placement order, so the drawing,
+     the schedule and the BOM all say the same thing. */
+  const DESIGNATION = {
+    mccb: 'Q', mcb3: 'Q', mcb1: 'Q', disconnect: 'Q',
+    spd: 'F', overload: 'F',
+    psu: 'G',
+    contactor: 'K', safety: 'K', irelay: 'KA',
+    plc: 'A', di16: 'A', do16: 'A', ad4: 'A', da4: 'A', eth: 'A', hmi: 'HMI',
+    estop: 'S', sel_auto: 'S', pb_start: 'S', pb_stop: 'S', pb_reset: 'S',
+    lamp_pwr: 'H', lamp_run: 'H', lamp_flt: 'H',
+    vfd: 'T', servo: 'T',
+    fan: 'E',
+  };
+  /* Fixed numbers for the door devices, so START is always S3 on every drawing */
+  const DOOR_TAG = { disconnect: 'Q1', estop: 'S1', sel_auto: 'S2',
+                     pb_start: 'S3', pb_stop: 'S4', pb_reset: 'S5',
+                     lamp_pwr: 'H1', lamp_run: 'H2', lamp_flt: 'H3' };
+
+  /* Stable identity per placed device: type plus its ordinal among its kind.
+     Manual door positions are keyed on this, so they survive a reorder. */
+  function designate(items, fixed) {
+    const perKind = {}, perPrefix = {};
+    return items.map((it) => {
+      perKind[it.type] = (perKind[it.type] || 0) + 1;
+      const ord = perKind[it.type];
+      const id = it.type + '#' + ord;
+      let tag;
+      if (fixed && fixed[it.type]) {
+        const total = items.filter((x) => x.type === it.type).length;
+        tag = fixed[it.type] + (total > 1 ? '.' + ord : '');
+      } else {
+        const p = DESIGNATION[it.type] || 'X';
+        perPrefix[p] = (perPrefix[p] || 0) + 1;
+        tag = p + perPrefix[p];
+      }
+      return Object.assign({}, it, { id, tag });
+    });
+  }
+
   /* ══════════ IEC 60204-1 §13.2 WIRE COLOURS ══════════ */
   const WIRE_COLOUR = {
     power:     'Black',
@@ -226,6 +270,7 @@
     cabW: 800,        /* per-project, was a global setting */
     cabH: 0,          /* 0 = derive height from the layout; else a fixed size */
     extras: [],       /* [{type, qty, rail}] — library components added by hand */
+    doorPos: {},      /* {'estop#1': {x,y}} — manual front-cover placement, mm */
   };
   const NO_PLC = 'none';
 
@@ -256,6 +301,15 @@
     c.hasPlc = c.plc !== NO_PLC && !!c.plc;
     /* Only 200 V and 400 V classes are in the drive tables */
     c.voltClass = c.supplyV <= 300 ? 200 : 400;
+    /* Manual door positions: keep only well-formed numeric pairs, so a corrupt
+       entry cannot push a device to NaN and blank the drawing. */
+    const dp = {};
+    for (const k of Object.keys(c.doorPos || {})) {
+      const p = c.doorPos[k];
+      if (p && Number.isFinite(+p.x) && Number.isFinite(+p.y))
+        dp[k] = { x: +p.x, y: +p.y };
+    }
+    c.doorPos = dp;
     c.extras = (Array.isArray(c.extras) ? c.extras : [])
       .filter((e) => e && e.type)
       .map((e) => ({
@@ -690,6 +744,13 @@
         dims.H = Math.ceil(layout.needH / 100) * 100;
         dims.nonStandardH = true;
       }
+      /* Wall-mount enclosures are portrait by convention, so automatic sizing
+         never returns a panel wider than it is tall — it grows the height to at
+         least the width instead. Catalogue sizes are already portrait. */
+      if (!dims.fixedH && dims.H < W) {
+        dims.H = pickAtLeast(STD_HEIGHTS.map((h) => ({ h })), W, 'h').h;
+        dims.portraitEnforced = true;
+      }
       dims.freeStanding = dims.H > 800;
 
       const heat = heatLoad(layout, sched, dc, counts, A, spec);
@@ -713,6 +774,11 @@
         msg: 'The backplate needs ' + Math.round(layout.needH) + ' mm of height but the ' +
              'selected panel is ' + dims.W + '×' + dims.H + ' mm. Choose a taller size, ' +
              'a wider one so rails pack better, or switch the size back to Auto.' });
+    if (door.draggedOutside.length)
+      warnings.push({ level: 'error', code: 'DOOR_DEVICE_OUTSIDE',
+        msg: 'Manually placed device(s) ' + door.draggedOutside.join(', ') +
+             ' sit outside the door outline. Drag them back inside, or reset the ' +
+             'front-cover layout to automatic.' });
     if (!door.fits)
       warnings.push({ level: 'error', code: 'DOOR_TOO_SMALL',
         msg: 'Front-cover devices need ' + Math.round(door.neededW) + '×' +
@@ -828,7 +894,7 @@
     const needH = Math.max(y - GAPV + PAD, fanColH);
 
     /* place components */
-    const items = [];
+    let items = [];
     for (const row of rows) {
       if (!row.list) continue;
       let x = PAD;
@@ -859,6 +925,9 @@
 
     const ductLengthMm = rows.filter((r) => r.kind === 'duct')
       .reduce((t) => t + (W - PAD * 2), 0);
+
+    /* tag every placed component so drawing, schedule and BOM agree */
+    items = designate(items);
 
     return { rows, items, needH, overflow, usableW,
              railLengthMm, railFreeMm: Math.max(0, railLengthMm - railUsedMm),
@@ -907,11 +976,40 @@
     emit(['lamp_pwr'].concat(fill(1 + counts.dol, 'lamp_run'), ['lamp_flt']),
          'INDICATION', W - M * 2);
 
-    const neededH = Math.max(y - D.rowGap + M, M + est.h + M);
-    const widest = items.reduce((mx, it) =>
-      Math.max(mx, it.x + spec(it.type).w / 2), 0) + M;
-    return { items, zones, neededH, neededW: widest,
-             fits: neededH <= H && widest <= W, margin: M };
+    /* Identify before overriding — manual positions are keyed on the id. */
+    let placed = designate(items, DOOR_TAG);
+
+    /* Manual placement wins over the generated position. Only the devices you
+       actually moved are pinned; the rest keep flowing automatically. */
+    const manual = [];
+    placed = placed.map((it) => {
+      const p = c.doorPos && c.doorPos[it.id];
+      if (!p) return it;
+      manual.push(it.id);
+      return Object.assign({}, it, { x: p.x, y: p.y, manual: true });
+    });
+
+    /* Extent is measured from where things ACTUALLY are, so a device dragged
+       off the door still reports as not fitting. */
+    const ext = placed.reduce((a, it) => {
+      const d = spec(it.type);
+      return { w: Math.max(a.w, it.x + d.w / 2), h: Math.max(a.h, it.y + d.h / 2) };
+    }, { w: 0, h: 0 });
+    const isOutside = (it) => {
+      const d = spec(it.type);
+      return it.x - d.w / 2 < 0 || it.x + d.w / 2 > W ||
+             it.y - d.h / 2 < 0 || it.y + d.h / 2 > H;
+    };
+    const outside = placed.filter(isOutside).map((it) => it.tag);
+    /* Separate the two causes: a device you dragged off the door needs "drag it
+       back", a device the generator could not fit needs a bigger panel. */
+    const draggedOutside = placed.filter((it) => it.manual && isOutside(it))
+      .map((it) => it.tag);
+
+    return { items: placed, zones, margin: M, manual, outside, draggedOutside,
+             neededH: Math.max(ext.h + M, M + est.h + M),
+             neededW: ext.w + M,
+             fits: ext.h <= H && ext.w <= W && !outside.length };
   }
 
   /* ══════════ HEAT LOAD ══════════ */

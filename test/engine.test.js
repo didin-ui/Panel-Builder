@@ -510,10 +510,32 @@ describe('library — resolveDb', () => {
 });
 
 /* ════════════════════════════════════════════════════════════════════ */
-describe('panel size — catalogue W×H vs automatic', () => {
-  test('the offered sizes are the ones the designer lists', () => {
-    assert.deepEqual(E.STD_SIZES.map((s) => s.w + 'x' + s.h),
+describe('panel size — catalogue H×W vs automatic', () => {
+  test('the offered sizes are the ones the designer lists, height first', () => {
+    assert.deepEqual(E.STD_SIZES.map((s) => s.h + 'x' + s.w),
       ['400x300', '500x400', '600x400', '800x600', '1000x800', '1200x800']);
+  });
+
+  test('every catalogue size is portrait — taller than wide', () => {
+    for (const s of E.STD_SIZES)
+      assert.ok(s.h >= s.w, `${s.h}×${s.w} is landscape`);
+  });
+
+  test('automatic sizing never returns a landscape panel either', () => {
+    const machines = [
+      { di: 4, do_: 4, ai: 0, ao: 0, vfd: 0, servo: 0, hmi: 0, motor: 1, valve: 1 },
+      { di: 8, do_: 8, ai: 0, ao: 0, vfd: 0, servo: 0, hmi: 0, motor: 2, valve: 2 },
+      { plc: E.NO_PLC, di: 0, do_: 0, ai: 0, ao: 0, vfd: 0, servo: 0, hmi: 0, motor: 3, valve: 0 },
+      {},
+    ];
+    for (const m of machines)
+      for (const cabW of E.STD_WIDTHS) {
+        const r = R(Object.assign({ cabW, cabH: 0 }, m));
+        assert.ok(r.H >= r.W,
+          `auto gave ${r.W} wide × ${r.H} tall (landscape) for cabW=${cabW}`);
+        assert.ok(r.H >= r.needH, 'portrait enforcement must not cut content');
+        assert.ok(E.STD_HEIGHTS.includes(r.H) || r.dims.nonStandardH);
+      }
   });
 
   test('a chosen height is honoured exactly, not rounded', () => {
@@ -623,6 +645,46 @@ describe('front cover layout', () => {
     }
   });
 
+  test('every device gets a stable id and a fixed tag', () => {
+    const r = R();
+    const byTag = {};
+    for (const it of r.door.items) byTag[it.type] = it.tag;
+    assert.equal(byTag.estop, 'S1');
+    assert.equal(byTag.sel_auto, 'S2');
+    assert.equal(byTag.pb_start, 'S3');
+    assert.equal(byTag.pb_stop, 'S4');
+    assert.equal(byTag.pb_reset, 'S5');
+    assert.equal(byTag.lamp_pwr, 'H1');
+    assert.equal(byTag.lamp_flt, 'H3');
+    assert.equal(byTag.disconnect, 'Q1');
+    /* ids are unique and encode the ordinal */
+    const ids = r.door.items.map((i) => i.id);
+    assert.equal(new Set(ids).size, ids.length);
+    assert.ok(ids.includes('estop#1'));
+    assert.ok(ids.includes('hmi#2'), 'second HMI should be hmi#2');
+  });
+
+  test('tags stay put when unrelated devices change', () => {
+    const a = R({ hmi: 1 });
+    const b = R({ hmi: 3, motor: 9 });
+    const tagOf = (r, t) => r.door.items.find((i) => i.type === t).tag;
+    for (const t of ['estop', 'pb_start', 'pb_stop', 'lamp_pwr', 'lamp_flt'])
+      assert.equal(tagOf(a, t), tagOf(b, t), t + ' tag moved');
+  });
+
+  test('backplate components are designated too', () => {
+    const r = R();
+    const byType = {};
+    for (const it of r.items) if (!byType[it.type]) byType[it.type] = it.tag;
+    assert.equal(byType.mccb, 'Q1');
+    assert.equal(byType.psu, 'G1');
+    assert.equal(byType.plc, 'A1');
+    assert.match(byType.contactor, /^K\d+$/);
+    assert.match(byType.vfd, /^T\d+$/);
+    const ids = r.items.map((i) => i.id);
+    assert.equal(new Set(ids).size, ids.length, 'duplicate backplate ids');
+  });
+
   test('a door too small for its devices is an error', () => {
     const r = R({ cabW: 400, cabH: 300, hmi: 4 });
     assert.ok(r.warnings.some((w) => w.code === 'DOOR_TOO_SMALL' && w.level === 'error'));
@@ -659,6 +721,86 @@ describe('front cover layout', () => {
     const hmiLines = r.dcDetail.internal.filter((x) => /HMI/.test(x.name));
     assert.equal(hmiLines.length, 1, 'HMI counted more than once');
     assert.equal(hmiLines[0].w, 30);
+  });
+});
+
+describe('front cover — manual positioning', () => {
+  test('a manual position overrides the generated one', () => {
+    const r = R({ doorPos: { 'estop#1': { x: 150, y: 520 } } });
+    const e = r.door.items.find((i) => i.id === 'estop#1');
+    assert.equal(e.x, 150);
+    assert.equal(e.y, 520);
+    assert.equal(e.manual, true);
+  });
+
+  test('only moved devices are pinned; the rest keep flowing', () => {
+    const auto = R();
+    const r = R({ doorPos: { 'pb_start#1': { x: 100, y: 600 } } });
+    assert.deepEqual(r.door.manual, ['pb_start#1']);
+    for (const it of r.door.items) {
+      if (it.id === 'pb_start#1') continue;
+      const a = auto.door.items.find((x) => x.id === it.id);
+      assert.equal(it.x, a.x, it.id + ' moved without being asked');
+      assert.equal(it.y, a.y, it.id + ' moved without being asked');
+    }
+  });
+
+  test('dragging a device off the door is reported as such', () => {
+    const r = R({ doorPos: { 'estop#1': { x: -40, y: 100 } } });
+    assert.deepEqual(r.door.draggedOutside, ['S1']);
+    const w = r.warnings.find((x) => x.code === 'DOOR_DEVICE_OUTSIDE');
+    assert.ok(w && w.level === 'error');
+    assert.match(w.msg, /S1/);
+    assert.equal(r.door.fits, false);
+  });
+
+  test('an auto-layout overflow is NOT blamed on manual placement', () => {
+    const r = R({ cabW: 300, cabH: 400, hmi: 4 });
+    assert.ok(!r.warnings.some((x) => x.code === 'DOOR_DEVICE_OUTSIDE'),
+      'auto overflow misreported as a dragged device');
+    assert.ok(r.warnings.some((x) => x.code === 'DOOR_TOO_SMALL'));
+  });
+
+  test('manual positions extend the reported extent', () => {
+    const r = R({ doorPos: { 'lamp_flt#1': { x: 200, y: 900 } } });
+    assert.ok(r.door.neededH >= 900, 'extent ignores a manually placed device');
+  });
+
+  test('positions for devices that no longer exist are harmless', () => {
+    const r = R({ hmi: 0, doorPos: { 'hmi#1': { x: 100, y: 100 } } });
+    assert.ok(!r.door.items.some((i) => i.type === 'hmi'));
+    assert.ok(Number.isFinite(r.door.neededH));
+    assert.equal(r.door.manual.length, 0);
+  });
+
+  test('a position is restored if the device comes back', () => {
+    const pos = { 'hmi#1': { x: 250, y: 300 } };
+    assert.equal(R({ hmi: 0, doorPos: pos }).door.manual.length, 0);
+    const back = R({ hmi: 1, doorPos: pos });
+    assert.deepEqual(back.door.manual, ['hmi#1']);
+    assert.equal(back.door.items.find((i) => i.id === 'hmi#1').x, 250);
+  });
+
+  test('malformed positions are dropped, not propagated', () => {
+    const r = R({ doorPos: {
+      'estop#1': { x: 'abc', y: null },
+      'pb_stop#1': { x: 10 },
+      'pb_start#1': { x: 90, y: 400 },
+    } });
+    assert.deepEqual(Object.keys(r.cfg.doorPos), ['pb_start#1']);
+    const bad = [];
+    (function scan(o, p) {
+      if (typeof o === 'number') { if (!Number.isFinite(o)) bad.push(p); return; }
+      if (o && typeof o === 'object') Object.keys(o).forEach((k) => scan(o[k], p + '.' + k));
+    })(r.door, 'door');
+    assert.deepEqual(bad, []);
+  });
+
+  test('manual placement does not change the BOM', () => {
+    const auto = R();
+    const moved = R({ doorPos: { 'estop#1': { x: 150, y: 520 } } });
+    assert.deepEqual(moved.bom.map((b) => b.pn + ':' + b.qty),
+                     auto.bom.map((b) => b.pn + ':' + b.qty));
   });
 });
 

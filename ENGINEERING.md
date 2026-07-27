@@ -205,14 +205,20 @@ exhaust fans" above 250 W while unconditionally placing and purchasing one.
 
 ## 6. Enclosure sizing
 
-Two modes, chosen in the designer's **Panel size (L × T)** dropdown:
+Sizes are written **height first**, the way enclosure catalogues write them: a
+400×300 panel is 400 tall by 300 wide. Every panel is therefore **portrait**,
+which is the convention for wall-mount industrial enclosures.
+
+Two modes, chosen in the designer's **Panel size (Tinggi × Lebar)** dropdown:
 
 **Auto** (`cabH = 0`) — width is chosen, height is derived from the packed layout
 and rounded up to the next standard size. Above 2000 mm it rounds to 100 mm with
-a `HEIGHT_NONSTD` warning.
+a `HEIGHT_NONSTD` warning. If the derived height would come out *less* than the
+width, it is raised to the next standard height at or above the width, so
+automatic sizing never returns a landscape panel either (`portraitEnforced`).
 
 **Catalogue size** — one of 400×300, 500×400, 600×400, 800×600, 1000×800,
-1200×800 mm. The chosen height is used **exactly as given**, never silently
+1200×800 mm (H × W). The chosen height is used **exactly as given**, never silently
 adjusted. If the packed backplate needs more height than the chosen panel, the
 engine raises a `PANEL_TOO_SMALL` **error** stating the required figure — the
 size is respected, and you are told it does not work. Same for the front cover
@@ -303,11 +309,37 @@ wants it unobstructed. Rows wrap on width like the DIN rails.
 Door devices reach the BOM flagged `door: true`, get a legend-plate line, and are
 wired (selector, start, stop, reset, lamps, disconnect aux). Pilot lamps add
 0.5 W each to the internal 24 V load; HMI power stays on its existing budget line
-so it is never counted twice. The report carries a front-cover schedule with tags
-(S0–S5, H1–H3, HMI) and X/Y hole positions measured from the top-left corner.
+so it is never counted twice.
 
-**Not modelled:** hole diameters as a drilling table (the positions are there,
-the cutout sizes are not), door interlocks, and any ergonomic height check.
+### Reference designations
+
+Every placed device — front cover and backplate — gets a stable `id`
+(`type#ordinal`, e.g. `estop#1`) and a `tag` following IEC 81346 prefixes:
+Q switching/protection · F fuse-overload · G supply · K relay/contactor ·
+A assembly (CPU, module) · S control switch · H indicator · T converter ·
+E cooling. Door devices use **fixed** numbers so START is always S3 on every
+drawing: Q1 disconnect, S1 E-stop, S2 selector, S3 START, S4 STOP, S5 RESET,
+H1 POWER, H2 RUN, H3 FAULT, HMI1…n. The drawing, the coordinate schedule and the
+BOM therefore all say the same thing.
+
+### Manual positioning
+
+Front-cover devices can be dragged. A moved device is stored in
+`cfg.doorPos[id] = {x, y}`, snapped to 5 mm and clamped inside the door. Only
+devices you actually moved are pinned (`door.manual`); everything else keeps
+flowing from the generator, so adding an HMI still rearranges the rest. Because
+positions are keyed on the stable id, a position is remembered even if the device
+temporarily disappears from the configuration and comes back.
+
+The reported extent is measured from where devices **actually** are, so a device
+dragged off the door is caught. Two distinct errors: `DOOR_DEVICE_OUTSIDE` when a
+*manually placed* device is outside (drag it back or reset), and `DOOR_TOO_SMALL`
+when the *generator* could not fit them (choose a larger panel).
+
+**Not modelled:** hole diameters as a drilling table (positions and bezel sizes
+are there, cutout diameters are not), door interlocks, ergonomic height checks,
+and collision detection between manually placed devices — you can overlap two
+devices if you drag them on top of each other.
 
 ## 10. Panels without a PLC
 
