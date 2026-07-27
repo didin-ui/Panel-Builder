@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel Builder Assistant</title>
+<link rel="icon" href="assets/ui/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue-600:#1B5FA8; --blue-500:#2478CE; --blue-100:#E3EEF9; --blue-50:#F0F6FC;
+    --navy:#12385E; --ink:#1E2A36; --gray-700:#42505C; --gray-500:#6B7885; --gray-300:#C7D0D9;
+    --gray-200:#DDE3E9; --gray-100:#EEF1F4; --paper:#FFFFFF; --canvas:#F4F6F8;
+    --green-600:#1E7B4D; --green-100:#DFF2E7; --amber-700:#8A5A10; --amber-100:#FBEED3;
+    --red-600:#B3372E; --red-100:#FAE3E1; --radius:8px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var(--ink);font-size:13px;-webkit-font-smoothing:antialiased;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .app{display:grid;grid-template-columns:216px 1fr;grid-template-rows:56px 1fr;height:100vh;min-height:720px;}
+
+  /* Sidebar */
+  .sidebar{grid-row:1/3;background:var(--navy);color:#B9CCDF;display:flex;flex-direction:column;}
+  .brand{display:flex;align-items:center;gap:10px;padding:14px 16px 18px;color:#fff;}
+  .brand img{height:32px;display:none;}
+  .brand.has-logo img{display:block;} .brand.has-logo .brand-mark,.brand.has-logo .brand-txt{display:none;}
+  .brand-mark{width:32px;height:32px;border-radius:8px;background:var(--blue-500);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;color:#fff;flex:0 0 auto;}
+  .brand b{font-size:13.5px;font-weight:600;display:block;line-height:1.2;}
+  .brand span{font-size:11px;color:#8FA9C2;}
+  .nav{flex:1;padding:4px 10px;display:flex;flex-direction:column;gap:2px;overflow-y:auto;}
+  .nav a{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:var(--radius);color:#B9CCDF;text-decoration:none;font-size:12.5px;cursor:pointer;}
+  .nav a:hover{background:rgba(255,255,255,.06);color:#fff;}
+  .nav a.active{background:var(--blue-500);color:#fff;font-weight:500;}
+  .nav svg{width:17px;height:17px;flex:0 0 auto;}
+  .side-foot{padding:12px 16px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:#7D97B1;}
+
+  /* Topbar */
+  .topbar{display:flex;align-items:center;gap:18px;background:var(--paper);border-bottom:1px solid var(--gray-200);padding:0 20px;}
+  .proj b{font-size:13.5px;font-weight:600;display:block;}
+  .proj span{font-size:11.5px;color:var(--gray-500);}
+  .search{flex:1;max-width:340px;display:flex;align-items:center;gap:8px;background:var(--gray-100);border:1px solid var(--gray-200);border-radius:var(--radius);padding:7px 12px;color:var(--gray-500);}
+  .search svg{width:15px;height:15px;flex:0 0 auto;}
+  .search input{border:none;background:none;outline:none;font-family:inherit;font-size:12.5px;width:100%;color:var(--ink);}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:16px;}
+  .bell{position:relative;color:var(--gray-700);}
+  .bell svg{width:19px;height:19px;}
+  .bell i{position:absolute;top:-4px;right:-6px;background:var(--red-600);color:#fff;font-style:normal;font-size:10px;font-weight:600;border-radius:8px;padding:1px 5px;}
+  .avatar{display:flex;align-items:center;gap:9px;}
+  .avatar .disc{width:30px;height:30px;border-radius:50%;background:var(--blue-100);color:var(--blue-600);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;overflow:hidden;position:relative;}
+  .avatar .disc img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;}
+  .avatar .disc.has-img img{display:block;}
+  .avatar span{font-size:12px;color:var(--gray-700);}
+
+  /* Views */
+  .main{overflow-y:auto;padding:16px 20px 76px;position:relative;}
+  .view{display:none;}
+  .view.active{display:block;}
+  .page-h{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+  .page-h h1{font-size:17px;font-weight:600;}
+  .page-h .sub{font-size:12px;color:var(--gray-500);}
+  .page-h .spacer{flex:1;}
+
+  .card{background:var(--paper);border:1px solid var(--gray-200);border-radius:12px;}
+  .card-h{padding:12px 14px;border-bottom:1px solid var(--gray-100);font-weight:600;font-size:12.5px;display:flex;align-items:center;gap:8px;}
+  .card-b{padding:12px 14px;}
+  .btn{border:1px solid var(--gray-300);background:#fff;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:500;font-family:inherit;color:var(--gray-700);cursor:pointer;}
+  .btn:hover{border-color:var(--blue-500);color:var(--blue-600);background:var(--blue-50);}
+  .btn.primary{background:var(--blue-500);border-color:var(--blue-500);color:#fff;}
+  .btn.primary:hover{background:var(--blue-600);}
+  .btn.danger:hover{border-color:var(--red-600);color:var(--red-600);background:var(--red-100);}
+  .badge{display:inline-block;font-size:11px;font-weight:500;border-radius:6px;padding:2px 9px;}
+  .b-green{background:var(--green-100);color:var(--green-600);}
+  .b-amber{background:var(--amber-100);color:var(--amber-700);}
+  .b-red{background:var(--red-100);color:var(--red-600);}
+  .b-blue{background:var(--blue-100);color:var(--blue-600);}
+  table.data{width:100%;border-collapse:collapse;font-size:12px;}
+  table.data th{text-align:left;font-size:11px;font-weight:600;color:var(--gray-500);padding:9px 12px;border-bottom:1px solid var(--gray-200);background:var(--gray-100);}
+  table.data td{padding:8px 12px;border-bottom:1px solid var(--gray-100);vertical-align:middle;}
+  table.data tr:last-child td{border-bottom:none;}
+  table.data tr.click{cursor:pointer;}
+  table.data tr.click:hover td{background:var(--blue-50);}
+  .pn{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--blue-600);}
+
+  /* Dashboard */
+  .stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px;}
+  .scard{background:var(--paper);border:1px solid var(--gray-200);border-radius:12px;padding:14px;}
+  .scard b{display:block;font-size:22px;font-weight:600;margin-top:4px;}
+  .scard span{font-size:11.5px;color:var(--gray-500);}
+  .dash-grid{display:grid;grid-template-columns:2fr 1fr;gap:14px;align-items:start;}
+
+  /* Designer */
+  .workspace{display:grid;grid-template-columns:250px minmax(0,1fr) 268px;gap:14px;align-items:start;}
+  .field{margin-bottom:10px;}
+  .field label{display:block;font-size:11px;color:var(--gray-500);margin-bottom:4px;font-weight:500;}
+  .field input,.field select{width:100%;border:1px solid var(--gray-300);border-radius:6px;padding:7px 9px;font-size:12.5px;font-family:inherit;background:#fff;color:var(--ink);}
+  .field input:focus,.field select:focus{outline:2px solid var(--blue-100);border-color:var(--blue-500);}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .btn-generate{width:100%;margin-top:6px;background:var(--blue-500);color:#fff;border:none;border-radius:var(--radius);padding:11px 0;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .btn-generate:hover{background:var(--blue-600);}
+  .cab-head{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  .chip{font-size:11px;color:var(--gray-700);background:var(--gray-100);border:1px solid var(--gray-200);border-radius:6px;padding:3px 9px;white-space:nowrap;}
+  .cab-tools{display:flex;align-items:center;gap:6px;padding:8px 14px;border-bottom:1px solid var(--gray-100);}
+  .tbtn{border:1px solid var(--gray-300);background:#fff;border-radius:6px;width:28px;height:28px;font-size:14px;color:var(--gray-700);cursor:pointer;}
+  .tbtn:hover{border-color:var(--blue-500);color:var(--blue-600);}
+  .cab-tools .sep{width:1px;height:18px;background:var(--gray-200);margin:0 4px;}
+  .cab-tools label{font-size:11.5px;color:var(--gray-500);display:flex;align-items:center;gap:5px;}
+  .cab-scroll{overflow:auto;padding:16px;background:var(--gray-100);border-radius:0 0 12px 12px;}
+  .stage-wrap{margin:0 auto;position:relative;}
+  .stage{position:absolute;top:0;left:0;transform-origin:0 0;}
+  .enclosure{position:absolute;background:#E9ECEF;border:3px solid #55636F;border-radius:6px;box-shadow:inset 0 0 0 1px #fff;}
+  .backplate{position:absolute;background:#F6F8F9 url('assets/textures/backplate.png');background-size:400px;border:1px solid var(--gray-300);}
+  .gridlayer{position:absolute;inset:0;background-image:linear-gradient(#2478CE1A 1px,transparent 1px),linear-gradient(90deg,#2478CE1A 1px,transparent 1px);background-size:20px 20px;pointer-events:none;}
+  .rail{position:absolute;background:#AEB9C4 url('assets/textures/din-rail.png');background-size:auto 100%;border-top:1px solid #8A98A5;border-bottom:2px solid #7A8894;}
+  .duct{position:absolute;background:#D4DAE0 url('assets/textures/wire-duct-45.png');background-size:auto 100%;border:1px solid #B9C2CB;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#6B7885;letter-spacing:.5px;}
+  .tstrip{position:absolute;background:#CDD5DC url('assets/textures/terminal-strip.png');background-size:auto 100%;border:1px solid #9AA6B1;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#57646F;}
+  .rail-tag{position:absolute;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#6B7885;letter-spacing:.5px;}
+  .comp{position:absolute;border-radius:3px;}
+  .comp .ph{position:absolute;inset:0;border:1.5px dashed;border-radius:3px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center;padding:3px;overflow:hidden;}
+  .comp .ph b{font-size:10px;font-weight:600;line-height:1.15;}
+  .comp .ph i{font-style:normal;font-family:'IBM Plex Mono',monospace;font-size:8px;opacity:.85;line-height:1.2;word-break:break-all;}
+  .comp img{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:none;}
+  .comp.has-img img{display:block;}
+  .comp.has-img .ph{display:none;}
+  .tag{position:absolute;transform:translate(-50%,-100%);background:var(--blue-600);color:#fff;font-size:9.5px;font-weight:500;border-radius:4px;padding:2px 7px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.25);}
+  .tag::after{content:'';position:absolute;left:50%;bottom:-4px;transform:translateX(-50%);border:4px solid transparent;border-top-color:var(--blue-600);border-bottom:0;}
+  .dim{position:absolute;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--blue-500);}
+  .dim-h{border-bottom:1px solid var(--blue-500);text-align:center;padding-bottom:2px;}
+  .dim-h::before,.dim-h::after{content:'';position:absolute;bottom:-3px;width:1px;height:7px;background:var(--blue-500);}
+  .dim-h::before{left:0;} .dim-h::after{right:0;}
+  .dim-v{border-right:1px solid var(--blue-500);writing-mode:vertical-rl;padding-right:3px;text-align:center;}
+  .dim-v::before,.dim-v::after{content:'';position:absolute;right:-3px;height:1px;width:7px;background:var(--blue-500);}
+  .dim-v::before{top:0;} .dim-v::after{bottom:0;}
+  .asset-note{padding:8px 14px;border-top:1px solid var(--gray-100);font-size:10.5px;color:var(--gray-500);line-height:1.6;}
+  .asset-note code{font-family:'IBM Plex Mono',monospace;font-size:10px;background:var(--gray-100);border-radius:4px;padding:1px 5px;}
+  .rcol{display:flex;flex-direction:column;gap:12px;}
+  .kv{width:100%;border-collapse:collapse;font-size:12px;}
+  .kv td{padding:3px 0;color:var(--gray-500);}
+  .kv td:last-child{text-align:right;color:var(--ink);font-weight:600;}
+  .accent{color:var(--blue-600)!important;}
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .stat{background:var(--gray-100);border-radius:var(--radius);padding:9px 6px;text-align:center;}
+  .stat b{display:block;font-size:17px;font-weight:600;}
+  .stat span{font-size:10.5px;color:var(--gray-500);}
+  .util{height:6px;background:var(--gray-200);border-radius:3px;margin-top:8px;overflow:hidden;}
+  .util i{display:block;height:100%;background:var(--blue-500);transition:width .4s;}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+  .warn{font-size:11px;color:var(--red-600);margin-top:6px;display:none;}
+  .warn.show{display:block;}
+
+  /* Library */
+  .lib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;}
+  .lib-card{background:var(--paper);border:1px solid var(--gray-200);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;}
+  .lib-img{height:110px;background:var(--gray-100);border-radius:8px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+  .lib-img img{max-width:80%;max-height:90%;object-fit:contain;display:none;}
+  .lib-img.has-img img{display:block;}
+  .lib-img.has-img .lph{display:none;}
+  .lph{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--gray-500);text-align:center;padding:6px;line-height:1.5;border:1.5px dashed var(--gray-300);border-radius:6px;margin:8px;}
+  .lib-card b{font-size:12px;font-weight:600;}
+  .lib-card small{font-size:10.5px;color:var(--gray-500);line-height:1.5;}
+
+  /* Toolbar + AI */
+  .toolbar{position:fixed;left:216px;right:0;bottom:0;background:var(--paper);border-top:1px solid var(--gray-200);display:flex;align-items:center;gap:8px;padding:10px 20px;z-index:20;}
+  .toolbar span.lbl{font-size:11.5px;color:var(--gray-500);margin-right:2px;}
+  .toolbar .meta{margin-left:auto;font-size:11.5px;color:var(--gray-500);}
+  .ai{position:fixed;right:20px;bottom:64px;width:296px;background:var(--paper);border:1px solid var(--gray-300);border-radius:14px;box-shadow:0 12px 32px rgba(18,56,94,.14);overflow:hidden;z-index:30;}
+  .ai.min .ai-b{display:none;}
+  .ai-h{display:flex;align-items:center;gap:8px;background:var(--blue-600);color:#fff;padding:10px 13px;font-size:12.5px;font-weight:600;cursor:pointer;}
+  .ai-b{padding:12px 13px;}
+  .ai-msg{background:var(--blue-50);border:1px solid var(--blue-100);border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.55;}
+  .ai-in{display:flex;align-items:center;gap:8px;margin-top:10px;border:1px solid var(--gray-300);border-radius:var(--radius);padding:7px 11px;color:var(--gray-500);font-size:12px;}
+
+  /* Report / print */
+  .report{max-width:820px;}
+  .report h2{font-size:14px;font-weight:600;margin:18px 0 8px;}
+  .rep-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--navy);padding-bottom:12px;margin-bottom:6px;}
+  .rep-head img{height:40px;display:none;}
+  .rep-head.has-logo img{display:block;} .rep-head.has-logo .rep-mark{display:none;}
+  @media print{
+    body *{visibility:hidden;}
+    #view-reports,#view-reports *{visibility:visible;}
+    #view-reports{position:absolute;left:0;top:0;width:100%;padding:0;}
+    .no-print{display:none!important;}
+  }
+  @media (max-width:1160px){
+    .workspace,.dash-grid{grid-template-columns:1fr;}
+    .ai{position:static;width:auto;margin-top:14px;box-shadow:none;}
+    .toolbar{left:0;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <img src="assets/ui/logo.svg" alt="Logo" onload="this.parentNode.classList.add('has-logo')">
+      <div class="brand-mark">PB</div>
+      <div class="brand-txt"><b>Panel Builder</b><span>AI design assistant</span></div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot">v3.1.0 · MicroPlus Engineering<br><span id="db-status"><span style="color:#E8B34B;">●</span> Local only</span></div>
+  </aside>
+
+  <header class="topbar">
+    <div class="proj"><b id="tb-proj">—</b><span id="tb-cust">—</span></div>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="global-search" placeholder="Search components, projects, part numbers…">
+    </div>
+    <div class="top-right">
+      <div class="bell"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><i>3</i></div>
+      <div class="avatar">
+        <div class="disc">DW<img src="assets/ui/avatar.png" alt="" onload="this.parentNode.classList.add('has-img')"></div>
+        <span>Didin Wahyudin · Engineer</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <!-- ═══ DASHBOARD ═══ -->
+    <section class="view" id="view-dashboard">
+      <div class="page-h"><h1>Dashboard</h1><span class="sub" id="dash-date"></span>
+        <span class="spacer"></span><button class="btn primary" onclick="newProject()">+ New project</button></div>
+      <div class="stat-cards" id="dash-stats"></div>
+      <div class="dash-grid">
+        <div class="card">
+          <div class="card-h">Recent projects</div>
+          <table class="data" id="dash-projects"></table>
+        </div>
+        <div class="card">
+          <div class="card-h">Asset readiness</div>
+          <div class="card-b" id="dash-assets" style="font-size:12px;color:var(--gray-500);line-height:1.8;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ PROJECTS ═══ -->
+    <section class="view" id="view-projects">
+      <div class="page-h"><h1>Projects</h1><span class="spacer"></span>
+        <button class="btn primary" onclick="newProject()">+ New project</button></div>
+      <div class="card"><table class="data" id="proj-table"></table></div>
+    </section>
+
+    <!-- ═══ PANEL DESIGNER ═══ -->
+    <section class="view" id="view-designer">
+      <div class="workspace">
+        <section class="card">
+          <div class="card-h">Machine configuration</div>
+          <div class="card-b">
+            <div class="field"><label>PLC</label>
+              <select id="cfg-plc"><option>Mitsubishi FX5U</option><option>Mitsubishi FX5UJ</option></select></div>
+            <div class="grid2">
+              <div class="field"><label>Digital inputs</label><input id="cfg-di" type="number" value="24" min="0" max="128"></div>
+              <div class="field"><label>Digital outputs</label><input id="cfg-do" type="number" value="16" min="0" max="128"></div>
+              <div class="field"><label>Analog inputs</label><input id="cfg-ai" type="number" value="4" min="0" max="16"></div>
+              <div class="field"><label>Analog outputs</label><input id="cfg-ao" type="number" value="2" min="0" max="16"></div>
+            </div>
+            <div class="grid2">
+              <div class="field"><label>VFD (× 2.2 kW)</label><input id="cfg-vfd" type="number" value="3" min="0" max="6"></div>
+              <div class="field"><label>Servo (× 750 W)</label><input id="cfg-servo" type="number" value="2" min="0" max="6"></div>
+              <div class="field"><label>HMI</label><input id="cfg-hmi" type="number" value="2" min="0" max="4"></div>
+              <div class="field"><label>Motors</label><input id="cfg-motor" type="number" value="6" min="0" max="12"></div>
+            </div>
+            <div class="field"><label>Solenoid valves</label><input id="cfg-valve" type="number" value="5" min="0" max="24"></div>
+            <button class="btn-generate" onclick="generate(true)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/></svg>
+              Generate panel
+            </button>
+            <button class="btn" style="width:100%;margin-top:8px;" onclick="saveProject(true)">Save project</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-h cab-head"><span>2D panel layout</span><span class="chip" id="cab-chip">—</span></div>
+          <div class="cab-tools">
+            <button class="tbtn" onclick="zoomBy(1.15)" title="Zoom in">+</button>
+            <button class="tbtn" onclick="zoomBy(1/1.15)" title="Zoom out">−</button>
+            <button class="tbtn" onclick="zoomFit()" title="Fit">⤢</button>
+            <div class="sep"></div>
+            <label><input type="checkbox" id="chk-grid" checked onchange="draw()"> Grid</label>
+            <label><input type="checkbox" id="chk-tags" checked onchange="draw()"> Labels</label>
+            <span style="margin-left:auto;font-size:11px;color:var(--gray-500);" id="zoom-pct">100%</span>
+          </div>
+          <div class="cab-scroll" id="scroll">
+            <div class="stage-wrap" id="stage-wrap"><div class="stage" id="stage"></div></div>
+          </div>
+          <div class="asset-note">
+            Slot bergaris putus = gambar belum ada di <code>assets/components/</code>. Tekstur: <code>assets/textures/</code>. Daftar lengkap di <code>ASSET-LIST.md</code>.
+          </div>
+        </section>
+
+        <aside class="rcol">
+          <section class="card">
+            <div class="card-h"><span class="dot" style="background:#2478CE;"></span>Power calculation</div>
+            <div class="card-b">
+              <table class="kv">
+                <tr><td>Total connected load</td><td id="r-load">—</td></tr>
+                <tr><td>Peak current (3P 400 V)</td><td id="r-peak">—</td></tr>
+                <tr><td>Control load 24 VDC</td><td id="r-dc">—</td></tr>
+                <tr><td>Recommended PSU</td><td class="accent" id="r-psu">—</td></tr>
+              </table>
+              <div class="util"><i id="r-util-bar" style="width:0%"></i></div>
+              <div style="font-size:11px;color:var(--gray-500);margin-top:4px;">PSU utilization <span id="r-util">—</span></div>
+            </div>
+          </section>
+          <section class="card">
+            <div class="card-h"><span class="dot" style="background:#C08415;"></span>Heat analysis</div>
+            <div class="card-b">
+              <table class="kv">
+                <tr><td>Heat dissipation</td><td id="r-heat">—</td></tr>
+                <tr><td>Cabinet temperature</td><td id="r-temp">—</td></tr>
+                <tr><td>Recommendation</td><td class="accent" id="r-cool">—</td></tr>
+              </table>
+            </div>
+          </section>
+          <section class="card">
+            <div class="card-h"><span class="dot" style="background:#1E7B4D;"></span>Cabinet recommendation</div>
+            <div class="card-b" style="font-size:12px;color:var(--gray-700);line-height:1.7;">
+              <span id="r-mount">Wall mount</span> · IP55<br>
+              <span class="mono" style="color:var(--ink);font-weight:500;" id="r-size">—</span><br>
+              Mild steel, RAL 7035, bottom gland plate
+              <div class="warn" id="r-warn"></div>
+            </div>
+          </section>
+          <section class="card">
+            <div class="card-h"><span class="dot" style="background:#5B4BB5;"></span>Component summary</div>
+            <div class="card-b">
+              <div class="stat-grid">
+                <div class="stat"><b id="s-comp">—</b><span>Components</span></div>
+                <div class="stat"><b id="s-term">—</b><span>Terminal points</span></div>
+                <div class="stat" style="grid-column:1/-1;"><b id="s-wire">—</b><span>Wire labels</span></div>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ═══ COMPONENTS LIBRARY ═══ -->
+    <section class="view" id="view-library">
+      <div class="page-h"><h1>Components library</h1>
+        <span class="sub" id="lib-count"></span><span class="spacer"></span>
+        <input id="lib-search" placeholder="Filter nama / part number…" style="border:1px solid var(--gray-300);border-radius:6px;padding:7px 10px;font-family:inherit;font-size:12px;width:240px;" oninput="renderLibrary()">
+      </div>
+      <div class="lib-grid" id="lib-grid"></div>
+    </section>
+
+    <!-- ═══ BOM ═══ -->
+    <section class="view" id="view-bom">
+      <div class="page-h"><h1>Bill of materials</h1><span class="sub" id="bom-sub"></span>
+        <span class="spacer"></span><button class="btn" onclick="exportBomCsv()">Export CSV</button></div>
+      <div class="card"><table class="data" id="bom-table"></table></div>
+    </section>
+
+    <!-- ═══ CALCULATIONS ═══ -->
+    <section class="view" id="view-calc">
+      <div class="page-h"><h1>Electrical calculations</h1><span class="sub" id="calc-sub"></span></div>
+      <div class="dash-grid">
+        <div class="card"><div class="card-h">Load breakdown</div><table class="data" id="calc-load"></table></div>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="card"><div class="card-h">Sizing</div><div class="card-b"><table class="kv" id="calc-size"></table></div></div>
+          <div class="card"><div class="card-h">Heat &amp; ventilation</div><div class="card-b"><table class="kv" id="calc-heat"></table></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ LAYOUT GENERATOR ═══ -->
+    <section class="view" id="view-layoutgen">
+      <div class="page-h"><h1>Layout generator</h1><span class="sub">Parameter engine penempatan — berlaku ke semua proyek</span></div>
+      <div class="dash-grid">
+        <div class="card"><div class="card-h">Engine parameters</div>
+          <div class="card-b">
+            <div class="grid2">
+              <div class="field"><label>Jarak antar komponen (mm)</label><input id="set-gap" type="number" min="5" max="50"></div>
+              <div class="field"><label>Margin backplate (mm)</label><input id="set-pad" type="number" min="10" max="60"></div>
+              <div class="field"><label>Lebar kabinet (mm)</label>
+                <select id="set-cabw"><option>600</option><option selected>800</option><option>1000</option><option>1200</option></select></div>
+              <div class="field"><label>Tinggi duct (mm)</label><input id="set-duct" type="number" min="30" max="80"></div>
+            </div>
+            <button class="btn primary" onclick="saveEngineSettings()">Apply &amp; regenerate</button>
+          </div>
+        </div>
+        <div class="card"><div class="card-h">Aturan penempatan aktif</div>
+          <div class="card-b" style="font-size:12px;color:var(--gray-500);line-height:1.9;">
+            Rail 1 — incoming &amp; power (MCCB, SPD, PSU, kontaktor+overload, fan pojok kanan)<br>
+            Rail 2 — control (PLC, modul I/O, switch, safety, MCB, relay)<br>
+            Rail 3 — drives (VFD, servo)<br>
+            Baris bawah — terminal blocks X1–X4<br>
+            Tinggi kabinet dibulatkan ke ukuran standar 500/600/700/800/1000/1200.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ WIRING ═══ -->
+    <section class="view" id="view-wiring">
+      <div class="page-h"><h1>Wiring list</h1><span class="sub" id="wire-sub"></span>
+        <span class="spacer"></span><button class="btn" onclick="exportWireCsv()">Export CSV</button></div>
+      <div class="card"><table class="data" id="wire-table"></table></div>
+    </section>
+
+    <!-- ═══ REPORTS ═══ -->
+    <section class="view" id="view-reports">
+      <div class="page-h no-print"><h1>Reports</h1><span class="spacer"></span>
+        <button class="btn primary" onclick="window.print()">Print / save PDF</button></div>
+      <div class="card"><div class="card-b report" id="report-body"></div></div>
+    </section>
+
+    <!-- ═══ SETTINGS ═══ -->
+    <section class="view" id="view-settings">
+      <div class="page-h"><h1>Settings</h1></div>
+      <div class="dash-grid">
+        <div class="card"><div class="card-h">Active project</div>
+          <div class="card-b">
+            <div class="field"><label>Project name</label><input id="set-pname"></div>
+            <div class="field"><label>Customer</label><input id="set-pcust"></div>
+            <button class="btn primary" onclick="saveProjectMeta()">Save</button>
+          </div>
+        </div>
+        <div class="card"><div class="card-h">Application</div>
+          <div class="card-b" style="font-size:12px;line-height:2;">
+            Data tersimpan di browser (localStorage).<br>
+            <button class="btn danger" onclick="resetAll()">Reset semua data</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer class="toolbar">
+  <span class="lbl">Export:</span>
+  <button class="btn" onclick="window.print()">PDF</button>
+  <button class="btn" onclick="exportBomCsv()">Excel/CSV</button>
+  <button class="btn" title="Placeholder — butuh backend CAD">DWG</button>
+  <button class="btn" title="Placeholder — butuh backend CAD">DXF</button>
+  <button class="btn" title="Placeholder — butuh backend CAD">STEP</button>
+  <span class="meta" id="toolbar-meta">—</span>
+</footer>
+
+<div class="ai" id="ai-panel">
+  <div class="ai-h" onclick="document.getElementById('ai-panel').classList.toggle('min')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/></svg>
+    AI design review <span style="margin-left:auto;">—</span>
+  </div>
+  <div class="ai-b">
+    <div class="ai-msg" id="ai-msg">Buka Panel designer lalu klik Generate panel.</div>
+    <div class="ai-in">Ask about this design…</div>
+  </div>
+</div>
+
+<script>
+/* ══════════ DATABASE KOMPONEN (dimensi mm, front view) ══════════ */
+const COMPONENT_DB = {
+  mccb:      {asset:'mccb-3p-40a.png',      w:75,  h:130, cat:'Protection', label:'Main Breaker',   color:'#B3372E', bg:'#FAE3E1', pn:'NV32-SW-3P-40A',        desc:'Main breaker MCCB 3P 40 A',            vendor:'Mitsubishi Electric'},
+  spd:       {asset:'spd-3p-385v.png',      w:72,  h:90,  cat:'Protection', label:'SPD',            color:'#C08415', bg:'#FBEED3', pn:'SPD-3P-385V-T2',        desc:'Surge protection device 3P+N T2',      vendor:'CITEL'},
+  psu20:     {asset:'psu-24vdc-20a.png',    w:97,  h:130, cat:'Power',      label:'Power Supply',   color:'#2478CE', bg:'#E3EEF9', pn:'QUINT4-PS/1AC/24DC/20', desc:'Power supply 24 VDC 20 A',             vendor:'Phoenix Contact'},
+  psu10:     {asset:'psu-24vdc-10a.png',    w:60,  h:130, cat:'Power',      label:'Power Supply',   color:'#2478CE', bg:'#E3EEF9', pn:'QUINT4-PS/1AC/24DC/10', desc:'Power supply 24 VDC 10 A',             vendor:'Phoenix Contact'},
+  contactor: {asset:'contactor-9a.png',     w:45,  h:75,  cat:'Switching',  label:'Contactor',      color:'#6B7885', bg:'#EEF1F4', pn:'LC1D09M7',              desc:'Contactor 9 A AC-3, coil 220 VAC',     vendor:'Schneider Electric'},
+  overload:  {asset:'thermal-overload.png', w:45,  h:70,  cat:'Protection', label:'',               color:'#6B7885', bg:'#EEF1F4', pn:'LRD10',                 desc:'Thermal overload relay 4–6 A',         vendor:'Schneider Electric'},
+  safety:    {asset:'safety-relay.png',     w:22.5,h:99,  cat:'Safety',     label:'Safety Relay',   color:'#0F7A6C', bg:'#DDF1EE', pn:'PSR-SCP-24DC/ESD/4X1',  desc:'Safety relay dual channel 4 NO',       vendor:'Phoenix Contact'},
+  irelay:    {asset:'interface-relay.png',  w:15,  h:80,  cat:'Switching',  label:'Relays',         color:'#6B7885', bg:'#EEF1F4', pn:'RIF-0-RPT-24DC',        desc:'Interface relay slim 24 VDC + socket', vendor:'Phoenix Contact'},
+  plc:       {asset:'plc-fx5u-32m.png',     w:150, h:90,  cat:'Control',    label:'PLC',            color:'#2478CE', bg:'#E3EEF9', pn:'FX5U-32MT/ES',          desc:'PLC CPU 16 DI / 16 DO, Ethernet',      vendor:'Mitsubishi Electric'},
+  di16:      {asset:'io-module-16di.png',   w:40,  h:90,  cat:'Control',    label:'I/O Modules',    color:'#2478CE', bg:'#E3EEF9', pn:'FX5-16EX/ES',           desc:'Expansion module 16 DI',               vendor:'Mitsubishi Electric'},
+  do16:      {asset:'io-module-16do.png',   w:40,  h:90,  cat:'Control',    label:'',               color:'#2478CE', bg:'#E3EEF9', pn:'FX5-16EYT/ES',          desc:'Expansion module 16 DO transistor',    vendor:'Mitsubishi Electric'},
+  ad4:       {asset:'analog-module-4ad.png',w:40,  h:90,  cat:'Control',    label:'',               color:'#2478CE', bg:'#E3EEF9', pn:'FX5-4AD',               desc:'Analog input module 4 ch',             vendor:'Mitsubishi Electric'},
+  da2:       {asset:'analog-module-2da.png',w:40,  h:90,  cat:'Control',    label:'',               color:'#2478CE', bg:'#E3EEF9', pn:'FX5-4DA',               desc:'Analog output module',                 vendor:'Mitsubishi Electric'},
+  eth:       {asset:'ethernet-switch-8p.png',w:52, h:135, cat:'Network',    label:'Ethernet Switch',color:'#0F7A6C', bg:'#DDF1EE', pn:'FL-SWITCH-1008N',       desc:'Ethernet switch industri 8 port',      vendor:'Phoenix Contact'},
+  mcb3:      {asset:'mcb-3p.png',           w:54,  h:90,  cat:'Protection', label:'MCB',            color:'#6B7885', bg:'#EEF1F4', pn:'MCB-3P-C10',            desc:'MCB 3P C10 feeder drive',              vendor:'Schneider Electric'},
+  mcb1:      {asset:'mcb-1p.png',           w:18,  h:90,  cat:'Protection', label:'',               color:'#6B7885', bg:'#EEF1F4', pn:'MCB-1P-C4',             desc:'MCB 1P C4 kontrol',                    vendor:'Schneider Electric'},
+  vfd:       {asset:'vfd-2200w.png',        w:108, h:128, cat:'Drives',     label:'VFD Drives',     color:'#5B4BB5', bg:'#EAE7F8', pn:'FR-D720-2.2K',          desc:'Inverter VFD 2.2 kW 3P 200 V',         vendor:'Mitsubishi Electric'},
+  servo:     {asset:'servo-750w.png',       w:70,  h:168, cat:'Drives',     label:'Servo Drives',   color:'#B03A6C', bg:'#F8E4ED', pn:'MR-JE-70A',             desc:'Servo amplifier 750 W',                vendor:'Mitsubishi Electric'},
+  fan:       {asset:'cooling-fan-150.png',  w:150, h:150, cat:'Cooling',    label:'Cooling Fan',    color:'#6B7885', bg:'#EEF1F4', pn:'SK-3239-100',           desc:'Filter fan exhaust 150 mm',            vendor:'Rittal'},
+};
+const STD_HEIGHTS = [500,600,700,800,1000,1200];
+const DEFAULT_CFG = {plc:'Mitsubishi FX5U', di:24, do_:16, ai:4, ao:2, vfd:3, servo:2, hmi:2, motor:6, valve:5};
+
+/* ══════════ STATE (SQLite via API bila server aktif, fallback localStorage) ══════════ */
+const LS_KEY = 'pba-state-v1';
+let state = loadState();
+let dbMode = false, syncTimer = null;
+function loadState(){
+  try{ const s = JSON.parse(localStorage.getItem(LS_KEY)); if(s && s.projects) return s; }catch(e){}
+  return {
+    projects:[{id:1, name:'Packaging Line 01', customer:'ABC Manufacturing', rev:'C',
+               cfg:{...DEFAULT_CFG}, updated:Date.now()}],
+    activeId:1, nextId:2,
+    settings:{gap:15, pad:20, cabW:800, duct:45}
+  };
+}
+function persist(){
+  localStorage.setItem(LS_KEY, JSON.stringify(state));
+  if(!dbMode) return;
+  clearTimeout(syncTimer);                       /* debounce agar tidak membanjiri server */
+  syncTimer = setTimeout(()=>{
+    fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({projects:state.projects, settings:state.settings})})
+      .then(r=>setDbStatus(r.ok))
+      .catch(()=>setDbStatus(false));
+  }, 400);
+}
+function setDbStatus(ok){
+  dbMode = ok;
+  const el=document.getElementById('db-status');
+  if(el) el.innerHTML = ok
+    ? '<span style="color:#7FD1A8;">●</span> Database connected'
+    : '<span style="color:#E8B34B;">●</span> Local only';
+}
+async function connectDb(){
+  try{
+    const h = await fetch('/api/health'); if(!h.ok) throw 0;
+    const r = await fetch('/api/state'); const data = await r.json();
+    if(data.projects && data.projects.length){
+      state.projects = data.projects;
+      if(data.settings) state.settings = data.settings;
+      state.nextId = Math.max(...state.projects.map(p=>p.id))+1;
+      if(!state.projects.some(p=>p.id===state.activeId)) state.activeId = state.projects[0].id;
+    }
+    setDbStatus(true);
+    persist();                                   /* dorong seed awal ke DB bila DB kosong */
+    return true;
+  }catch(e){ setDbStatus(false); return false; }
+}
+function activeProject(){ return state.projects.find(p=>p.id===state.activeId) || state.projects[0]; }
+
+/* ══════════ ROUTER ══════════ */
+const VIEWS = [
+  ['dashboard','Dashboard','<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>'],
+  ['projects','Projects','<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'],
+  ['designer','Panel designer','<path d="M4 20l4-1 12-12-3-3L5 16z"/><path d="M14 6l3 3"/>'],
+  ['library','Components library','<rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>'],
+  ['bom','BOM','<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>'],
+  ['calc','Electrical calculations','<path d="M13 2L4 14h6l-1 8 9-12h-6z"/>'],
+  ['layoutgen','Layout generator','<rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/>'],
+  ['wiring','Wiring','<path d="M4 6h6a4 4 0 0 1 4 4v4a4 4 0 0 0 4 4h2"/><circle cx="4" cy="6" r="2"/><circle cx="20" cy="18" r="2"/>'],
+  ['reports','Reports','<path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h6M9 17h6"/>'],
+  ['settings','Settings','<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/>'],
+];
+function buildNav(){
+  document.getElementById('nav').innerHTML = VIEWS.map(([id,name,icon]) =>
+    `<a data-view="${id}" onclick="go('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${icon}</svg><span>${name}</span></a>`).join('');
+}
+function go(id){
+  location.hash = id;
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active', v.id==='view-'+id));
+  document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active', a.dataset.view===id));
+  const render = {dashboard:renderDashboard, projects:renderProjects, designer:enterDesigner,
+                  library:renderLibrary, bom:renderBom, calc:renderCalc, layoutgen:enterLayoutGen,
+                  wiring:renderWiring, reports:renderReport, settings:enterSettings}[id];
+  if(render) render();
+}
+
+/* ══════════ ENGINE ══════════ */
+function compute(c){
+  const S = state.settings, GAP=S.gap, PAD=S.pad, W=S.cabW, DUCT=S.duct, TSTRIP=40, GAPV=12;
+  const items=[];
+  const dol = Math.max(0, c.motor - c.vfd - c.servo);
+  const diExtra = Math.ceil(Math.max(0,c.di-16)/16);
+  const doExtra = Math.ceil(Math.max(0,c.do_-16)/16);
+  const dcLoad = 30 + (diExtra+doExtra+(c.ai>0)+(c.ao>0))*5 + 8 + 4 + c.valve*2 + c.hmi*15 + c.di*0.5 + c.do_*2;
+  const psuType = dcLoad/24 > 9 ? 'psu20' : 'psu10';
+
+  const rail1 = ['mccb','spd',psuType, ...Array(dol).fill('contactor'), ...Array(dol).fill('overload')];
+  const rail2 = ['plc', ...Array(diExtra).fill('di16'), ...Array(doExtra).fill('do16')];
+  if(c.ai>0) rail2.push('ad4'); if(c.ao>0) rail2.push('da2');
+  rail2.push('eth','safety','mcb3', ...Array(2+c.hmi).fill('mcb1'), ...Array(Math.min(c.valve,8)).fill('irelay'));
+  const rail3 = [...Array(c.vfd).fill('vfd'), ...Array(c.servo).fill('servo')];
+
+  const rowH = r => Math.max(60, ...r.map(t=>COMPONENT_DB[t].h));
+  const STACK = COMPONENT_DB.contactor.h + 4 + COMPONENT_DB.overload.h;
+  const h1 = Math.max(rowH(rail1), dol>0?STACK:0), h2=rowH(rail2), h3=rowH(rail3);
+
+  let y = PAD; const rows=[];
+  const pushRow=(list,h,name)=>{ rows.push({list,h,railY:y+h/2,name}); y+=h+GAPV; };
+  const pushBand=(kind,h,label)=>{ rows.push({kind,y0:y,h,label}); y+=h+GAPV; };
+  pushRow(rail1,h1,'DIN RAIL 1 · INCOMING / POWER');
+  pushBand('duct',DUCT,'WIRE DUCT 40×60');
+  pushRow(rail2,h2,'DIN RAIL 2 · CONTROL');
+  pushBand('duct',DUCT,'WIRE DUCT 40×60');
+  pushRow(rail3,h3,'DIN RAIL 3 · DRIVES');
+  pushBand('duct',DUCT,'WIRE DUCT 40×60');
+  pushBand('tstrip',TSTRIP,'TERMINAL BLOCKS X1–X4');
+  const needH = y - GAPV + PAD;
+  const H = STD_HEIGHTS.find(s=>s>=needH) || Math.ceil(needH/100)*100;
+
+  let overflow=false;
+  const fanW = COMPONENT_DB.fan.w;
+  for(const row of rows){
+    if(!row.list) continue;
+    let x=PAD;
+    const limit = row===rows[0] ? W-PAD-fanW-GAP : W-PAD;
+    for(const t of row.list){
+      const d=COMPONENT_DB[t];
+      if(t==='overload'){
+        const host=items.filter(i=>i.type==='contactor');
+        const mine=items.filter(i=>i.type==='overload').length;
+        if(host[mine]) items.push({type:t,x:host[mine].x,y:host[mine].y+(COMPONENT_DB.contactor.h+d.h)/2+4});
+        continue;
+      }
+      if(x+d.w>limit) overflow=true;
+      const yPos = (t==='contactor') ? row.railY-(COMPONENT_DB.overload.h+4)/2 : row.railY;
+      items.push({type:t,x:x+d.w/2,y:yPos});
+      x+=d.w+GAP;
+    }
+  }
+  items.push({type:'fan', x:W-PAD-fanW/2, y:PAD+COMPONENT_DB.fan.h/2});
+
+  /* kalkulasi */
+  const driveW=c.vfd*2200+c.servo*750, dolW=dol*1500;
+  const totalW=driveW+dolW+dcLoad;
+  const peakA=totalW/(Math.sqrt(3)*400*0.85);
+  const psuA=psuType==='psu20'?20:10;
+  const util=(dcLoad/24)/psuA*100;
+  const heat=Math.round(driveW*0.04+dolW*0.01+dcLoad*0.2);
+  const temp=Math.round(30+heat/40);
+  const termPoints=c.di+c.do_+(c.ai+c.ao)*2+c.motor*3+c.valve*2+24;
+  const wires=Math.round(termPoints*0.66);
+
+  /* BOM agregat */
+  const agg={}; for(const it of items) agg[it.type]=(agg[it.type]||0)+1;
+  const statuses=['b-green|In stock','b-green|In stock','b-amber|Lead 2 wk','b-green|In stock','b-red|RFQ sent'];
+  const bom=Object.entries(agg).map(([t,q],i)=>{
+    const d=COMPONENT_DB[t]; const [cls,txt]=statuses[i%statuses.length].split('|');
+    return {pn:d.pn, desc:d.desc, qty:q, vendor:d.vendor, cls, txt};
+  });
+  const totalQty=bom.reduce((a,b)=>a+b.qty,0);
+
+  return {items,rows,W,H,needH,overflow,dol,diExtra,doExtra,dcLoad,psuType,psuA,
+          driveW,dolW,totalW,peakA,util,heat,temp,termPoints,wires,bom,totalQty,cfg:c};
+}
+
+/* ══════════ WIRING LIST ══════════ */
+function buildWiring(R){
+  const c=R.cfg, rows=[]; let n=1;
+  const add=(from,to,size,note)=>rows.push({no:'W'+String(n++).padStart(3,'0'),from,to,size,note});
+  add('Incoming L1/L2/L3','MCCB 1/3/5','6 mm²','Power in');
+  add('MCCB 2/4/6','SPD + PSU L/N','2.5 mm²','Power dist');
+  add('MCCB 2/4/6','MCB-3P 1/3/5','2.5 mm²','Drives feeder');
+  for(let i=1;i<=c.vfd;i++)  add('MCB-3P 2/4/6',`VFD${i} R/S/T`,'2.5 mm²','Drive supply');
+  for(let i=1;i<=c.vfd;i++)  add(`VFD${i} U/V/W`,`X2:${i*3-2}–${i*3} → Motor M${i}`,'2.5 mm² shielded','Motor');
+  for(let i=1;i<=c.servo;i++)add('MCB-3P 2/4/6',`Servo${i} L1/L2`,'2.5 mm²','Servo supply');
+  for(let i=1;i<=c.servo;i++)add(`Servo${i} U/V/W`,`Servo motor SM${i}`,'Servo cable','Motor');
+  for(let i=1;i<=R.dol;i++){ add('MCB-3P',`K${i} 1/3/5`,'2.5 mm²','DOL feeder'); add(`K${i} 2/4/6 via OL`,`Motor M${c.vfd+c.servo+i}`,'2.5 mm²','DOL motor'); }
+  add('PSU +24V','PLC + modules 24V','1.0 mm²','Control power');
+  add('PSU +24V','ETH switch / Safety relay','0.75 mm²','Control power');
+  add('PSU 0V','PE/0V bar','1.0 mm²','Common');
+  for(let i=1;i<=Math.min(c.di,32);i++) add(`X1:${i}`,`PLC X${i-1}`,'0.5 mm²','Digital input');
+  for(let i=1;i<=Math.min(c.do_,32);i++) add(`PLC Y${i-1}`,`X3:${i}${i<=c.valve?' → SV'+i:''}`,'0.5 mm²','Digital output');
+  for(let i=1;i<=c.ai;i++) add(`X4:${i*2-1}/${i*2}`,`FX5-4AD CH${i}`,'0.5 mm² shielded','Analog input');
+  for(let i=1;i<=c.ao;i++) add(`FX5-4DA CH${i}`,`X4:${c.ai*2+i*2-1}/${c.ai*2+i*2}`,'0.5 mm² shielded','Analog output');
+  for(let i=1;i<=c.hmi;i++) add('ETH switch',`HMI${i}`,'Cat5e','Ethernet');
+  add('ETH switch','PLC Ethernet port','Cat5e','Ethernet');
+  add('E-stop circuit','Safety relay S11/S12/S21/S22','0.75 mm²','Safety');
+  return rows;
+}
+
+/* ══════════ SHARED ══════════ */
+let zoom=1, R=null;   /* R = hasil compute terakhir untuk proyek aktif */
+function recompute(){ R = compute(activeProject().cfg); }
+function set(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
+function fmtDate(t){ return new Date(t).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'}); }
+function updateTopbar(){ const p=activeProject(); set('tb-proj',p.name); set('tb-cust','Customer: '+p.customer+' · Rev '+p.rev); }
+
+/* ══════════ DASHBOARD ══════════ */
+function renderDashboard(){
+  recompute();
+  set('dash-date', new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'}));
+  document.getElementById('dash-stats').innerHTML = `
+    <div class="scard"><span>Projects</span><b>${state.projects.length}</b></div>
+    <div class="scard"><span>Components (active project)</span><b>${R.totalQty}</b></div>
+    <div class="scard"><span>Terminal points</span><b>${R.termPoints}</b></div>
+    <div class="scard"><span>Library items</span><b>${Object.keys(COMPONENT_DB).length}</b></div>`;
+  document.getElementById('dash-projects').innerHTML =
+    '<tr><th>Project</th><th>Customer</th><th>Updated</th><th></th></tr>' +
+    [...state.projects].sort((a,b)=>b.updated-a.updated).slice(0,6).map(p=>
+      `<tr class="click" onclick="openProject(${p.id})"><td><b>${p.name}</b></td><td>${p.customer}</td><td>${fmtDate(p.updated)}</td>
+       <td>${p.id===state.activeId?'<span class="badge b-blue">Active</span>':''}</td></tr>`).join('');
+  /* asset readiness: cek berapa sprite yang sudah ada */
+  const types=Object.values(COMPONENT_DB); let done=0, total=types.length, pending=[];
+  let checked=0;
+  types.forEach(d=>{
+    const img=new Image();
+    img.onload=()=>{done++; if(++checked===total) fin();};
+    img.onerror=()=>{pending.push(d.asset); if(++checked===total) fin();};
+    img.src='assets/components/'+d.asset;
+  });
+  function fin(){
+    document.getElementById('dash-assets').innerHTML =
+      `<b style="color:var(--ink);font-size:16px;">${done} / ${total}</b> sprite komponen terpasang.<br>`+
+      (pending.length? 'Belum ada: '+pending.slice(0,6).map(a=>`<code style="font-size:10px;">${a}</code>`).join(', ')+(pending.length>6?` +${pending.length-6} lagi`:'')
+                     : 'Semua asset komponen lengkap.');
+  }
+}
+
+/* ══════════ PROJECTS ══════════ */
+function renderProjects(){
+  document.getElementById('proj-table').innerHTML =
+    '<tr><th>Project</th><th>Customer</th><th>PLC</th><th>Updated</th><th style="width:220px;"></th></tr>' +
+    state.projects.map(p=>`<tr>
+      <td><b>${p.name}</b> ${p.id===state.activeId?'<span class="badge b-blue">Active</span>':''}</td>
+      <td>${p.customer}</td><td>${p.cfg.plc}</td><td>${fmtDate(p.updated)}</td>
+      <td style="text-align:right;">
+        <button class="btn" onclick="openProject(${p.id})">Open</button>
+        <button class="btn" onclick="dupProject(${p.id})">Duplicate</button>
+        <button class="btn danger" onclick="delProject(${p.id})">Delete</button>
+      </td></tr>`).join('');
+}
+function newProject(){
+  const name = prompt('Nama proyek:','New Panel Project'); if(!name) return;
+  const customer = prompt('Customer:','') || '—';
+  state.projects.push({id:state.nextId++, name, customer, rev:'A', cfg:{...DEFAULT_CFG}, updated:Date.now()});
+  state.activeId = state.nextId-1; persist(); go('designer');
+}
+function openProject(id){ state.activeId=id; persist(); updateTopbar(); go('designer'); }
+function dupProject(id){
+  const p=state.projects.find(x=>x.id===id);
+  state.projects.push({...p, id:state.nextId++, name:p.name+' (copy)', updated:Date.now(), cfg:{...p.cfg}});
+  persist(); renderProjects();
+}
+function delProject(id){
+  if(state.projects.length<=1){ alert('Minimal satu proyek harus ada.'); return; }
+  if(!confirm('Hapus proyek ini?')) return;
+  state.projects = state.projects.filter(p=>p.id!==id);
+  if(state.activeId===id) state.activeId = state.projects[0].id;
+  persist(); updateTopbar(); renderProjects();
+}
+function saveProject(notify){
+  const p=activeProject(); p.cfg=readCfgForm(); p.updated=Date.now(); persist();
+  if(notify) set('toolbar-meta','Project saved · '+new Date().toLocaleTimeString('id-ID'));
+}
+function saveProjectMeta(){
+  const p=activeProject();
+  p.name=document.getElementById('set-pname').value||p.name;
+  p.customer=document.getElementById('set-pcust').value||p.customer;
+  p.updated=Date.now(); persist(); updateTopbar();
+  set('toolbar-meta','Project info saved');
+}
+
+/* ══════════ DESIGNER ══════════ */
+function readCfgForm(){
+  const n=id=>Math.max(0,parseInt(document.getElementById(id).value)||0);
+  return {plc:document.getElementById('cfg-plc').value, di:n('cfg-di'), do_:n('cfg-do'),
+          ai:n('cfg-ai'), ao:n('cfg-ao'), vfd:n('cfg-vfd'), servo:n('cfg-servo'),
+          hmi:n('cfg-hmi'), motor:n('cfg-motor'), valve:n('cfg-valve')};
+}
+function fillCfgForm(c){
+  document.getElementById('cfg-plc').value=c.plc;
+  const m={'cfg-di':c.di,'cfg-do':c.do_,'cfg-ai':c.ai,'cfg-ao':c.ao,'cfg-vfd':c.vfd,
+           'cfg-servo':c.servo,'cfg-hmi':c.hmi,'cfg-motor':c.motor,'cfg-valve':c.valve};
+  for(const k in m) document.getElementById(k).value=m[k];
+}
+function enterDesigner(){ fillCfgForm(activeProject().cfg); generate(false); }
+function generate(save){
+  if(save){ saveProject(false); }
+  recompute();
+  const c=R.cfg;
+  set('r-load',(R.totalW/1000).toFixed(1).replace('.0','')+' kW');
+  set('r-peak',R.peakA.toFixed(1)+' A');
+  set('r-dc',Math.round(R.dcLoad)+' W');
+  set('r-psu','24VDC '+R.psuA+'A');
+  set('r-util',Math.round(R.util)+'%');
+  document.getElementById('r-util-bar').style.width=Math.min(100,R.util)+'%';
+  set('r-heat',R.heat+' W');
+  set('r-temp',R.temp+' °C');
+  set('r-cool',R.heat>250?'Dual exhaust fans':'Single exhaust fan');
+  set('r-size',`${R.W} × ${R.H} × 300 mm`);
+  set('r-mount',R.H>800?'Free standing':'Wall mount');
+  set('cab-chip',`Cabinet ${R.W} × ${R.H} × 300 mm · IP55`);
+  const warn=document.getElementById('r-warn');
+  warn.classList.toggle('show',R.overflow);
+  warn.textContent=R.overflow?'⚠ Rail penuh — pertimbangkan lebar kabinet lebih besar (Layout generator).':'';
+  set('s-comp',R.totalQty); set('s-term',R.termPoints); set('s-wire',R.wires);
+  set('toolbar-meta',`Layout generated · ${R.totalQty} components placed · ${R.overflow?'1 clearance warning':'0 clearance violations'}`);
+  set('ai-msg',`Power supply utilization is ${Math.round(R.util)}%. `+
+    (R.heat>250?'Heat load requires dual exhaust fans per IEC 61439 derating. ':'Cabinet ventilation meets IEC recommendations. ')+
+    `Consider leaving 20% spare I/O for future expansion.`+
+    (R.overflow?' Rail is near capacity — a wider cabinet gives safer wiring clearance.':''));
+  draw(); zoomFit();
+}
+function draw(){
+  if(!R) return;
+  const {items,rows,W,H}=R, FRAME=22, PAD=state.settings.pad;
+  const stage=document.getElementById('stage');
+  const showGrid=document.getElementById('chk-grid').checked;
+  const showTags=document.getElementById('chk-tags').checked;
+  const OX=46, OY=30, totW=OX+W+FRAME*2+40, totH=OY+H+FRAME*2+26;
+  let html='';
+  html+=`<div class="enclosure" style="left:${OX}px;top:${OY}px;width:${W+FRAME*2}px;height:${H+FRAME*2}px;"></div>`;
+  html+=`<div class="backplate" style="left:${OX+FRAME}px;top:${OY+FRAME}px;width:${W}px;height:${H}px;">`;
+  if(showGrid) html+=`<div class="gridlayer"></div>`;
+  for(const row of rows){
+    if(row.list){
+      html+=`<div class="rail-tag" style="left:${PAD}px;top:${row.railY-row.h/2-13}px;">${row.name}</div>`;
+      html+=`<div class="rail" style="left:${PAD-6}px;top:${row.railY-17.5}px;width:${W-PAD*2+12}px;height:35px;"></div>`;
+    } else if(row.kind==='duct'){
+      html+=`<div class="duct" style="left:${PAD-6}px;top:${row.y0}px;width:${W-PAD*2+12}px;height:${row.h}px;">${row.label}</div>`;
+    } else {
+      html+=`<div class="tstrip" style="left:${PAD-6}px;top:${row.y0}px;width:${W-PAD*2+12}px;height:${row.h}px;">${row.label} · ${R.termPoints} points</div>`;
+    }
+  }
+  const tagged=new Set();
+  for(const it of items){
+    const d=COMPONENT_DB[it.type], l=it.x-d.w/2, t=it.y-d.h/2;
+    html+=`<div class="comp" style="left:${l}px;top:${t}px;width:${d.w}px;height:${d.h}px;">
+      <div class="ph" style="border-color:${d.color};background:${d.bg}CC;color:${d.color};">
+        <b>${d.desc.split(' ').slice(0,2).join(' ')}</b><i>${d.asset}</i><i>${d.w}×${d.h} mm</i></div>
+      <img src="assets/components/${d.asset}" alt="${d.desc}" onload="this.parentNode.classList.add('has-img')"></div>`;
+    if(showTags && d.label && !tagged.has(it.type)){
+      tagged.add(it.type);
+      html+=`<div class="tag" style="left:${it.x}px;top:${t-4}px;">${d.label}</div>`;
+    }
+  }
+  html+=`</div>`;
+  html+=`<div class="dim dim-h" style="left:${OX+FRAME}px;top:${OY-24}px;width:${W}px;">${W} mm</div>`;
+  html+=`<div class="dim dim-v" style="left:${OX+W+FRAME*2+8}px;top:${OY+FRAME}px;height:${H}px;">${H} mm</div>`;
+  html+=`<div class="dim mono" style="left:${OX+W+FRAME*2-58}px;top:${OY+H+FRAME*2+6}px;">↘ 300 mm</div>`;
+  stage.innerHTML=html;
+  stage.style.width=totW+'px'; stage.style.height=totH+'px';
+  stage.style.transform=`scale(${zoom})`;
+  const wrap=document.getElementById('stage-wrap');
+  wrap.style.width=totW*zoom+'px'; wrap.style.height=totH*zoom+'px';
+  set('zoom-pct',Math.round(zoom*100)+'%');
+}
+function zoomBy(f){ zoom=Math.min(2,Math.max(.4,zoom*f)); draw(); }
+function zoomFit(){
+  const sc=document.getElementById('scroll'), st=document.getElementById('stage');
+  if(!sc.clientWidth) return;
+  zoom=Math.min(1.4,(sc.clientWidth-32)/(parseFloat(st.style.width)||900)); draw();
+}
+
+/* ══════════ LIBRARY ══════════ */
+function renderLibrary(){
+  const q=(document.getElementById('lib-search').value||'').toLowerCase();
+  const entries=Object.values(COMPONENT_DB).filter(d=>
+    !q || d.desc.toLowerCase().includes(q) || d.pn.toLowerCase().includes(q) || d.cat.toLowerCase().includes(q));
+  set('lib-count',entries.length+' dari '+Object.keys(COMPONENT_DB).length+' komponen');
+  document.getElementById('lib-grid').innerHTML=entries.map(d=>`
+    <div class="lib-card">
+      <div class="lib-img">
+        <div class="lph">${d.asset}<br>${d.w} × ${d.h} mm</div>
+        <img src="assets/components/${d.asset}" alt="${d.desc}" onload="this.parentNode.classList.add('has-img')">
+      </div>
+      <b>${d.desc}</b>
+      <small><span class="pn">${d.pn}</span><br>${d.vendor} · <span class="badge b-blue">${d.cat}</span><br>
+      ${d.w} × ${d.h} mm · export ${d.w*3} × ${d.h*3} px</small>
+    </div>`).join('');
+}
+
+/* ══════════ BOM ══════════ */
+function renderBom(){
+  recompute();
+  const p=activeProject();
+  set('bom-sub',p.name+' · '+R.bom.length+' line items · '+R.totalQty+' pcs');
+  document.getElementById('bom-table').innerHTML=
+    '<tr><th>Part number</th><th>Description</th><th>Qty</th><th>Vendor</th><th>Status</th></tr>'+
+    R.bom.map(b=>`<tr><td class="pn">${b.pn}</td><td>${b.desc}</td><td>${b.qty}</td><td>${b.vendor}</td>
+      <td><span class="badge ${b.cls}">${b.txt}</span></td></tr>`).join('');
+}
+function exportBomCsv(){
+  recompute();
+  const rows=[['Part Number','Description','Qty','Vendor','Status'],
+    ...R.bom.map(b=>[b.pn,b.desc,b.qty,b.vendor,b.txt])];
+  downloadCsv(rows, activeProject().name.replace(/\s+/g,'-')+'-BOM.csv');
+}
+function exportWireCsv(){
+  recompute();
+  const rows=[['Wire No','From','To','Size','Note'],
+    ...buildWiring(R).map(w=>[w.no,w.from,w.to,w.size,w.note])];
+  downloadCsv(rows, activeProject().name.replace(/\s+/g,'-')+'-WIRING.csv');
+}
+function downloadCsv(rows,name){
+  const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=name; a.click();
+}
+
+/* ══════════ CALCULATIONS ══════════ */
+function renderCalc(){
+  recompute(); const c=R.cfg;
+  set('calc-sub',activeProject().name);
+  document.getElementById('calc-load').innerHTML=
+    '<tr><th>Beban</th><th>Qty</th><th>Unit (W)</th><th>Total (W)</th></tr>'+
+    [['VFD 2.2 kW',c.vfd,2200,c.vfd*2200],
+     ['Servo 750 W',c.servo,750,c.servo*750],
+     ['Motor DOL (est.)',R.dol,1500,R.dolW],
+     ['PLC + modul I/O',1,'—',Math.round(30+(R.diExtra+R.doExtra+(c.ai>0)+(c.ao>0))*5)],
+     ['HMI',c.hmi,15,c.hmi*15],
+     ['Ethernet switch + safety',1,'—',12],
+     ['Solenoid valves',c.valve,2,c.valve*2],
+     ['Sinyal DI/DO (est.)','—','—',Math.round(c.di*0.5+c.do_*2)]]
+    .map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td><b>${r[3]}</b></td></tr>`).join('')+
+    `<tr><td colspan="3"><b>Total connected load</b></td><td><b>${(R.totalW/1000).toFixed(2)} kW</b></td></tr>`;
+  document.getElementById('calc-size').innerHTML=
+    `<tr><td>Arus puncak 3P 400 V (PF 0.85)</td><td>${R.peakA.toFixed(1)} A</td></tr>
+     <tr><td>Rekomendasi MCCB</td><td>${Math.ceil(R.peakA*1.25/8)*8*2} A frame → set 40 A</td></tr>
+     <tr><td>Beban 24 VDC</td><td>${Math.round(R.dcLoad)} W (${(R.dcLoad/24).toFixed(1)} A)</td></tr>
+     <tr><td>PSU terpilih</td><td class="accent">24VDC ${R.psuA}A (util ${Math.round(R.util)}%)</td></tr>`;
+  document.getElementById('calc-heat').innerHTML=
+    `<tr><td>Disipasi drive (4%)</td><td>${Math.round(R.driveW*0.04)} W</td></tr>
+     <tr><td>Disipasi kontrol</td><td>${Math.round(R.dcLoad*0.2)} W</td></tr>
+     <tr><td>Total heat</td><td>${R.heat} W</td></tr>
+     <tr><td>Estimasi suhu kabinet</td><td>${R.temp} °C @ ambient 30 °C</td></tr>
+     <tr><td>Ventilasi</td><td class="accent">${R.heat>250?'Dual':'Single'} exhaust fan 150 mm</td></tr>`;
+}
+
+/* ══════════ LAYOUT GEN / SETTINGS ══════════ */
+function enterLayoutGen(){
+  const S=state.settings;
+  document.getElementById('set-gap').value=S.gap;
+  document.getElementById('set-pad').value=S.pad;
+  document.getElementById('set-cabw').value=S.cabW;
+  document.getElementById('set-duct').value=S.duct;
+}
+function saveEngineSettings(){
+  const S=state.settings;
+  S.gap=+document.getElementById('set-gap').value||15;
+  S.pad=+document.getElementById('set-pad').value||20;
+  S.cabW=+document.getElementById('set-cabw').value||800;
+  S.duct=+document.getElementById('set-duct').value||45;
+  persist(); go('designer');
+}
+function enterSettings(){
+  const p=activeProject();
+  document.getElementById('set-pname').value=p.name;
+  document.getElementById('set-pcust').value=p.customer;
+}
+function resetAll(){
+  if(!confirm('Hapus semua proyek dan pengaturan?')) return;
+  localStorage.removeItem(LS_KEY); state=loadState(); persist(); updateTopbar(); go('dashboard');
+}
+
+/* ══════════ WIRING VIEW ══════════ */
+function renderWiring(){
+  recompute();
+  const w=buildWiring(R);
+  set('wire-sub',activeProject().name+' · '+w.length+' kabel');
+  document.getElementById('wire-table').innerHTML=
+    '<tr><th>Wire no</th><th>From</th><th>To</th><th>Size</th><th>Note</th></tr>'+
+    w.map(x=>`<tr><td class="pn">${x.no}</td><td>${x.from}</td><td>${x.to}</td><td>${x.size}</td><td>${x.note}</td></tr>`).join('');
+}
+
+/* ══════════ REPORT ══════════ */
+function renderReport(){
+  recompute(); const p=activeProject(), c=R.cfg;
+  document.getElementById('report-body').innerHTML=`
+    <div class="rep-head">
+      <img src="assets/ui/logo.svg" alt="" onload="this.parentNode.classList.add('has-logo')">
+      <div class="rep-mark" style="display:flex;align-items:center;gap:10px;">
+        <div style="width:36px;height:36px;border-radius:8px;background:var(--blue-500);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;">PB</div>
+        <div><b style="font-size:15px;">Panel Builder Assistant</b><br><span style="font-size:11px;color:var(--gray-500);">MicroPlus Engineering</span></div>
+      </div>
+      <div style="text-align:right;font-size:12px;color:var(--gray-500);">
+        <b style="color:var(--ink);font-size:14px;">Panel Design Report</b><br>
+        ${p.name} · Rev ${p.rev}<br>Customer: ${p.customer}<br>${fmtDate(Date.now())}
+      </div>
+    </div>
+    <h2>1. Konfigurasi mesin</h2>
+    <table class="data"><tr><th>Parameter</th><th>Nilai</th><th>Parameter</th><th>Nilai</th></tr>
+      <tr><td>PLC</td><td>${c.plc}</td><td>VFD</td><td>${c.vfd} × 2.2 kW</td></tr>
+      <tr><td>Digital I/O</td><td>${c.di} DI / ${c.do_} DO</td><td>Servo</td><td>${c.servo} × 750 W</td></tr>
+      <tr><td>Analog I/O</td><td>${c.ai} AI / ${c.ao} AO</td><td>Motors / valves</td><td>${c.motor} / ${c.valve}</td></tr>
+      <tr><td>HMI</td><td>${c.hmi}</td><td>Kabinet</td><td>${R.W} × ${R.H} × 300 mm · IP55</td></tr></table>
+    <h2>2. Ringkasan engineering</h2>
+    <table class="data"><tr><th>Item</th><th>Nilai</th><th>Item</th><th>Nilai</th></tr>
+      <tr><td>Total connected load</td><td>${(R.totalW/1000).toFixed(2)} kW</td><td>Heat dissipation</td><td>${R.heat} W</td></tr>
+      <tr><td>Peak current</td><td>${R.peakA.toFixed(1)} A</td><td>Cabinet temp (est.)</td><td>${R.temp} °C</td></tr>
+      <tr><td>PSU</td><td>24VDC ${R.psuA}A (${Math.round(R.util)}%)</td><td>Ventilasi</td><td>${R.heat>250?'Dual':'Single'} exhaust fan</td></tr>
+      <tr><td>Components</td><td>${R.totalQty}</td><td>Terminal / wires</td><td>${R.termPoints} / ${R.wires}</td></tr></table>
+    <h2>3. Bill of materials</h2>
+    <table class="data"><tr><th>Part number</th><th>Description</th><th>Qty</th><th>Vendor</th></tr>
+      ${R.bom.map(b=>`<tr><td class="pn">${b.pn}</td><td>${b.desc}</td><td>${b.qty}</td><td>${b.vendor}</td></tr>`).join('')}</table>
+    <h2>4. Catatan</h2>
+    <p style="font-size:12px;color:var(--gray-500);line-height:1.8;">
+      Perhitungan bersifat estimasi engineering awal (PF 0.85, disipasi drive 4%). Verifikasi akhir mengikuti datasheet
+      komponen terpasang dan IEC 61439. Layout 2D lengkap tersedia di menu Panel designer.
+      ${R.overflow?'<b style="color:var(--red-600);">Peringatan: rail mendekati kapasitas — pertimbangkan kabinet lebih lebar.</b>':''}
+    </p>`;
+}
+
+/* ══════════ GLOBAL SEARCH ══════════ */
+document.getElementById('global-search').addEventListener('keydown',e=>{
+  if(e.key!=='Enter') return;
+  const q=e.target.value.trim().toLowerCase(); if(!q) return;
+  const proj=state.projects.find(p=>p.name.toLowerCase().includes(q));
+  if(proj){ openProject(proj.id); return; }
+  document.getElementById('lib-search').value=q; go('library');
+});
+
+/* ══════════ INIT ══════════ */
+buildNav(); updateTopbar();
+window.addEventListener('resize',()=>{ if(document.getElementById('view-designer').classList.contains('active')) zoomFit(); });
+(async ()=>{
+  await connectDb();                             /* coba server; gagal = tetap jalan lokal */
+  updateTopbar();
+  const h=(location.hash||'#dashboard').slice(1);
+  go(h in {dashboard:1,projects:1,designer:1,library:1,bom:1,calc:1,layoutgen:1,wiring:1,reports:1,settings:1} ? h : 'dashboard');
+})();
+</script>
+</body>
+</html>

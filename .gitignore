@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Runtime database (SQLite + WAL). Back up by copying, do not version.
+panelbuilder.db
+panelbuilder.db-shm
+panelbuilder.db-wal
+
+# Source snapshots / archives
+*.zip
+
+# Tooling / editor / OS
+.claude/
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+*.log

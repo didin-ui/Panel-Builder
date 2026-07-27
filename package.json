@@ -1,0 +1,14 @@
+{
+  "name": "panel-builder-assistant",
+  "version": "3.1.0",
+  "private": true,
+  "description": "Panel Builder Assistant - MicroPlus Engineering",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "better-sqlite3": "^11.3.0"
+  }
+}
