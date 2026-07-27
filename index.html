@@ -989,7 +989,7 @@ function renderExtras(){
         return `<div style="display:flex;align-items:center;gap:6px;font-size:11.5px;
                   padding:5px 8px;background:var(--gray-100);border-radius:6px;margin-bottom:4px;">
           <span style="flex:1;${d?'':'color:var(--red-600);'}">${e.qty} × ${esc(d?d.desc:e.type+' (hilang)')}
-            <span style="color:var(--gray-500);">· rail ${e.rail}</span></span>
+            <span style="color:var(--gray-500);">· ${e.place==='door'?'front cover':'rail '+e.rail}</span></span>
           <button class="tbtn" style="width:22px;height:22px;font-size:12px;"
             onclick="removeExtra(${i})" title="Hapus dari proyek">×</button></div>`;
       }).join('')}
@@ -1317,11 +1317,14 @@ function renderLibrary(){
   const q=(document.getElementById('lib-search').value||'').toLowerCase();
   const db=libDb(), patches=state.library.components;
   const all=Object.keys(db).map(k=>({key:k, d:db[k],
-    isCustom:!COMPONENT_DB[k], isMod:!!patches[k] && !!COMPONENT_DB[k]}));
-  const counts={all:all.length, builtin:all.filter(x=>!x.isCustom).length,
+    isCustom:!COMPONENT_DB[k], isMod:!!patches[k] && !!COMPONENT_DB[k],
+    isDoor:db[k].mount==='door'}));
+  const counts={all:all.length, door:all.filter(x=>x.isDoor).length,
+                inside:all.filter(x=>!x.isDoor).length,
                 modified:all.filter(x=>x.isMod).length, custom:all.filter(x=>x.isCustom).length};
   const entries=all
-    .filter(x=> libFilter==='all' || (libFilter==='builtin'&&!x.isCustom) ||
+    .filter(x=> libFilter==='all' || (libFilter==='door'&&x.isDoor) ||
+                (libFilter==='inside'&&!x.isDoor) ||
                 (libFilter==='modified'&&x.isMod) || (libFilter==='custom'&&x.isCustom))
     .filter(x=>{
       if(!q) return true;
@@ -1331,16 +1334,19 @@ function renderLibrary(){
     .sort((a,b)=>(a.d.cat+a.d.desc).localeCompare(b.d.cat+b.d.desc));
 
   document.getElementById('lib-tabs').innerHTML=
-    [['all','Semua'],['builtin','Bawaan'],['modified','Diubah'],['custom','Custom']]
+    [['all','Semua'],['inside','Dalam panel'],['door','Front cover'],
+     ['modified','Diubah'],['custom','Custom']]
     .map(([f,lab])=>`<button class="${libFilter===f?'on':''}" onclick="setLibFilter('${f}')">${lab} ${counts[f]}</button>`).join('');
-  set('lib-count',`${entries.length} tampil · ${counts.all} komponen (${counts.custom} custom, ${counts.modified} diubah)`);
+  set('lib-count',`${entries.length} tampil · ${counts.all} komponen (${counts.door} front cover, ${counts.custom} custom, ${counts.modified} diubah)`);
 
   document.getElementById('lib-grid').innerHTML=entries.length? entries.map(x=>{
     const d=x.d, src=imgSrc(d);
     const badges=[`<span class="badge b-blue">${esc(d.cat)}</span>`];
+    if(x.isDoor)    badges.push('<span class="badge b-amber">front cover</span>');
     if(x.isCustom)  badges.push('<span class="badge b-green">custom</span>');
     if(x.isMod)     badges.push('<span class="badge b-amber">diubah</span>');
     if(d.dimsVerified) badges.push('<span class="badge b-green">dims ✓</span>');
+    if(d.generic)   badges.push('<span class="badge b-red" title="Part number masih generik — ganti dengan kode vendor">◇ generik</span>');
     return `<div class="lib-card">
       <div class="lib-img${src?'':' no-src'}">
         <div class="lph">${esc(d.asset||d.pn||x.key)}<br>${d.w} × ${d.h} × ${d.d} mm</div>
@@ -1352,7 +1358,7 @@ function renderLibrary(){
         ${d.w} × ${d.h} × ${d.d} mm · ${d.mount}${d.powerW?` · ${d.powerW} W`:''}</small>
       <div class="lib-act">
         <button class="btn" onclick="editComponent('${esc(x.key)}')">Edit</button>
-        <button class="btn" onclick="addToProject('${esc(x.key)}')" title="Tambahkan ke layout proyek aktif">+ Panel</button>
+        <button class="btn" onclick="addToProject('${esc(x.key)}')" title="Tambahkan ke layout proyek aktif — dalam panel atau front cover">+ Panel</button>
         ${x.isMod?`<button class="btn" onclick="resetComponent('${esc(x.key)}')" title="Kembalikan ke nilai bawaan">Reset</button>`:''}
         ${x.isCustom?`<button class="btn danger" onclick="deleteComponent('${esc(x.key)}')">Hapus</button>`:''}
       </div>
@@ -1530,20 +1536,32 @@ async function deleteComponent(key){
 /* Tambahkan komponen library ke layout proyek aktif */
 async function addToProject(key){
   const d=libDb()[key], p=activeProject();
+  /* Komponen yang memang perangkat pintu default-nya ke front cover. */
+  const isDoor=d.mount==='door';
   const v=await modalForm({title:'Tambah ke panel', submitLabel:'Tambahkan',
-    intro:`<b>${esc(d.desc)}</b> — ${d.w} × ${d.h} × ${d.d} mm. Komponen akan ikut
-      ditempatkan di layout, masuk BOM, dan konsumsi 24 V-nya (${d.powerW||0} W) ikut dihitung.`,
+    intro:`<b>${esc(d.desc)}</b> — ${d.w} × ${d.h} × ${d.d} mm${d.generic?' · part number masih generik ◇':''}.
+      Komponen akan ikut ditempatkan di layout, masuk BOM, wiring, dan konsumsi
+      24 V-nya (${d.powerW||0} W) ikut dihitung.`,
     fields:[
       {id:'qty', label:'Jumlah', type:'number', value:1, min:1, max:60, required:true},
-      {id:'rail',label:'Ditempatkan di', type:'select', value:2,
-       options:[[1,'Rail 1 — incoming / power'],[2,'Rail 2 — control'],[3,'Rail 3 — drives']]},
-    ]});
+      {id:'dest',label:'Ditempatkan di', type:'select', value:isDoor?'door':'rail2', full:true,
+       options:[['door','Front cover — pintu panel'],
+                ['rail1','Dalam panel · Rail 1 — incoming / power'],
+                ['rail2','Dalam panel · Rail 2 — control'],
+                ['rail3','Dalam panel · Rail 3 — drives']]},
+    ],
+    validate:v=>v.dest!=='door' && d.mount==='door'
+      ? null   /* diizinkan: kadang perangkat pintu dipasang di plat samping */
+      : null});
   if(!v) return;
+  const place=v.dest==='door'?'door':'plate';
+  const rail=v.dest==='door'?2:+v.dest.slice(4);
   const extras=p.cfg.extras||(p.cfg.extras=[]);
-  const found=extras.find(e=>e.type===key && e.rail===+v.rail);
-  if(found) found.qty+=v.qty; else extras.push({type:key, qty:v.qty, rail:+v.rail});
+  const found=extras.find(e=>e.type===key && e.place===place &&
+                            (place==='door'||e.rail===rail));
+  if(found) found.qty+=v.qty; else extras.push({type:key, qty:v.qty, place, rail});
   p.cfg=PanelEngine.normalizeCfg(p.cfg); p.updated=Date.now(); persist();
-  toast(`${v.qty} × "${d.desc}" ditambahkan ke ${p.name}`,'ok');
+  toast(`${v.qty} × "${d.desc}" → ${place==='door'?'front cover':'rail '+rail}`,'ok');
 }
 function removeExtra(i){
   const p=activeProject(); (p.cfg.extras||[]).splice(i,1);

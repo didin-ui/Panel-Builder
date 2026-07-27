@@ -204,10 +204,43 @@
     lamp_pwr:   { asset:'lamp-white.png',    w:29,  h:29,  d:60, cat:'Control',  label:'Pilot Lamps', color:'#6B7885', bg:'#F4F6F8', pn:'XB4BVM1',     desc:'Pilot lamp white 24 VDC LED — POWER ON',         vendor:'Schneider Electric', mount:'door', powerW:0.5, round:true, dimsVerified:false },
     lamp_run:   { asset:'lamp-green.png',    w:29,  h:29,  d:60, cat:'Control',  label:'',            color:'#1E7B4D', bg:'#DFF2E7', pn:'XB4BVM3',     desc:'Pilot lamp green 24 VDC LED — RUNNING',          vendor:'Schneider Electric', mount:'door', powerW:0.5, round:true, dimsVerified:false },
     lamp_flt:   { asset:'lamp-red.png',      w:29,  h:29,  d:60, cat:'Control',  label:'',            color:'#B3372E', bg:'#FAE3E1', pn:'XB4BVM4',     desc:'Pilot lamp red 24 VDC LED — FAULT',              vendor:'Schneider Electric', mount:'door', powerW:0.5, round:true, dimsVerified:false },
+
+    /* ── Rest of the front-cover catalogue ───────────────────────────────
+       Not auto-placed: add them from Components library → “+ Panel → Front
+       cover”. Ø22 devices share the 29 mm bezel; panel meters are quoted by
+       their bezel, not the cutout. `generic: true` marks a placeholder part
+       number — a descriptor to be replaced with a real vendor code, never a
+       fabricated one. */
+    pb_black:    { asset:'pb-black.png',     w:29,  h:29,  d:60,  cat:'Control',  label:'', color:'#42505C', bg:'#EEF1F4', pn:'XB4BA21',      desc:'Pushbutton flush black 1 NO',                     vendor:'Schneider Electric', mount:'door', powerW:0,   round:true, dimsVerified:false },
+    pb_yellow:   { asset:'pb-yellow.png',    w:29,  h:29,  d:60,  cat:'Control',  label:'', color:'#8A5A10', bg:'#FBEED3', pn:'XB4BA51',      desc:'Pushbutton flush yellow 1 NO',                    vendor:'Schneider Electric', mount:'door', powerW:0,   round:true, dimsVerified:false },
+    pb_lit_grn:  { asset:'pb-lit-green.png', w:29,  h:29,  d:70,  cat:'Control',  label:'', color:'#1E7B4D', bg:'#DFF2E7', pn:'XB4BW33B5',    desc:'Illuminated pushbutton green 24 VDC 1 NO',        vendor:'Schneider Electric', mount:'door', powerW:0.5, round:true, dimsVerified:false },
+    pb_lit_red:  { asset:'pb-lit-red.png',   w:29,  h:29,  d:70,  cat:'Control',  label:'', color:'#B3372E', bg:'#FAE3E1', pn:'XB4BW34B5',    desc:'Illuminated pushbutton red 24 VDC 1 NC',          vendor:'Schneider Electric', mount:'door', powerW:0.5, round:true, dimsVerified:false },
+    pb_mushroom: { asset:'pb-mushroom.png',  w:60,  h:60,  d:70,  cat:'Control',  label:'', color:'#B3372E', bg:'#FAE3E1', pn:'XB4BT842',     desc:'Mushroom pushbutton Ø40 red, spring return',      vendor:'Schneider Electric', mount:'door', powerW:0,   round:true, dimsVerified:false },
+    estop_key:   { asset:'estop-key.png',    w:60,  h:60,  d:70,  cat:'Safety',   label:'', color:'#B3372E', bg:'#FAE3E1', pn:'XB4BS9445',    desc:'Emergency stop Ø40 mm, key release, 2 NC',        vendor:'Schneider Electric', mount:'door', powerW:0,   round:true, dimsVerified:false },
+    sel_2pos:    { asset:'selector-2pos.png',w:29,  h:29,  d:60,  cat:'Control',  label:'', color:'#42505C', bg:'#EEF1F4', pn:'XB4BD21',      desc:'Selector switch 2-position stay-put 1 NO',        vendor:'Schneider Electric', mount:'door', powerW:0,   round:true, dimsVerified:false },
+    sel_key:     { asset:'selector-key.png', w:29,  h:29,  d:60,  cat:'Control',  label:'', color:'#42505C', bg:'#EEF1F4', pn:'XB4BG33',      desc:'Key selector switch 3-position',                  vendor:'Schneider Electric', mount:'door', powerW:0,   round:true, dimsVerified:false },
+    lamp_amber:  { asset:'lamp-amber.png',   w:29,  h:29,  d:60,  cat:'Control',  label:'', color:'#8A5A10', bg:'#FBEED3', pn:'XB4BVM5',      desc:'Pilot lamp amber 24 VDC LED — WARNING',           vendor:'Schneider Electric', mount:'door', powerW:0.5, round:true, dimsVerified:false },
+    lamp_blue:   { asset:'lamp-blue.png',    w:29,  h:29,  d:60,  cat:'Control',  label:'', color:'#1B5FA8', bg:'#E3EEF9', pn:'XB4BVM6',      desc:'Pilot lamp blue 24 VDC LED',                      vendor:'Schneider Electric', mount:'door', powerW:0.5, round:true, dimsVerified:false },
+    potentio:    { asset:'potentiometer.png',w:29,  h:29,  d:70,  cat:'Control',  label:'', color:'#42505C', bg:'#EEF1F4', pn:'POT-22-10K',   desc:'Potentiometer Ø22 10 kΩ — speed reference',       vendor:'to be specified',    mount:'door', powerW:0,   round:true, dimsVerified:false, generic:true },
+    buzzer:      { asset:'buzzer.png',       w:29,  h:29,  d:70,  cat:'Control',  label:'', color:'#42505C', bg:'#EEF1F4', pn:'BUZZ-22-24DC', desc:'Buzzer Ø22 24 VDC, 80 dB',                        vendor:'to be specified',    mount:'door', powerW:1.5, round:true, dimsVerified:false, generic:true },
+    beacon:      { asset:'beacon.png',       w:70,  h:70,  d:90,  cat:'Control',  label:'', color:'#8A5A10', bg:'#FBEED3', pn:'BEACON-24DC',  desc:'Beacon / strobe 24 VDC, roof or door mounted',    vendor:'to be specified',    mount:'door', powerW:3,   round:true, dimsVerified:false, generic:true },
+    hmi4:        { asset:'hmi-4in.png',      w:130, h:105, d:44,  cat:'Control',  label:'', color:'#2478CE', bg:'#E3EEF9', pn:'GS2104-WTBD',  desc:'HMI 4.3 inch TFT, Ethernet',                      vendor:'Mitsubishi Electric',mount:'door', powerW:0,   dimsVerified:false },
+    hmi10:       { asset:'hmi-10in.png',     w:272, h:214, d:52,  cat:'Control',  label:'', color:'#2478CE', bg:'#E3EEF9', pn:'GS2110-WTBD',  desc:'HMI 10.4 inch TFT, Ethernet',                     vendor:'Mitsubishi Electric',mount:'door', powerW:0,   dimsVerified:false },
+    meter_a:     { asset:'ammeter-96.png',   w:96,  h:96,  d:60,  cat:'Control',  label:'', color:'#42505C', bg:'#EEF1F4', pn:'AMP-96-ANALOG',desc:'Analogue ammeter 96×96 mm (cutout 92×92)',        vendor:'to be specified',    mount:'door', powerW:0,   dimsVerified:false, generic:true },
+    meter_v:     { asset:'voltmeter-96.png', w:96,  h:96,  d:60,  cat:'Control',  label:'', color:'#42505C', bg:'#EEF1F4', pn:'VOLT-96-ANALOG',desc:'Analogue voltmeter 96×96 mm (cutout 92×92)',     vendor:'to be specified',    mount:'door', powerW:0,   dimsVerified:false, generic:true },
+    meter_pwr:   { asset:'power-meter-96.png',w:96, h:96,  d:70,  cat:'Control',  label:'', color:'#2478CE', bg:'#E3EEF9', pn:'PM2120',       desc:'Power / energy meter 96×96 mm, Modbus',           vendor:'Schneider Electric', mount:'door', powerW:3,   dimsVerified:false },
+    meter_hour:  { asset:'hour-meter.png',   w:48,  h:48,  d:60,  cat:'Control',  label:'', color:'#42505C', bg:'#EEF1F4', pn:'HOUR-48',      desc:'Hour run meter 48×48 mm',                         vendor:'to be specified',    mount:'door', powerW:0.5, dimsVerified:false, generic:true },
+    temp_ctrl:   { asset:'temp-ctrl-48.png', w:48,  h:48,  d:80,  cat:'Control',  label:'', color:'#8A5A10', bg:'#FBEED3', pn:'TEMP-CTRL-48', desc:'Temperature controller 48×48 mm, PID',            vendor:'to be specified',    mount:'door', powerW:4,   dimsVerified:false, generic:true },
+    door_lock:   { asset:'door-lock.png',    w:30,  h:30,  d:40,  cat:'Mechanical',label:'',color:'#6B7885', bg:'#EEF1F4', pn:'DOOR-LOCK-KEY',desc:'Door lock, key operated',                         vendor:'to be specified',    mount:'door', powerW:0,   dimsVerified:false, generic:true },
+    window:      { asset:'window.png',       w:200, h:150, d:20,  cat:'Mechanical',label:'',color:'#6B7885', bg:'#F4F6F8', pn:'WINDOW-200x150',desc:'Inspection window with gasket, IP55',            vendor:'to be specified',    mount:'door', powerW:0,   dimsVerified:false, generic:true },
+    socket:      { asset:'socket.png',       w:50,  h:50,  d:60,  cat:'Power',    label:'', color:'#C08415', bg:'#FBEED3', pn:'SOCKET-230V',  desc:'Service socket 230 V, panel mounted',             vendor:'to be specified',    mount:'door', powerW:0,   dimsVerified:false, generic:true },
+    port_eth:    { asset:'port-rj45.png',    w:29,  h:29,  d:50,  cat:'Network',  label:'', color:'#0F7A6C', bg:'#DDF1EE', pn:'PORT-RJ45-22', desc:'RJ45 service coupler Ø22, IP65 cap',              vendor:'to be specified',    mount:'door', powerW:0,   round:true, dimsVerified:false, generic:true },
+    port_usb:    { asset:'port-usb.png',     w:29,  h:29,  d:50,  cat:'Network',  label:'', color:'#0F7A6C', bg:'#DDF1EE', pn:'PORT-USB-22',  desc:'USB programming coupler Ø22, IP65 cap',           vendor:'to be specified',    mount:'door', powerW:0,   round:true, dimsVerified:false, generic:true },
   };
-  /* Door devices never consume backplate space; they are laid out separately. */
-  const DOOR_KEYS = ['estop','hmi','disconnect','pb_start','pb_stop','pb_reset',
-                     'sel_auto','lamp_pwr','lamp_run','lamp_flt'];
+  /* Door devices never consume backplate space; they are laid out separately.
+     Derived, so adding a door component to the database is enough. */
+  const DOOR_KEYS = Object.keys(COMPONENT_DB)
+    .filter((k) => COMPONENT_DB[k].mount === 'door' && k !== 'fan');
 
   /* Reference designation prefixes, loosely IEC 81346:
      Q switching/protection · F fuse-overload · G supply · K relay/contactor
@@ -269,7 +302,9 @@
     ambientC: 30,     /* design ambient outside the enclosure */
     cabW: 800,        /* per-project, was a global setting */
     cabH: 0,          /* 0 = derive height from the layout; else a fixed size */
-    extras: [],       /* [{type, qty, rail}] — library components added by hand */
+    /* [{type, qty, place, rail}] — library components added by hand.
+       place 'plate' uses rail 1–3; place 'door' goes on the front cover. */
+    extras: [],
     doorPos: {},      /* {'estop#1': {x,y}} — manual front-cover placement, mm */
   };
   const NO_PLC = 'none';
@@ -315,6 +350,8 @@
       .map((e) => ({
         type: String(e.type),
         qty: Math.max(1, clampInt(e.qty) || 1),
+        /* entries saved before the front cover existed have no place */
+        place: e.place === 'door' ? 'door' : 'plate',
         rail: [1, 2, 3].indexOf(+e.rail) >= 0 ? +e.rail : 2,
       }));
     return c;
@@ -711,8 +748,9 @@
               fill(2 + c.hmi, 'mcb1'), fill(relays, 'irelay'));
     const rail3 = fill(c.vfd, 'vfd').concat(fill(c.servo, 'servo'));
 
-    /* Components the user added by hand from the library */
+    /* Components the user added by hand from the library, split by destination */
     const railOf = { 1: rail1, 2: rail2, 3: rail3 };
+    const doorExtras = [];
     for (const e of c.extras) {
       if (!specs[e.type]) {
         warnings.push({ level: 'error', code: 'UNKNOWN_COMPONENT',
@@ -720,7 +758,8 @@
                'it was skipped. Re-add it or remove it from this project.' });
         continue;
       }
-      for (let i = 0; i < e.qty; i++) railOf[e.rail].push(e.type);
+      const target = e.place === 'door' ? doorExtras : railOf[e.rail];
+      for (let i = 0; i < e.qty; i++) target.push(e.type);
     }
 
     /* Provisional fan count so the reserved column is right; refined below. */
@@ -762,7 +801,7 @@
     const heat = th.heat;
 
     /* ── door layout (needs the final enclosure size) ───────────────── */
-    const door = buildDoorLayout(c, counts, spec, dims.W, dims.H, A);
+    const door = buildDoorLayout(c, counts, spec, dims.W, dims.H, A, doorExtras);
 
     if (dims.nonStandardH)
       warnings.push({ level: 'warn', code: 'HEIGHT_NONSTD',
@@ -938,7 +977,7 @@
      Operator devices on the door. Zones run top to bottom; the E-stop gets a
      reserved top-right block because IEC 60204-1 §10.7 wants it unobstructed
      and immediately reachable, so nothing else may crowd it. */
-  function buildDoorLayout(c, counts, spec, W, H, A) {
+  function buildDoorLayout(c, counts, spec, W, H, A, doorExtras) {
     const D = A.door, M = D.margin;
     const items = [], zones = [];
     const est = spec('estop');
@@ -975,6 +1014,8 @@
     /* one run lamp per DOL starter (hard-wired indication) plus a system run */
     emit(['lamp_pwr'].concat(fill(1 + counts.dol, 'lamp_run'), ['lamp_flt']),
          'INDICATION', W - M * 2);
+    /* library components the user sent to the front cover */
+    emit(doorExtras || [], 'ADDED FROM LIBRARY', W - M * 2);
 
     /* Identify before overriding — manual positions are keyed on the id. */
     let placed = designate(items, DOOR_TAG);
@@ -1208,7 +1249,8 @@
     for (const t of Object.keys(agg)) {
       const d = specs[t];
       line(d.pn, d.desc, agg[t], 'pcs', d.vendor, d.cat, 'calculated',
-        { dimsVerified: d.dimsVerified, door: d.mount === 'door' });
+        { dimsVerified: d.dimsVerified, door: d.mount === 'door',
+          generic: !!d.generic });
     }
     /* legend engraving / labels for the operator devices */
     const doorCount = o.door ? o.door.items.length : 0;

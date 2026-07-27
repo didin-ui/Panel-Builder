@@ -467,16 +467,26 @@ describe('library — custom components added to a project', () => {
     const n = E.normalizeCfg({ extras: [
       { type: 'a', qty: 0, rail: 9 },      // qty floors at 1, rail falls back to 2
       { type: 'b', qty: '4', rail: '3' },  // strings coerced
+      { type: 'c', place: 'door' },        // front-cover destination
+      { type: 'd', place: 'nonsense' },    // unknown place falls back to plate
       { qty: 2 }, null, 'junk',            // no type → dropped
     ] });
     assert.deepEqual(n.extras, [
-      { type: 'a', qty: 1, rail: 2 },
-      { type: 'b', qty: 4, rail: 3 },
+      { type: 'a', qty: 1, place: 'plate', rail: 2 },
+      { type: 'b', qty: 4, place: 'plate', rail: 3 },
+      { type: 'c', qty: 1, place: 'door', rail: 2 },
+      { type: 'd', qty: 1, place: 'plate', rail: 2 },
     ]);
   });
 
+  test('an extra saved before the front cover existed defaults to the plate', () => {
+    const n = E.normalizeCfg({ extras: [{ type: 'x', qty: 2, rail: 1 }] });
+    assert.equal(n.extras[0].place, 'plate');
+  });
+
   test('extras survive a round trip through normalizeCfg', () => {
-    const c = cfg({ extras: [{ type: 'myrelay', qty: 2, rail: 1 }] });
+    const c = cfg({ extras: [{ type: 'myrelay', qty: 2, place: 'plate', rail: 1 },
+                             { type: 'myrelay', qty: 1, place: 'door', rail: 2 }] });
     assert.deepEqual(E.normalizeCfg(E.normalizeCfg(c)).extras, c.extras);
   });
 
@@ -721,6 +731,111 @@ describe('front cover layout', () => {
     const hmiLines = r.dcDetail.internal.filter((x) => /HMI/.test(x.name));
     assert.equal(hmiLines.length, 1, 'HMI counted more than once');
     assert.equal(hmiLines[0].w, 30);
+  });
+});
+
+describe('library — adding a component to the front cover', () => {
+  const METER = { components: { meter: {
+    desc: 'Energy meter 96×96', pn: 'EM-96', w: 96, h: 96, d: 60,
+    powerW: 3, vendor: 'Local', cat: 'Control', mount: 'door' } } };
+
+  test('place:door lands on the cover, not on a rail', () => {
+    const r = E.compute(cfg({ extras: [{ type: 'meter', qty: 2, place: 'door' }] }), METER);
+    assert.equal(r.door.items.filter((i) => i.type === 'meter').length, 2);
+    assert.equal(r.items.filter((i) => i.type === 'meter').length, 0,
+      'a front-cover device must not consume backplate space');
+    assert.ok(r.door.zones.some((z) => /ADDED FROM LIBRARY/.test(z.label)));
+  });
+
+  test('place:plate still lands on the requested rail', () => {
+    const r = E.compute(cfg({ extras: [{ type: 'meter', qty: 2, place: 'plate', rail: 1 }] }), METER);
+    assert.equal(r.items.filter((i) => i.type === 'meter').length, 2);
+    assert.equal(r.door.items.filter((i) => i.type === 'meter').length, 0);
+  });
+
+  test('the same component can go to both destinations at once', () => {
+    const r = E.compute(cfg({ extras: [
+      { type: 'meter', qty: 1, place: 'door' },
+      { type: 'meter', qty: 3, place: 'plate', rail: 2 },
+    ] }), METER);
+    assert.equal(r.door.items.filter((i) => i.type === 'meter').length, 1);
+    assert.equal(r.items.filter((i) => i.type === 'meter').length, 3);
+    const line = r.bom.find((b) => b.pn === 'EM-96');
+    assert.equal(line.qty, 4, 'BOM must total both destinations');
+  });
+
+  test('a front-cover extra reaches the BOM, budget and is draggable', () => {
+    const plain = R();
+    const r = E.compute(cfg({ extras: [{ type: 'meter', qty: 2, place: 'door' }] }), METER);
+    const line = r.bom.find((b) => b.pn === 'EM-96');
+    assert.ok(line && line.qty === 2);
+    assert.equal(line.door, true, 'should be flagged door-mounted');
+    assert.equal(Math.round(r.dcLoad - plain.dcLoad), 6, '2 × 3 W not in the 24 V load');
+    /* stable ids mean manual placement works on them too */
+    const ids = r.door.items.filter((i) => i.type === 'meter').map((i) => i.id);
+    assert.deepEqual(ids, ['meter#1', 'meter#2']);
+    const moved = E.compute(cfg({ extras: [{ type: 'meter', qty: 2, place: 'door' }],
+                                  doorPos: { 'meter#1': { x: 400, y: 700 } } }), METER);
+    const m = moved.door.items.find((i) => i.id === 'meter#1');
+    assert.equal(m.x, 400);
+    assert.equal(m.manual, true);
+  });
+
+  test('a front-cover extra too big for the door is reported', () => {
+    const big = { components: { slab: { desc: 'Huge slab', pn: 'SLAB',
+      w: 900, h: 900, d: 40, mount: 'door' } } };
+    const r = E.compute(cfg({ cabW: 300, cabH: 400,
+                              extras: [{ type: 'slab', qty: 1, place: 'door' }] }), big);
+    assert.ok(r.warnings.some((w) => w.code === 'DOOR_TOO_SMALL'));
+    assert.ok(Number.isFinite(r.door.neededH));
+  });
+
+  test('the front-cover catalogue is broad enough to build a real door', () => {
+    const door = Object.keys(E.COMPONENT_DB)
+      .filter((k) => E.COMPONENT_DB[k].mount === 'door' && k !== 'fan');
+    assert.ok(door.length >= 30,
+      `only ${door.length} front-cover components in the library`);
+    assert.deepEqual(E.DOOR_KEYS.slice().sort(), door.slice().sort(),
+      'DOOR_KEYS must be derived from the database');
+    /* the kinds an operator door actually needs */
+    const descs = door.map((k) => E.COMPONENT_DB[k].desc.toLowerCase()).join(' | ');
+    for (const kind of ['pushbutton', 'illuminated', 'mushroom', 'emergency stop',
+                        'selector', 'key selector', 'pilot lamp', 'potentiometer',
+                        'buzzer', 'beacon', 'hmi', 'ammeter', 'voltmeter',
+                        'energy meter', 'hour run meter', 'temperature controller',
+                        'door lock', 'window', 'socket', 'rj45', 'usb'])
+      assert.ok(descs.includes(kind), 'no front-cover device for: ' + kind);
+  });
+
+  test('every door component is complete and physically sane', () => {
+    for (const k of E.DOOR_KEYS) {
+      const d = E.COMPONENT_DB[k];
+      assert.ok(d.desc && d.pn, k + ' missing desc or part number');
+      assert.ok(d.w > 0 && d.h > 0 && d.d > 0, k + ' has a zero dimension');
+      assert.ok(d.w <= 400 && d.h <= 400, k + ' is implausibly large for a door');
+      assert.ok(Number.isFinite(d.powerW) && d.powerW >= 0, k + ' bad powerW');
+      assert.ok(d.cat && d.color && d.bg, k + ' missing display fields');
+    }
+  });
+
+  test('placeholder part numbers are flagged generic, and reach the BOM flagged', () => {
+    const generic = E.DOOR_KEYS.filter((k) => E.COMPONENT_DB[k].generic);
+    assert.ok(generic.length > 0, 'nothing marked generic');
+    for (const k of generic)
+      assert.equal(E.COMPONENT_DB[k].vendor, 'to be specified',
+        k + ' is generic but names a vendor');
+    const r = E.compute(cfg({ extras: [{ type: generic[0], qty: 1, place: 'door' }] }));
+    const line = r.bom.find((b) => b.pn === E.COMPONENT_DB[generic[0]].pn);
+    assert.ok(line && line.generic === true, 'generic flag lost on the way to the BOM');
+  });
+
+  test('every component with a real vendor is NOT flagged generic', () => {
+    for (const k of Object.keys(E.COMPONENT_DB)) {
+      const d = E.COMPONENT_DB[k];
+      if (d.generic) continue;
+      assert.notEqual(d.vendor, 'to be specified',
+        k + ' has a placeholder vendor but is not flagged generic');
+    }
   });
 });
 

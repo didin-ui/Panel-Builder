@@ -300,6 +300,21 @@ are derived, not guessed at random:
 | Pilot lamp RUN (green) | `1 + DOL starters` | system run + hard-wired per starter |
 | Pilot lamp FAULT (red) | 1 | from the safety relay and overload contacts |
 
+Those are the devices the generator places by itself. The library holds the
+**full front-cover catalogue** (35 devices) — other pushbutton colours,
+illuminated pushbuttons, spring-return mushrooms, key-release E-stops,
+2-position and key selectors, amber/blue lamps, potentiometer, buzzer, beacon,
+4"/7"/10" HMIs, analogue ammeter and voltmeter, power/energy meter, hour meter,
+temperature controller, door lock, inspection window, service socket, and RJ45 /
+USB service couplers. Add any of them from **Components library → + Panel →
+Front cover**; they are placed in an `ADDED FROM LIBRARY` zone, get stable ids so
+they can be dragged, and reach the BOM and the 24 V budget like anything else.
+
+Where I am not confident of a vendor code the part number is a **descriptor**
+flagged `generic: true` (shown as ◇ and carried through to the BOM), with vendor
+"to be specified" — 12 of the 35. A fabricated order number would look
+authoritative and be wrong.
+
 Geometry: Ø22 mm devices have a 29 mm bezel laid out on a 50 mm pitch
 (`gap 21`); rows are 26 mm apart; a 60 mm margin on every edge keeps holes clear
 of the gasket and return flange. The **E-stop gets a reserved block top-right**

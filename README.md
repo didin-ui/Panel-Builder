@@ -84,8 +84,18 @@ Menu **Components library** bisa dipakai untuk mengelola database komponen:
 - **Gambar** — klik atau jatuhkan file di area gambar. Otomatis disusutkan ke
   maks 360 px dan disimpan di database, jadi ikut terbawa ke komputer lain
   (tidak perlu file di `assets/components/`).
-- **+ Panel** — tambahkan komponen ke layout proyek aktif (jumlah + rail).
-  Muncul di gambar, BOM, dan perhitungan 24 V.
+- **+ Panel** — tambahkan komponen ke proyek aktif. Pilih tujuannya:
+  **Front cover** (pintu panel) atau **Rail 1 / 2 / 3** (dalam panel).
+  Perangkat pintu otomatis default ke Front cover. Komponen yang ditambahkan
+  muncul di gambar, bisa ditarik posisinya (kalau di front cover), masuk BOM,
+  dan konsumsi 24 V-nya ikut dihitung. Satu komponen boleh dipakai di kedua
+  tujuan sekaligus — BOM menjumlahkan keduanya.
+- **Tab Front cover** — 35 perangkat pintu tersedia: pushbutton (berbagai warna,
+  ada yang lampu), mushroom, E-stop (putar / kunci), selector 2–3 posisi & kunci,
+  pilot lamp 5 warna, potensiometer, buzzer, beacon, HMI 4"/7"/10", ampere &
+  volt meter analog, power/energy meter, hour meter, temperature controller,
+  door lock, kaca inspeksi, service socket, port RJ45/USB.
+  Tanda ◇ = part number masih generik (vendor belum ditentukan).
 - **Reset / Hapus** — kembalikan komponen bawaan ke default, atau hapus
   komponen custom.
 
