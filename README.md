@@ -48,11 +48,32 @@ indikator menunjukkan "● Local only" dan data disimpan di localStorage browser
 Saat server dijalankan lagi, data dari browser akan disinkronkan ke database
 pada penyimpanan berikutnya.
 
+## Components library
+Menu **Components library** bisa dipakai untuk mengelola database komponen:
+
+- **+ Tambah komponen** — komponen baru (kode unik, dimensi W×H×D, mounting,
+  konsumsi 24 V, gambar).
+- **Edit** — perbaiki dimensi/part number/vendor komponen bawaan. Perubahan
+  disimpan sebagai override minimal, dan **ikut menghitung**: layout, ukuran
+  kabinet, beban 24 V, panas, dan BOM langsung berubah.
+- **Gambar** — klik atau jatuhkan file di area gambar. Otomatis disusutkan ke
+  maks 360 px dan disimpan di database, jadi ikut terbawa ke komputer lain
+  (tidak perlu file di `assets/components/`).
+- **+ Panel** — tambahkan komponen ke layout proyek aktif (jumlah + rail).
+  Muncul di gambar, BOM, dan perhitungan 24 V.
+- **Reset / Hapus** — kembalikan komponen bawaan ke default, atau hapus
+  komponen custom.
+
+Centang *dimensi sudah diverifikasi* hanya setelah dicek ke datasheet — badge
+itu satu-satunya pembeda antara angka pasti dan estimasi.
+
 ## API (untuk integrasi, mis. dipanggil dari Qscada/MPEdge)
 - `GET  /api/health`        — status server
-- `GET  /api/state`         — semua proyek + settings
+- `GET  /api/state`         — semua proyek + settings + library
 - `GET  /api/projects/:id`  — satu proyek (konfigurasi JSON)
-- `POST /api/sync`          — simpan {projects, settings}
+- `POST /api/sync`          — simpan {projects, settings, library}; payload
+  divalidasi dulu, dan kegagalan dibalas JSON (bukan HTML) supaya UI bisa
+  menampilkan pesannya. Limit body 25 MB karena gambar komponen.
 
 ## Backup
 Cukup salin file `panelbuilder.db`. (Mode WAL: salin saat server berhenti,

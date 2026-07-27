@@ -263,6 +263,37 @@ step; **do not treat the size column as a calculated result.**
 
 ---
 
+## 9. Component library overrides
+
+The built-in database is estimate-grade (`dimsVerified: false`). The Components
+library view lets you correct it, and corrections are **design inputs**, not
+cosmetics — they flow into layout, enclosure sizing, the 24 V budget and the BOM:
+
+```js
+compute(cfg, { components: { plc: { w: 160, h: 95, pn: 'FX5U-64MT/ES' } } })
+```
+
+- Edits to a built-in component are stored as a **minimal diff** against the
+  default, so a component still benefits if the built-in value is later improved.
+- Setting a dimension flips nothing automatically — tick *dimensions verified*
+  yourself once you have checked the datasheet. That badge is the only signal
+  separating a confirmed figure from an estimate.
+- Overrides are applied **last**, after selection tables. For the six
+  selection-driven components (`psu`, `mccb`, `vfd`, `servo`, `contactor`,
+  `overload`) a dimension override therefore **pins** the footprint for every
+  variant, and the engine raises a `DIMS_PINNED` info warning saying so. Clear
+  the override to restore automatic sizing.
+- New components inherit `BLANK_COMPONENT`. They only enter a design when added
+  to a project's `extras`, which records `{type, qty, rail}`. Placed components
+  contribute their `powerW` to the internal 24 V load (and therefore to heat),
+  and appear in the BOM like any other part.
+- An `extras` entry pointing at a component that no longer exists produces an
+  `UNKNOWN_COMPONENT` error and is skipped — the design still computes.
+
+Images uploaded in the library are downscaled to 360 px and stored as data URIs
+in the database, so they travel with the project rather than depending on files
+in `assets/components/`. They are presentation only; nothing reads pixels.
+
 ## Deliberate omissions
 
 Things the tool could easily fabricate and deliberately does not:

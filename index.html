@@ -171,6 +171,47 @@
   .ai-msg{background:var(--blue-50);border:1px solid var(--blue-100);border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.55;}
   .ai-in{display:flex;align-items:center;gap:8px;margin-top:10px;border:1px solid var(--gray-300);border-radius:var(--radius);padding:7px 11px;color:var(--gray-500);font-size:12px;}
 
+  /* Modal */
+  .mask{position:fixed;inset:0;background:rgba(18,56,94,.42);backdrop-filter:blur(2px);
+    display:flex;align-items:flex-start;justify-content:center;padding:6vh 16px 24px;z-index:100;
+    overflow-y:auto;animation:fade .12s ease-out;}
+  @keyframes fade{from{opacity:0;}to{opacity:1;}}
+  @keyframes rise{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+  .mdl{background:var(--paper);border-radius:14px;width:100%;max-width:440px;
+    box-shadow:0 18px 48px rgba(18,56,94,.28);animation:rise .14s ease-out;overflow:hidden;}
+  .mdl.wide{max-width:660px;}
+  .mdl-h{padding:14px 18px;border-bottom:1px solid var(--gray-200);display:flex;align-items:center;gap:10px;}
+  .mdl-h b{font-size:14px;font-weight:600;}
+  .mdl-h .x{margin-left:auto;border:none;background:none;font-size:20px;line-height:1;
+    color:var(--gray-500);cursor:pointer;padding:0 4px;border-radius:6px;}
+  .mdl-h .x:hover{background:var(--gray-100);color:var(--ink);}
+  .mdl-b{padding:16px 18px;max-height:64vh;overflow-y:auto;}
+  .mdl-b p.hint{font-size:12px;color:var(--gray-500);line-height:1.65;}
+  .mdl-f{padding:12px 18px;border-top:1px solid var(--gray-200);display:flex;
+    align-items:center;gap:8px;background:var(--blue-50);}
+  .mdl-f .spacer{flex:1;}
+  .mdl-err{background:var(--red-100);color:var(--red-600);border-radius:8px;
+    padding:8px 11px;font-size:12px;margin-bottom:12px;display:none;}
+  .mdl-err.show{display:block;}
+  .drop{border:1.5px dashed var(--gray-300);border-radius:10px;padding:12px;text-align:center;
+    background:var(--gray-100);cursor:pointer;}
+  .drop:hover,.drop.over{border-color:var(--blue-500);background:var(--blue-50);}
+  .drop img{max-width:100%;max-height:120px;object-fit:contain;display:block;margin:0 auto 8px;}
+  .drop small{font-size:11px;color:var(--gray-500);line-height:1.6;}
+  .toast{position:fixed;left:50%;bottom:74px;transform:translateX(-50%);z-index:200;
+    background:var(--ink);color:#fff;font-size:12.5px;padding:10px 16px;border-radius:8px;
+    box-shadow:0 8px 24px rgba(0,0,0,.24);animation:rise .14s ease-out;max-width:80vw;}
+  .toast.err{background:var(--red-600);}
+  .toast.ok{background:var(--green-600);}
+
+  /* Library */
+  .lib-card .lib-act{display:flex;gap:6px;margin-top:auto;}
+  .lib-card .lib-act .btn{flex:1;padding:5px 0;font-size:11px;}
+  .lib-tabs{display:flex;gap:6px;}
+  .lib-tabs button{border:1px solid var(--gray-300);background:#fff;border-radius:6px;
+    padding:6px 12px;font-size:11.5px;font-family:inherit;color:var(--gray-700);cursor:pointer;}
+  .lib-tabs button.on{background:var(--blue-500);border-color:var(--blue-500);color:#fff;}
+
   /* Report / print */
   .report{max-width:820px;}
   .report h2{font-size:14px;font-weight:600;margin:18px 0 8px;}
@@ -178,6 +219,7 @@
   .rep-head img{height:40px;display:none;}
   .rep-head.has-logo img{display:block;} .rep-head.has-logo .rep-mark{display:none;}
   @media print{
+    .mask,.toast{display:none!important;}
     body *{visibility:hidden;}
     #view-reports,#view-reports *{visibility:visible;}
     #view-reports{position:absolute;left:0;top:0;width:100%;padding:0;}
@@ -279,6 +321,7 @@
               <div class="field"><label>Motors</label><input id="cfg-motor" type="number" value="6" min="0" max="12"></div>
             </div>
             <div class="field"><label>Solenoid valves</label><input id="cfg-valve" type="number" value="5" min="0" max="24"></div>
+            <div id="cfg-extras"></div>
             <button class="btn-generate" onclick="generate(true)">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/></svg>
               Generate panel
@@ -364,7 +407,9 @@
     <section class="view" id="view-library">
       <div class="page-h"><h1>Components library</h1>
         <span class="sub" id="lib-count"></span><span class="spacer"></span>
-        <input id="lib-search" placeholder="Filter nama / part number…" style="border:1px solid var(--gray-300);border-radius:6px;padding:7px 10px;font-family:inherit;font-size:12px;width:240px;" oninput="renderLibrary()">
+        <div class="lib-tabs" id="lib-tabs"></div>
+        <input id="lib-search" placeholder="Filter nama / part number…" style="border:1px solid var(--gray-300);border-radius:6px;padding:7px 10px;font-family:inherit;font-size:12px;width:200px;" oninput="renderLibrary()">
+        <button class="btn primary" onclick="addComponent()">+ Tambah komponen</button>
       </div>
       <div class="lib-grid" id="lib-grid"></div>
     </section>
@@ -497,6 +542,8 @@ function loadState(){
    panelbuilder.db keeps working instead of computing NaN. */
 function migrate(s){
   const old = s.settings || {};
+  if(!s.library || typeof s.library!=='object') s.library = {components:{}};
+  if(!s.library.components) s.library.components = {};
   if(!old.layout){
     s.settings = {layout:{
       gap:   old.gap  ?? PanelEngine.ASSUMPTIONS.layout.gap,
@@ -517,8 +564,18 @@ function persist(){
   clearTimeout(syncTimer);                       /* debounce agar tidak membanjiri server */
   syncTimer = setTimeout(()=>{
     fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({projects:state.projects, settings:state.settings})})
-      .then(r=>setDbStatus(r.ok))
+      body:JSON.stringify({projects:state.projects, settings:state.settings,
+                           library:state.library})})
+      .then(async r=>{
+        setDbStatus(r.ok);
+        /* Kegagalan simpan tidak boleh diam-diam — dulu hanya berubah jadi
+           "Local only" dan user menyangka datanya tersimpan. */
+        if(!r.ok){
+          const j=await r.json().catch(()=>({}));
+          toast('Gagal menyimpan ke database: '+(j.error||('HTTP '+r.status))+
+                ' — data tetap ada di browser ini.','err');
+        }
+      })
       .catch(()=>setDbStatus(false));
   }, 400);
 }
@@ -533,6 +590,7 @@ async function connectDb(){
   try{
     const h = await fetch('/api/health'); if(!h.ok) throw 0;
     const r = await fetch('/api/state'); const data = await r.json();
+    if(data.library) state.library = data.library;
     if(data.projects && data.projects.length){
       state.projects = data.projects;
       if(data.settings) state.settings = data.settings;
@@ -576,7 +634,14 @@ function go(id){
 
 /* ══════════ SHARED ══════════ */
 let zoom=1, R=null;   /* R = hasil compute terakhir untuk proyek aktif */
-function recompute(){ R = PanelEngine.compute(activeProject().cfg, state.settings); }
+function recompute(){
+  R = PanelEngine.compute(activeProject().cfg,
+        {...state.settings, components: state.library.components});
+}
+/* Database komponen setelah library user diterapkan — sumber tunggal untuk
+   view Library. Gambar hasil upload (data URI) menang atas file di assets/. */
+function libDb(){ return PanelEngine.resolveDb(state.library.components); }
+function imgSrc(d){ return d.image || (d.asset ? 'assets/components/'+d.asset : ''); }
 /* Semua teks dari user (nama proyek, customer) lewat sini sebelum innerHTML. */
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,
   ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
@@ -585,6 +650,125 @@ function set(id,v){ const el=document.getElementById(id); if(el) el.textContent=
 function fmtDate(t){ return new Date(t).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'}); }
 /* set() uses textContent, so these two are safe without esc() */
 function updateTopbar(){ const p=activeProject(); set('tb-proj',p.name); set('tb-cust','Customer: '+p.customer+' · Rev '+p.rev); }
+
+/* ══════════ MODAL ══════════
+   Menggantikan prompt()/confirm()/alert() yang menampilkan header
+   "localhost:3100 says". Esc menutup, Enter submit, fokus otomatis. */
+let modalEsc=null;
+function closeModal(){
+  const m=document.getElementById('mask');
+  if(m) m.remove();
+  if(modalEsc){ document.removeEventListener('keydown',modalEsc); modalEsc=null; }
+}
+function openModal({title, body, footer, wide, onMount}){
+  closeModal();
+  const mask=document.createElement('div');
+  mask.className='mask'; mask.id='mask';
+  mask.innerHTML=`<div class="mdl${wide?' wide':''}" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+    <div class="mdl-h"><b>${esc(title)}</b><button class="x" title="Tutup" data-close>&times;</button></div>
+    <div class="mdl-b"><div class="mdl-err" id="mdl-err"></div>${body}</div>
+    <div class="mdl-f">${footer}</div></div>`;
+  document.body.appendChild(mask);
+  mask.addEventListener('mousedown',e=>{ if(e.target===mask) closeModal(); });
+  mask.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',closeModal));
+  modalEsc=e=>{ if(e.key==='Escape') closeModal(); };
+  document.addEventListener('keydown',modalEsc);
+  const first=mask.querySelector('input,select,textarea,button.primary');
+  if(first) first.focus();
+  if(first && first.select) try{ first.select(); }catch(e){}
+  if(onMount) onMount(mask);
+  return mask;
+}
+function modalError(msg){
+  const e=document.getElementById('mdl-err');
+  if(!e) return;
+  e.textContent=msg; e.classList.toggle('show',!!msg);
+}
+/* Konfirmasi: resolve(true/false) */
+function modalConfirm({title, message, confirmLabel='Lanjutkan', danger}){
+  return new Promise(resolve=>{
+    let done=false;
+    const finish=v=>{ if(done) return; done=true; closeModal(); resolve(v); };
+    openModal({title, body:`<p class="hint">${esc(message)}</p>`,
+      footer:`<span class="spacer"></span>
+        <button class="btn" id="m-no">Batal</button>
+        <button class="btn ${danger?'danger':'primary'}" id="m-yes">${esc(confirmLabel)}</button>`,
+      onMount:m=>{
+        m.querySelector('#m-yes').onclick=()=>finish(true);
+        m.querySelector('#m-no').onclick=()=>finish(false);
+        m.querySelector('[data-close]').addEventListener('click',()=>finish(false));
+        m.addEventListener('mousedown',e=>{ if(e.target===m) finish(false); });
+        m.querySelector('#m-yes').focus();
+      }});
+  });
+}
+/* Form generik: fields=[{id,label,type,value,options,min,max,hint,required,width}]
+   resolve(values) atau resolve(null) bila dibatalkan. validate(v) -> string|null */
+function modalForm({title, fields, submitLabel='Simpan', wide, validate, intro}){
+  return new Promise(resolve=>{
+    let done=false;
+    const finish=v=>{ if(done) return; done=true; closeModal(); resolve(v); };
+    const inp=f=>{
+      if(f.type==='select')
+        return `<select id="mf-${f.id}">${f.options.map(o=>{
+          const [val,lab]=Array.isArray(o)?o:[o,o];
+          return `<option value="${esc(val)}"${String(val)===String(f.value)?' selected':''}>${esc(lab)}</option>`;
+        }).join('')}</select>`;
+      if(f.type==='textarea')
+        return `<textarea id="mf-${f.id}" rows="2" style="width:100%;border:1px solid var(--gray-300);border-radius:6px;padding:7px 9px;font-family:inherit;font-size:12.5px;">${esc(f.value??'')}</textarea>`;
+      return `<input id="mf-${f.id}" type="${f.type||'text'}" value="${esc(f.value??'')}"
+        ${f.min!=null?`min="${f.min}"`:''} ${f.max!=null?`max="${f.max}"`:''}
+        ${f.step!=null?`step="${f.step}"`:''} ${f.placeholder?`placeholder="${esc(f.placeholder)}"`:''}>`;
+    };
+    const body=(intro?`<p class="hint" style="margin-bottom:12px;">${intro}</p>`:'')+
+      `<div class="grid2" style="align-items:start;">`+
+      fields.map(f=>`<div class="field" ${f.full?'style="grid-column:1/-1;"':''}>
+        <label for="mf-${f.id}">${esc(f.label)}</label>${inp(f)}
+        ${f.hint?`<small style="font-size:10.5px;color:var(--gray-500);line-height:1.5;display:block;margin-top:3px;">${f.hint}</small>`:''}
+      </div>`).join('')+`</div>`;
+    openModal({title, wide, body,
+      footer:`<span class="spacer"></span>
+        <button class="btn" id="m-cancel">Batal</button>
+        <button class="btn primary" id="m-ok">${esc(submitLabel)}</button>`,
+      onMount:m=>{
+        const read=()=>{
+          const v={};
+          for(const f of fields){
+            const el=m.querySelector('#mf-'+f.id);
+            v[f.id]= f.type==='number' ? (el.value===''?null:+el.value) : el.value.trim();
+          }
+          return v;
+        };
+        const submit=()=>{
+          const v=read();
+          for(const f of fields)
+            if(f.required && (v[f.id]===''||v[f.id]==null)){
+              modalError(`"${f.label}" wajib diisi.`);
+              m.querySelector('#mf-'+f.id).focus(); return;
+            }
+          const err=validate?validate(v,m):null;
+          if(err){ modalError(err); return; }
+          finish(v);
+        };
+        m.querySelector('#m-ok').onclick=submit;
+        m.querySelector('#m-cancel').onclick=()=>finish(null);
+        m.querySelector('[data-close]').addEventListener('click',()=>finish(null));
+        m.addEventListener('mousedown',e=>{ if(e.target===m) finish(null); });
+        m.addEventListener('keydown',e=>{
+          if(e.key==='Enter' && e.target.tagName!=='TEXTAREA'){ e.preventDefault(); submit(); }
+        });
+      }});
+  });
+}
+let toastTimer=null;
+function toast(msg, level){
+  const old=document.querySelector('.toast'); if(old) old.remove();
+  const t=document.createElement('div');
+  t.className='toast'+(level?' '+level:''); t.textContent=msg;
+  document.body.appendChild(t);
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.remove(), level==='err'?5200:2600);
+}
 
 /* ══════════ DASHBOARD ══════════ */
 function renderDashboard(){
@@ -600,20 +784,27 @@ function renderDashboard(){
     [...state.projects].sort((a,b)=>b.updated-a.updated).slice(0,6).map(p=>
       `<tr class="click" onclick="openProject(${p.id})"><td><b>${esc(p.name)}</b></td><td>${esc(p.customer)}</td><td>${fmtDate(p.updated)}</td>
        <td>${p.id===state.activeId?'<span class="badge b-blue">Active</span>':''}</td></tr>`).join('');
-  /* asset readiness: cek berapa sprite yang sudah ada */
-  const types=Object.values(COMPONENT_DB); let done=0, total=types.length, pending=[];
-  let checked=0;
-  types.forEach(d=>{
+  /* asset readiness: gambar upload (data URI) + file di assets/components/ */
+  const db=libDb(), types=Object.keys(db).map(k=>({key:k, d:db[k]}));
+  const uploaded=types.filter(t=>t.d.image).length;
+  let done=0, total=types.length, pending=[], checked=0;
+  if(!total) return fin();
+  types.forEach(t=>{
+    const src=imgSrc(t.d);
+    if(!src){ pending.push(t.d.pn||t.key); if(++checked===total) fin(); return; }
     const img=new Image();
     img.onload=()=>{done++; if(++checked===total) fin();};
-    img.onerror=()=>{pending.push(d.asset); if(++checked===total) fin();};
-    img.src='assets/components/'+d.asset;
+    img.onerror=()=>{pending.push(t.d.asset||t.d.pn||t.key); if(++checked===total) fin();};
+    img.src=src;
   });
   function fin(){
     document.getElementById('dash-assets').innerHTML =
-      `<b style="color:var(--ink);font-size:16px;">${done} / ${total}</b> sprite komponen terpasang.<br>`+
-      (pending.length? 'Belum ada: '+pending.slice(0,6).map(a=>`<code style="font-size:10px;">${a}</code>`).join(', ')+(pending.length>6?` +${pending.length-6} lagi`:'')
-                     : 'Semua asset komponen lengkap.');
+      `<b style="color:var(--ink);font-size:16px;">${done} / ${total}</b> gambar komponen tersedia`+
+      (uploaded?` <span class="badge b-green">${uploaded} upload</span>`:'')+`.<br>`+
+      (pending.length? 'Belum ada: '+pending.slice(0,5).map(a=>`<code style="font-size:10px;">${esc(a)}</code>`).join(', ')+
+          (pending.length>5?` +${pending.length-5} lagi`:'')+
+          `<br><a onclick="go('library')" style="color:var(--blue-600);cursor:pointer;">Upload di Components library →</a>`
+        : 'Semua komponen punya gambar.');
   }
 }
 
@@ -630,11 +821,31 @@ function renderProjects(){
         <button class="btn danger" onclick="delProject(${p.id})">Delete</button>
       </td></tr>`).join('');
 }
-function newProject(){
-  const name = prompt('Nama proyek:','New Panel Project'); if(!name) return;
-  const customer = prompt('Customer:','') || '—';
-  state.projects.push({id:state.nextId++, name, customer, rev:'A', cfg:{...DEFAULT_CFG}, updated:Date.now()});
-  state.activeId = state.nextId-1; persist(); go('designer');
+async function newProject(){
+  const v = await modalForm({
+    title:'Proyek baru', submitLabel:'Buat proyek',
+    intro:'Parameter mesin bisa diubah setelah proyek dibuat, di Panel designer.',
+    fields:[
+      {id:'name',     label:'Nama proyek', value:'New Panel Project', required:true, full:true},
+      {id:'customer', label:'Customer',    value:'', placeholder:'—', full:true},
+      {id:'rev',      label:'Revisi',      value:'A'},
+      {id:'supplyV',  label:'Supply voltage', type:'select', value:400,
+       options:[[200,'200 V 3P'],[230,'230 V 3P'],[380,'380 V 3P'],[400,'400 V 3P'],[415,'415 V 3P']]},
+      {id:'ambientC', label:'Ambient (°C)', type:'number', value:30, min:-10, max:60},
+      {id:'cabW',     label:'Lebar kabinet (mm)', type:'select', value:800,
+       options:[400,600,800,1000,1200]},
+    ],
+    validate:v=>state.projects.some(p=>p.name.toLowerCase()===v.name.toLowerCase())
+      ? 'Sudah ada proyek dengan nama itu.' : null,
+  });
+  if(!v) return;
+  state.projects.push({id:state.nextId++, name:v.name, customer:v.customer||'—',
+    rev:v.rev||'A', updated:Date.now(),
+    cfg:PanelEngine.normalizeCfg({...DEFAULT_CFG, supplyV:+v.supplyV,
+      ambientC:v.ambientC, cabW:+v.cabW})});
+  state.activeId = state.nextId-1; persist();
+  toast('Proyek "'+v.name+'" dibuat','ok');
+  go('designer');
 }
 function openProject(id){ state.activeId=id; persist(); updateTopbar(); go('designer'); }
 function dupProject(id){
@@ -642,12 +853,15 @@ function dupProject(id){
   state.projects.push({...p, id:state.nextId++, name:p.name+' (copy)', updated:Date.now(), cfg:{...p.cfg}});
   persist(); renderProjects();
 }
-function delProject(id){
-  if(state.projects.length<=1){ alert('Minimal satu proyek harus ada.'); return; }
-  if(!confirm('Hapus proyek ini?')) return;
-  state.projects = state.projects.filter(p=>p.id!==id);
+async function delProject(id){
+  if(state.projects.length<=1){ toast('Minimal satu proyek harus ada.','err'); return; }
+  const p=state.projects.find(x=>x.id===id);
+  if(!await modalConfirm({title:'Hapus proyek', danger:true, confirmLabel:'Hapus',
+    message:`Proyek "${p.name}" akan dihapus permanen, termasuk konfigurasinya. Tindakan ini tidak bisa dibatalkan.`})) return;
+  state.projects = state.projects.filter(x=>x.id!==id);
   if(state.activeId===id) state.activeId = state.projects[0].id;
   persist(); updateTopbar(); renderProjects();
+  toast('Proyek "'+p.name+'" dihapus');
 }
 function saveProject(notify){
   const p=activeProject(); p.cfg=readCfgForm(); p.updated=Date.now(); persist();
@@ -666,6 +880,8 @@ function readCfgForm(){
   const n=id=>Math.max(0,parseInt(document.getElementById(id).value)||0);
   const v=id=>document.getElementById(id).value;
   return PanelEngine.normalizeCfg({
+    /* extras tidak ada di form — jangan sampai hilang saat save */
+    extras: activeProject().cfg.extras,
     plc:v('cfg-plc'), di:n('cfg-di'), do_:n('cfg-do'),
     ai:n('cfg-ai'), ao:n('cfg-ao'), vfd:n('cfg-vfd'), servo:n('cfg-servo'),
     hmi:n('cfg-hmi'), motor:n('cfg-motor'), valve:n('cfg-valve'),
@@ -678,7 +894,23 @@ function fillCfgForm(c){
            'cfg-supplyv':c.supplyV,'cfg-ambient':c.ambientC,'cfg-cabw':c.cabW};
   for(const k in m) document.getElementById(k).value=m[k];
 }
-function enterDesigner(){ fillCfgForm(activeProject().cfg); generate(false); }
+function enterDesigner(){ fillCfgForm(activeProject().cfg); renderExtras(); generate(false); }
+/* Komponen dari library yang ditambahkan manual ke proyek ini */
+function renderExtras(){
+  const extras=activeProject().cfg.extras||[], db=libDb();
+  document.getElementById('cfg-extras').innerHTML = !extras.length ? '' :
+    `<div class="field"><label>Dari library (${extras.length})</label>
+      ${extras.map((e,i)=>{
+        const d=db[e.type];
+        return `<div style="display:flex;align-items:center;gap:6px;font-size:11.5px;
+                  padding:5px 8px;background:var(--gray-100);border-radius:6px;margin-bottom:4px;">
+          <span style="flex:1;${d?'':'color:var(--red-600);'}">${e.qty} × ${esc(d?d.desc:e.type+' (hilang)')}
+            <span style="color:var(--gray-500);">· rail ${e.rail}</span></span>
+          <button class="tbtn" style="width:22px;height:22px;font-size:12px;"
+            onclick="removeExtra(${i})" title="Hapus dari proyek">×</button></div>`;
+      }).join('')}
+    </div>`;
+}
 function generate(save){
   if(save){ saveProject(false); }
   recompute();
@@ -756,7 +988,7 @@ function draw(){
       <div class="ph" style="border-color:${d.color};background:${d.bg}CC;color:${d.color};">
         <b>${esc(d.desc.split(' ').slice(0,2).join(' '))}</b><i>${esc(d.pn)}</i><i>${d.w}×${d.h} mm</i>
         ${it.doorMounted?'<i>door / side</i>':''}</div>
-      <img src="assets/components/${d.asset}" alt="${esc(d.desc)}" onload="this.parentNode.classList.add('has-img')"></div>`;
+      ${imgSrc(d)?`<img src="${esc(imgSrc(d))}" alt="${esc(d.desc)}" onload="this.parentNode.classList.add('has-img')">`:''}</div>`;
     if(showTags && d.label && !tagged.has(it.type)){
       tagged.add(it.type);
       html+=`<div class="tag" style="left:${it.x}px;top:${t-4}px;">${esc(d.label)}</div>`;
@@ -781,21 +1013,243 @@ function zoomFit(){
 }
 
 /* ══════════ LIBRARY ══════════ */
+let libFilter='all';
+function setLibFilter(f){ libFilter=f; renderLibrary(); }
 function renderLibrary(){
   const q=(document.getElementById('lib-search').value||'').toLowerCase();
-  const entries=Object.values(COMPONENT_DB).filter(d=>
-    !q || d.desc.toLowerCase().includes(q) || d.pn.toLowerCase().includes(q) || d.cat.toLowerCase().includes(q));
-  set('lib-count',entries.length+' dari '+Object.keys(COMPONENT_DB).length+' komponen');
-  document.getElementById('lib-grid').innerHTML=entries.map(d=>`
-    <div class="lib-card">
-      <div class="lib-img">
-        <div class="lph">${d.asset}<br>${d.w} × ${d.h} mm</div>
-        <img src="assets/components/${d.asset}" alt="${d.desc}" onload="this.parentNode.classList.add('has-img')">
+  const db=libDb(), patches=state.library.components;
+  const all=Object.keys(db).map(k=>({key:k, d:db[k],
+    isCustom:!COMPONENT_DB[k], isMod:!!patches[k] && !!COMPONENT_DB[k]}));
+  const counts={all:all.length, builtin:all.filter(x=>!x.isCustom).length,
+                modified:all.filter(x=>x.isMod).length, custom:all.filter(x=>x.isCustom).length};
+  const entries=all
+    .filter(x=> libFilter==='all' || (libFilter==='builtin'&&!x.isCustom) ||
+                (libFilter==='modified'&&x.isMod) || (libFilter==='custom'&&x.isCustom))
+    .filter(x=>{
+      if(!q) return true;
+      const d=x.d;
+      return (d.desc+' '+d.pn+' '+d.cat+' '+d.vendor+' '+x.key).toLowerCase().includes(q);
+    })
+    .sort((a,b)=>(a.d.cat+a.d.desc).localeCompare(b.d.cat+b.d.desc));
+
+  document.getElementById('lib-tabs').innerHTML=
+    [['all','Semua'],['builtin','Bawaan'],['modified','Diubah'],['custom','Custom']]
+    .map(([f,lab])=>`<button class="${libFilter===f?'on':''}" onclick="setLibFilter('${f}')">${lab} ${counts[f]}</button>`).join('');
+  set('lib-count',`${entries.length} tampil · ${counts.all} komponen (${counts.custom} custom, ${counts.modified} diubah)`);
+
+  document.getElementById('lib-grid').innerHTML=entries.length? entries.map(x=>{
+    const d=x.d, src=imgSrc(d);
+    const badges=[`<span class="badge b-blue">${esc(d.cat)}</span>`];
+    if(x.isCustom)  badges.push('<span class="badge b-green">custom</span>');
+    if(x.isMod)     badges.push('<span class="badge b-amber">diubah</span>');
+    if(d.dimsVerified) badges.push('<span class="badge b-green">dims ✓</span>');
+    return `<div class="lib-card">
+      <div class="lib-img${src?'':' no-src'}">
+        <div class="lph">${esc(d.asset||d.pn||x.key)}<br>${d.w} × ${d.h} × ${d.d} mm</div>
+        ${src?`<img src="${esc(src)}" alt="${esc(d.desc)}" onload="this.parentNode.classList.add('has-img')">`:''}
       </div>
-      <b>${d.desc}</b>
-      <small><span class="pn">${d.pn}</span><br>${d.vendor} · <span class="badge b-blue">${d.cat}</span><br>
-      ${d.w} × ${d.h} mm · export ${d.w*3} × ${d.h*3} px</small>
-    </div>`).join('');
+      <b>${esc(d.desc)}</b>
+      <small><span class="pn">${esc(d.pn||'—')}</span><br>
+        ${esc(d.vendor||'—')}<br>${badges.join(' ')}<br>
+        ${d.w} × ${d.h} × ${d.d} mm · ${d.mount}${d.powerW?` · ${d.powerW} W`:''}</small>
+      <div class="lib-act">
+        <button class="btn" onclick="editComponent('${esc(x.key)}')">Edit</button>
+        <button class="btn" onclick="addToProject('${esc(x.key)}')" title="Tambahkan ke layout proyek aktif">+ Panel</button>
+        ${x.isMod?`<button class="btn" onclick="resetComponent('${esc(x.key)}')" title="Kembalikan ke nilai bawaan">Reset</button>`:''}
+        ${x.isCustom?`<button class="btn danger" onclick="deleteComponent('${esc(x.key)}')">Hapus</button>`:''}
+      </div>
+    </div>`;}).join('')
+    : `<p class="hint" style="grid-column:1/-1;padding:20px;">Tidak ada komponen yang cocok.</p>`;
+}
+
+/* ── gambar: baca file, susutkan, simpan sebagai data URI ────────────── */
+function readImageFile(file, maxPx=360){
+  return new Promise((resolve,reject)=>{
+    if(!file) return resolve(null);
+    if(!/^image\//.test(file.type)) return reject(new Error('File itu bukan gambar.'));
+    if(file.size>8*1024*1024) return reject(new Error('Gambar terlalu besar (maks 8 MB).'));
+    const fr=new FileReader();
+    fr.onerror=()=>reject(new Error('Gagal membaca file.'));
+    fr.onload=()=>{
+      const img=new Image();
+      img.onerror=()=>reject(new Error('Format gambar tidak didukung.'));
+      img.onload=()=>{
+        /* Disusutkan supaya database tidak membengkak — layout hanya butuh
+           sprite kecil, dan payload /api/sync dibatasi. */
+        const s=Math.min(1, maxPx/Math.max(img.width,img.height));
+        const w=Math.max(1,Math.round(img.width*s)), h=Math.max(1,Math.round(img.height*s));
+        const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+        cv.getContext('2d').drawImage(img,0,0,w,h);
+        const keepAlpha=/png|webp|gif|svg/.test(file.type);
+        resolve({dataUrl: keepAlpha? cv.toDataURL('image/png') : cv.toDataURL('image/jpeg',0.85),
+                 srcW:img.width, srcH:img.height, outW:w, outH:h});
+      };
+      img.src=fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+/* ── editor komponen ─────────────────────────────────────────────────── */
+const CAT_LIST=['Protection','Power','Switching','Control','Network','Safety','Drives',
+                'Cooling','Terminals','Mechanical','Consumables','Custom'];
+/* Kategori komponen yang sedang diedit selalu ikut ditawarkan, supaya kategori
+   di luar daftar tidak diam-diam berubah jadi pilihan pertama. */
+function catsFor(cat){
+  return CAT_LIST.indexOf(cat)>=0 || !cat ? CAT_LIST : [cat, ...CAT_LIST];
+}
+function editComponent(key){ componentEditor(key,false); }
+function addComponent(){ componentEditor(null,true); }
+function componentEditor(key,isNew){
+  const db=libDb();
+  const base=isNew? {...PanelEngine.BLANK_COMPONENT} : db[key];
+  const patch=isNew? {} : (state.library.components[key]||{});
+  const builtin=!isNew && !!COMPONENT_DB[key];
+  const selDriven=PanelEngine.SELECTION_DRIVEN.indexOf(key)>=0;
+  let image=base.image||'';
+
+  const f=(id,label,val,attrs='')=>`<div class="field"><label for="ce-${id}">${label}</label>
+    <input id="ce-${id}" value="${esc(val??'')}" ${attrs}></div>`;
+  const body=`
+    ${selDriven?`<p class="hint" style="margin-bottom:12px;color:var(--amber-700);">
+      ⚠ Dimensi komponen ini biasanya ditentukan otomatis dari tabel pemilihan
+      (hasil kalkulasi). Kalau kamu isi ukuran di sini, ukurannya akan
+      <b>dipatok</b> untuk semua varian. Kosongkan lalu Reset untuk kembali otomatis.</p>`:''}
+    <div class="grid2" style="align-items:start;">
+      <div class="field" style="grid-column:1/-1;"><label for="ce-desc">Deskripsi</label>
+        <input id="ce-desc" value="${esc(base.desc)}"></div>
+      ${f('pn','Part number',base.pn)}
+      ${f('vendor','Vendor',base.vendor)}
+      <div class="field"><label for="ce-cat">Kategori</label>
+        <select id="ce-cat">${catsFor(base.cat).map(c=>`<option value="${esc(c)}"${c===base.cat?' selected':''}>${esc(c)}</option>`).join('')}</select></div>
+      <div class="field"><label for="ce-mount">Mounting</label>
+        <select id="ce-mount">${['rail','plate','door'].map(m=>`<option value="${m}"${m===base.mount?' selected':''}>${m}</option>`).join('')}</select></div>
+      ${f('w','Lebar W (mm)',base.w,'type="number" min="1" max="1200" step="0.5"')}
+      ${f('h','Tinggi H (mm)',base.h,'type="number" min="1" max="2000" step="0.5"')}
+      ${f('d','Kedalaman D (mm)',base.d,'type="number" min="1" max="600" step="0.5"')}
+      ${f('powerW','Konsumsi 24 V (W)',base.powerW,'type="number" min="0" max="500" step="0.1"')}
+      ${isNew?f('key','Kode unik','','placeholder="mis. myrelay"'):''}
+      <div class="field" style="grid-column:1/-1;">
+        <label><input type="checkbox" id="ce-verified" ${base.dimsVerified?'checked':''}
+          style="width:auto;margin-right:6px;vertical-align:-1px;"> Dimensi sudah diverifikasi dari datasheet</label>
+      </div>
+      <div class="field" style="grid-column:1/-1;">
+        <label>Gambar komponen</label>
+        <div class="drop" id="ce-drop">
+          <img id="ce-preview" style="${image?'':'display:none;'}" src="${esc(image||'')}" alt="">
+          <small id="ce-dropmsg">${image?'Klik atau jatuhkan gambar untuk mengganti':'Klik atau jatuhkan gambar di sini (PNG/JPG, maks 8 MB)'}</small>
+        </div>
+        <input type="file" id="ce-file" accept="image/*" style="display:none;">
+        <small style="font-size:10.5px;color:var(--gray-500);display:block;margin-top:4px;">
+          Gambar disusutkan ke maks 360 px dan disimpan di database, jadi ikut terbawa
+          ke browser/komputer lain. ${base.asset?`Fallback file: <code>assets/components/${esc(base.asset)}</code>`:''}
+        </small>
+        ${image?`<button class="btn" id="ce-clear" style="margin-top:6px;">Hapus gambar</button>`:''}
+      </div>
+    </div>`;
+
+  openModal({title:isNew?'Komponen baru':'Edit '+(base.desc||key), wide:true, body,
+    footer:`<span style="font-size:11px;color:var(--gray-500);">${builtin?'Komponen bawaan — perubahan disimpan sebagai override':'Komponen custom'}</span>
+      <span class="spacer"></span>
+      <button class="btn" data-close>Batal</button>
+      <button class="btn primary" id="ce-save">${isNew?'Tambahkan':'Simpan'}</button>`,
+    onMount:m=>{
+      const drop=m.querySelector('#ce-drop'), file=m.querySelector('#ce-file'),
+            prev=m.querySelector('#ce-preview'), msg=m.querySelector('#ce-dropmsg');
+      const load=async f=>{
+        try{
+          const r=await readImageFile(f);
+          if(!r) return;
+          image=r.dataUrl; prev.src=image; prev.style.display='';
+          msg.textContent=`${r.srcW}×${r.srcH} → ${r.outW}×${r.outH} px · ${Math.round(image.length/1024)} KB`;
+          modalError('');
+        }catch(e){ modalError(e.message); }
+      };
+      drop.onclick=()=>file.click();
+      file.onchange=()=>load(file.files[0]);
+      drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('over');});
+      drop.addEventListener('dragleave',()=>drop.classList.remove('over'));
+      drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('over');
+        load(e.dataTransfer.files[0]);});
+      const clr=m.querySelector('#ce-clear');
+      if(clr) clr.onclick=()=>{ image=''; prev.style.display='none';
+        msg.textContent='Klik atau jatuhkan gambar di sini'; clr.remove(); };
+
+      m.querySelector('#ce-save').onclick=()=>{
+        const g=id=>m.querySelector('#ce-'+id).value.trim();
+        const n=id=>{const v=m.querySelector('#ce-'+id).value; return v===''?null:+v;};
+        const desc=g('desc');
+        if(!desc) return modalError('Deskripsi wajib diisi.');
+        let k=key;
+        if(isNew){
+          k=g('key').toLowerCase().replace(/[^a-z0-9_]/g,'');
+          if(!k) return modalError('Kode unik wajib diisi (huruf/angka/underscore).');
+          if(libDb()[k]) return modalError(`Kode "${k}" sudah dipakai komponen lain.`);
+        }
+        for(const dim of ['w','h','d']){
+          const v=n(dim);
+          if(!(v>0)) return modalError(`Dimensi ${dim.toUpperCase()} harus lebih besar dari 0.`);
+        }
+        const next={desc, pn:g('pn'), vendor:g('vendor'), cat:g('cat'), mount:g('mount'),
+          w:n('w'), h:n('h'), d:n('d'), powerW:n('powerW')||0,
+          dimsVerified:m.querySelector('#ce-verified').checked};
+        if(image) next.image=image;
+        if(isNew){
+          next.label=''; next.color='#6B7885'; next.bg='#EEF1F4'; next.custom=true; next.asset='';
+          state.library.components[k]=next;
+        }else{
+          /* hanya simpan field yang berbeda dari bawaan → override tetap minimal
+             dan komponen ikut membaik kalau nilai bawaannya diperbarui */
+          const def=COMPONENT_DB[k]||PanelEngine.BLANK_COMPONENT;
+          const diff={};
+          for(const [kk,vv] of Object.entries(next)) if(vv!==def[kk]) diff[kk]=vv;
+          if(!image && patch.image) diff.image=undefined, delete diff.image;
+          if(image) diff.image=image;
+          if(Object.keys(diff).length) state.library.components[k]=diff;
+          else delete state.library.components[k];
+        }
+        persist(); closeModal(); renderLibrary();
+        toast(isNew?`Komponen "${desc}" ditambahkan`:`"${desc}" diperbarui`,'ok');
+      };
+    }});
+}
+async function resetComponent(key){
+  const d=libDb()[key];
+  if(!await modalConfirm({title:'Reset komponen',confirmLabel:'Reset',
+    message:`"${d.desc}" dikembalikan ke nilai bawaan. Perubahan dimensi dan gambar yang kamu simpan akan hilang.`})) return;
+  delete state.library.components[key];
+  persist(); renderLibrary(); toast('Dikembalikan ke bawaan');
+}
+async function deleteComponent(key){
+  const d=libDb()[key];
+  const used=state.projects.filter(p=>(p.cfg.extras||[]).some(e=>e.type===key));
+  if(!await modalConfirm({title:'Hapus komponen custom',danger:true,confirmLabel:'Hapus',
+    message:`"${d.desc}" akan dihapus dari library.`+
+      (used.length?` Komponen ini masih dipakai di ${used.length} proyek (${used.map(p=>p.name).join(', ')}) — di sana akan muncul peringatan sampai kamu hapus juga dari layoutnya.`:'')})) return;
+  delete state.library.components[key];
+  persist(); renderLibrary(); toast('Komponen dihapus');
+}
+/* Tambahkan komponen library ke layout proyek aktif */
+async function addToProject(key){
+  const d=libDb()[key], p=activeProject();
+  const v=await modalForm({title:'Tambah ke panel', submitLabel:'Tambahkan',
+    intro:`<b>${esc(d.desc)}</b> — ${d.w} × ${d.h} × ${d.d} mm. Komponen akan ikut
+      ditempatkan di layout, masuk BOM, dan konsumsi 24 V-nya (${d.powerW||0} W) ikut dihitung.`,
+    fields:[
+      {id:'qty', label:'Jumlah', type:'number', value:1, min:1, max:60, required:true},
+      {id:'rail',label:'Ditempatkan di', type:'select', value:2,
+       options:[[1,'Rail 1 — incoming / power'],[2,'Rail 2 — control'],[3,'Rail 3 — drives']]},
+    ]});
+  if(!v) return;
+  const extras=p.cfg.extras||(p.cfg.extras=[]);
+  const found=extras.find(e=>e.type===key && e.rail===+v.rail);
+  if(found) found.qty+=v.qty; else extras.push({type:key, qty:v.qty, rail:+v.rail});
+  p.cfg=PanelEngine.normalizeCfg(p.cfg); p.updated=Date.now(); persist();
+  toast(`${v.qty} × "${d.desc}" ditambahkan ke ${p.name}`,'ok');
+}
+function removeExtra(i){
+  const p=activeProject(); (p.cfg.extras||[]).splice(i,1);
+  p.updated=Date.now(); persist(); enterDesigner();
 }
 
 /* ══════════ BOM ══════════ */
@@ -914,9 +1368,12 @@ function enterSettings(){
   document.getElementById('set-pname').value=p.name;
   document.getElementById('set-pcust').value=p.customer;
 }
-function resetAll(){
-  if(!confirm('Hapus semua proyek dan pengaturan?')) return;
-  localStorage.removeItem(LS_KEY); state=loadState(); persist(); updateTopbar(); go('dashboard');
+async function resetAll(){
+  if(!await modalConfirm({title:'Reset semua data', danger:true, confirmLabel:'Hapus semuanya',
+    message:`Semua ${state.projects.length} proyek, pengaturan layout, dan seluruh perubahan `+
+      `library komponen akan dihapus — termasuk di database bila server aktif. Tidak bisa dibatalkan.`})) return;
+  localStorage.removeItem(LS_KEY); state=loadState(); persist(); updateTopbar();
+  toast('Semua data direset'); go('dashboard');
 }
 
 /* ══════════ WIRING VIEW ══════════ */

@@ -361,5 +361,146 @@ describe('invariant — warnings replace silent failure', () => {
   });
 });
 
+/* ════════════════════════════════════════════════════════════════════ */
+describe('library — component overrides reach the design', () => {
+  test('a corrected dimension changes the layout, not just the card', () => {
+    const base = R();
+    const tall = E.compute(cfg(), { components: { plc: { h: 180 } } });
+    const deep = E.compute(cfg(), { components: { plc: { d: 260 } } });
+    const wide = E.compute(cfg(), { components: { plc: { w: 300 } } });
+    assert.equal(tall.specs.plc.h, 180);
+    assert.ok(tall.needH > base.needH, 'a taller component must need more height');
+    assert.ok(deep.D > base.D, 'a deeper component must deepen the enclosure');
+    assert.ok(wide.items.find((i) => i.type === 'plc').x >
+              base.items.find((i) => i.type === 'plc').x,
+      'a wider component must shift its own centre');
+  });
+
+  test('overridden components stay inside the backplate', () => {
+    for (const patch of [{ w: 300 }, { h: 200 }, { w: 260, h: 160 }]) {
+      const r = E.compute(cfg(), { components: { plc: patch } });
+      if (r.overflow) continue;
+      for (const it of r.items) {
+        const d = r.specs[it.type];
+        assert.ok(it.x + d.w / 2 <= r.W + 0.01, `${it.type} past the right edge`);
+        assert.ok(it.y + d.h / 2 <= r.H + 0.01, `${it.type} past the bottom edge`);
+      }
+    }
+  });
+
+  test('library edits flow into the BOM part number and description', () => {
+    const r = E.compute(cfg(), { components: {
+      plc: { pn: 'FX5U-64MT/ES', desc: 'PLC CPU 32 DI / 32 DO', vendor: 'MEAU' } } });
+    const line = r.bom.find((b) => b.pn === 'FX5U-64MT/ES');
+    assert.ok(line, 'edited part number must reach the BOM');
+    assert.equal(line.desc, 'PLC CPU 32 DI / 32 DO');
+    assert.equal(line.vendor, 'MEAU');
+  });
+
+  test('overriding a selection-driven part warns that sizing is now pinned', () => {
+    for (const k of E.SELECTION_DRIVEN) {
+      const r = E.compute(cfg(), { components: { [k]: { w: 132 } } });
+      if (!r.specs[k] || !r.items.some((i) => i.type === k)) continue;
+      assert.equal(r.specs[k].w, 132, k + ' override not applied');
+      assert.ok(r.warnings.some((w) => w.code === 'DIMS_PINNED'),
+        'no pinning notice for ' + k);
+    }
+  });
+
+  test('an override with no dimensions does not warn about pinning', () => {
+    const r = E.compute(cfg(), { components: { psu: { vendor: 'Local supplier' } } });
+    assert.ok(!r.warnings.some((w) => w.code === 'DIMS_PINNED'));
+    assert.equal(r.specs.psu.vendor, 'Local supplier');
+  });
+
+  test('string dimensions from a form are coerced to numbers', () => {
+    const r = E.compute(cfg(), { components: { plc: { w: '180', h: '95', powerW: '12' } } });
+    assert.equal(r.specs.plc.w, 180);
+    assert.equal(r.specs.plc.h, 95);
+    assert.ok(Number.isFinite(r.needH));
+  });
+});
+
+describe('library — custom components added to a project', () => {
+  const CUSTOM = { components: { myrelay: {
+    desc: 'My special relay', pn: 'XR-99', w: 30, h: 80, d: 70,
+    powerW: 2, vendor: 'Acme', cat: 'Custom' } } };
+
+  test('placed on the requested rail, in the requested quantity', () => {
+    for (const rail of [1, 2, 3]) {
+      const r = E.compute(cfg({ extras: [{ type: 'myrelay', qty: 3, rail }] }), CUSTOM);
+      assert.equal(r.items.filter((i) => i.type === 'myrelay').length, 3);
+      const row = r.rows.find((x) => x.list && x.list.includes('myrelay'));
+      assert.ok(row, 'not placed on any rail');
+      assert.ok(new RegExp('RAIL ' + rail).test(row.name),
+        `expected rail ${rail}, got "${row.name}"`);
+    }
+  });
+
+  test('reaches the BOM and the 24 V budget', () => {
+    const plain = R();
+    const r = E.compute(cfg({ extras: [{ type: 'myrelay', qty: 3, rail: 2 }] }), CUSTOM);
+    const line = r.bom.find((b) => b.pn === 'XR-99');
+    assert.ok(line && line.qty === 3, 'custom component missing from BOM');
+    assert.equal(line.vendor, 'Acme');
+    assert.ok(r.dcDetail.internal.some((x) => /My special relay/.test(x.name)));
+    assert.equal(Math.round((r.dcLoad - plain.dcLoad) * 10) / 10, 6,
+      '3 × 2 W must appear in the 24 V load');
+    assert.ok(r.heat > plain.heat, 'internal gear must add heat');
+  });
+
+  test('an extra referencing a missing component errors instead of crashing', () => {
+    const r = E.compute(cfg({ extras: [{ type: 'ghost', qty: 2, rail: 1 }] }));
+    assert.ok(r.warnings.some((w) => w.code === 'UNKNOWN_COMPONENT' && w.level === 'error'));
+    assert.ok(!r.items.some((i) => i.type === 'ghost'));
+    assert.ok(Number.isFinite(r.heat) && Number.isFinite(r.needH));
+  });
+
+  test('malformed extras are normalised, not propagated', () => {
+    const n = E.normalizeCfg({ extras: [
+      { type: 'a', qty: 0, rail: 9 },      // qty floors at 1, rail falls back to 2
+      { type: 'b', qty: '4', rail: '3' },  // strings coerced
+      { qty: 2 }, null, 'junk',            // no type → dropped
+    ] });
+    assert.deepEqual(n.extras, [
+      { type: 'a', qty: 1, rail: 2 },
+      { type: 'b', qty: 4, rail: 3 },
+    ]);
+  });
+
+  test('extras survive a round trip through normalizeCfg', () => {
+    const c = cfg({ extras: [{ type: 'myrelay', qty: 2, rail: 1 }] });
+    assert.deepEqual(E.normalizeCfg(E.normalizeCfg(c)).extras, c.extras);
+  });
+
+  test('every invariant still holds with a custom component in the panel', () => {
+    const r = E.compute(cfg({ extras: [{ type: 'myrelay', qty: 6, rail: 2 }] }), CUSTOM);
+    const bad = [];
+    (function scan(o, p) {
+      if (typeof o === 'number') { if (!Number.isFinite(o)) bad.push(p); return; }
+      if (o && typeof o === 'object') Object.keys(o).forEach((k) => scan(o[k], p + '.' + k));
+    })(r, 'R');
+    assert.deepEqual(bad, []);
+    assert.ok(r.util <= E.ASSUMPTIONS.psuMaxUtil * 100 + 1e-9);
+    assert.equal(r.items.filter((i) => i.type === 'fan').length, r.thermal.fans);
+    for (const it of r.items) assert.ok(r.specs[it.type], 'unknown type ' + it.type);
+  });
+});
+
+describe('library — resolveDb', () => {
+  test('leaves the built-in database untouched', () => {
+    const before = JSON.stringify(E.COMPONENT_DB);
+    E.resolveDb({ plc: { w: 999 }, brand_new: { desc: 'X' } });
+    assert.equal(JSON.stringify(E.COMPONENT_DB), before,
+      'resolveDb must not mutate COMPONENT_DB');
+  });
+  test('a new key inherits the blank template', () => {
+    const db = E.resolveDb({ thing: { desc: 'Thing', w: 20 } });
+    assert.equal(db.thing.w, 20);
+    assert.equal(db.thing.mount, E.BLANK_COMPONENT.mount);
+    assert.equal(db.thing.cat, E.BLANK_COMPONENT.cat);
+  });
+});
+
 /* helper used inside a describe where forEachCase's test() nesting is awkward */
 function forEachCaseInline(fn) { MATRIX.forEach(({ c }) => fn(R(c), cfg(c))); }

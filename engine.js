@@ -188,6 +188,15 @@
     supplyV: 400,     /* 3-phase line voltage at the incoming terminals */
     ambientC: 30,     /* design ambient outside the enclosure */
     cabW: 800,        /* per-project, was a global setting */
+    extras: [],       /* [{type, qty, rail}] — library components added by hand */
+  };
+
+  /* Base used when the library defines a component the built-in DB never had.
+     Deliberately unflattering defaults so an unfilled field is obvious. */
+  const BLANK_COMPONENT = {
+    asset: '', w: 45, h: 80, d: 70, cat: 'Custom', label: '',
+    color: '#6B7885', bg: '#EEF1F4', pn: '', desc: 'Custom component',
+    vendor: '', mount: 'rail', powerW: 0, dimsVerified: false, custom: true,
   };
 
   /* ══════════ HELPERS ══════════ */
@@ -207,7 +216,27 @@
     c.cabW = num(c.cabW, 800);
     /* Only 200 V and 400 V classes are in the drive tables */
     c.voltClass = c.supplyV <= 300 ? 200 : 400;
+    c.extras = (Array.isArray(c.extras) ? c.extras : [])
+      .filter((e) => e && e.type)
+      .map((e) => ({
+        type: String(e.type),
+        qty: Math.max(1, clampInt(e.qty) || 1),
+        rail: [1, 2, 3].indexOf(+e.rail) >= 0 ? +e.rail : 2,
+      }));
     return c;
+  }
+
+  /* Merge the user's library on top of the built-in database. Patches may edit
+     an existing component (corrected dimensions from a datasheet) or introduce
+     an entirely new key. */
+  function resolveDb(patch) {
+    const db = Object.assign({}, COMPONENT_DB);
+    for (const k of Object.keys(patch || {})) {
+      db[k] = Object.assign({}, COMPONENT_DB[k] || BLANK_COMPONENT, patch[k]);
+      /* numeric fields may arrive as strings from a form */
+      ['w', 'h', 'd', 'powerW'].forEach((f) => { db[k][f] = num(db[k][f], 0); });
+    }
+    return db;
   }
 
   /* ══════════ ELECTRICAL ══════════
@@ -250,9 +279,14 @@
   /* 24 V budget, split by where the heat ends up.
      internal = dissipated inside the enclosure (counts toward thermal load)
      external = field devices, dissipated outside (does NOT heat the panel) */
-  function dcBudget(c, counts, A) {
-    const D = COMPONENT_DB;
-    const internal = [
+  function dcBudget(c, counts, A, db) {
+    const D = db || COMPONENT_DB;
+    const extras = (c.extras || []).map((e) => ({
+      name: 'Added: ' + ((D[e.type] && D[e.type].desc) || e.type) +
+            (e.qty > 1 ? ' ×' + e.qty : ''),
+      w: ((D[e.type] && D[e.type].powerW) || 0) * e.qty,
+    }));
+    const internal = extras.concat([
       { name: 'PLC CPU',             w: D.plc.powerW },
       { name: 'DI expansion',        w: counts.diExtra * D.di16.powerW },
       { name: 'DO expansion',        w: counts.doExtra * D.do16.powerW },
@@ -263,7 +297,7 @@
       { name: 'Interface relays',    w: counts.relays * D.irelay.powerW },
       { name: 'Contactor coils',     w: counts.dol * D.contactor.powerW },
       { name: 'HMI (door)',          w: c.hmi * 15 },
-    ].filter((x) => x.w > 0);
+    ]).filter((x) => x.w > 0);
 
     /* Field devices. One PNP sensor per DI at ~25 mA; one pilot solenoid per
        valve at 2.5 W. Sized at 100% coincidence — no diversity credit, because
@@ -418,7 +452,13 @@
 
   /* ══════════ MAIN ══════════ */
   function compute(rawCfg, overrides) {
-    const A = deepMerge(ASSUMPTIONS, overrides || {});
+    const o = overrides || {};
+    /* `components` is library data, not an assumption — keep it out of A */
+    const componentPatch = o.components || {};
+    const assumptionOverrides = {};
+    for (const k of Object.keys(o)) if (k !== 'components') assumptionOverrides[k] = o[k];
+    const A = deepMerge(ASSUMPTIONS, assumptionOverrides);
+    const db = resolveDb(componentPatch);
     const c = normalizeCfg(rawCfg);
     const warnings = [];
     const L = A.layout;
@@ -451,7 +491,7 @@
 
     /* ── electrical ────────────────────────────────────────────────── */
     const sched = loadSchedule(c, A);
-    const dc = dcBudget(c, counts, A);
+    const dc = dcBudget(c, counts, A, db);
 
     /* PSU AC input as a load, so the incoming breaker sees the whole panel */
     const psuPIn = dc.wTotal / A.eff.psu;
@@ -508,7 +548,7 @@
              servoSpec.ratedW + ' W).' });
 
     /* Resolve the live selections into the component specs used for layout */
-    const specs = Object.assign({}, COMPONENT_DB);
+    const specs = Object.assign({}, db);
     const psuPick = selectPsu(dc.aTotal, c.ambientC, A);
     specs.mccb  = ov(specs.mccb,  { pn: mccb.pn, w: mccb.w, h: mccb.h, d: mccb.d,
                                     desc: 'Main breaker MCCB 3P ' + mccb.tripA + ' A' });
@@ -535,7 +575,20 @@
         desc: 'Thermal overload ' + starter.overload.min + '–' +
               starter.overload.max + ' A, set ' + starter.setA.toFixed(1) + ' A' });
     }
-    const spec = (t) => specs[t];
+
+    /* Re-apply the library patch LAST so a corrected datasheet dimension wins
+       over the size that came from the selection table. Pinning is intentional:
+       if you tell the tool a part is 132 mm wide, it lays out 132 mm. */
+    for (const k of Object.keys(componentPatch)) {
+      specs[k] = Object.assign({}, specs[k], componentPatch[k]);
+      ['w', 'h', 'd', 'powerW'].forEach((f) => { specs[k][f] = num(specs[k][f], 0); });
+      if (SELECTION_DRIVEN.indexOf(k) >= 0 && hasDims(componentPatch[k]))
+        warnings.push({ level: 'info', code: 'DIMS_PINNED',
+          msg: (specs[k].desc || k) + ': dimensions come from the selection ' +
+               'table normally, so the library override pins them for every ' +
+               'variant. Clear it in Components library to restore automatic sizing.' });
+    }
+    const spec = (t) => specs[t] || BLANK_COMPONENT;
 
     /* ── thermal (needs a size; size needs a layout; so: layout first) ── */
     const rail1 = ['mccb', 'spd', 'psu']
@@ -546,6 +599,18 @@
               ['eth', 'safety', 'mcb3'],
               fill(2 + c.hmi, 'mcb1'), fill(relays, 'irelay'));
     const rail3 = fill(c.vfd, 'vfd').concat(fill(c.servo, 'servo'));
+
+    /* Components the user added by hand from the library */
+    const railOf = { 1: rail1, 2: rail2, 3: rail3 };
+    for (const e of c.extras) {
+      if (!specs[e.type]) {
+        warnings.push({ level: 'error', code: 'UNKNOWN_COMPONENT',
+          msg: 'Added component "' + e.type + '" is not in the library; ' +
+               'it was skipped. Re-add it or remove it from this project.' });
+        continue;
+      }
+      for (let i = 0; i < e.qty; i++) railOf[e.rail].push(e.type);
+    }
 
     /* Provisional fan count so the reserved column is right; refined below. */
     let fanCount = 1, layout = null, dims = null, th = null;
@@ -977,6 +1042,11 @@
   }
 
   /* ══════════ small utils ══════════ */
+  /* Components whose footprint normally comes from a selection table, so a
+     library dimension override pins them rather than tracking the variant. */
+  const SELECTION_DRIVEN = ['psu', 'mccb', 'vfd', 'servo', 'contactor', 'overload'];
+  const hasDims = (p) => ['w', 'h', 'd'].some((f) => p && p[f] != null);
+
   function fill(n, v) { return Array(Math.max(0, n)).fill(v); }
   function ov(base, patch) { return Object.assign({}, base, patch); }
   function deepMerge(a, b) {
@@ -989,8 +1059,9 @@
   }
 
   return {
-    compute, buildWiring, normalizeCfg,
+    compute, buildWiring, normalizeCfg, resolveDb,
     COMPONENT_DB, DEFAULT_CFG, ASSUMPTIONS, WIRE_COLOUR,
+    BLANK_COMPONENT, SELECTION_DRIVEN,
     STD_HEIGHTS, STD_WIDTHS, STD_DEPTHS,
     MCCB_FRAMES, MCB_TRIPS, CONTACTORS, OVERLOADS, PSU_LADDER, DRIVES,
     /* exposed for tests */
