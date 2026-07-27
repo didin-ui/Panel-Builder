@@ -1,0 +1,291 @@
+# Engineering basis
+
+Every number the engine produces traces back to something on this page. If a
+value is not here, it is not in the engine — that is the rule the code is held
+to. All constants live in `ASSUMPTIONS` in [engine.js](engine.js) and can be
+overridden per call: `compute(cfg, { psuMaxUtil: 0.6 })`.
+
+> **Scope of confidence.** The *methods* below are standard practice. The
+> *component data* (dimensions, part numbers) is engineering-grade estimate,
+> flagged `dimsVerified: false`. Verify against the current vendor datasheet
+> before purchase. There is no supplier feed, so the tool never reports stock or
+> lead time — see [Deliberate omissions](#deliberate-omissions).
+
+---
+
+## 1. Load model
+
+Each load is reduced to real input power and apparent power, then summed. The
+system power factor is an **output**, not an input — the prototype's blanket
+`PF = 0.85` is gone.
+
+```
+P_in = P_shaft / (η_drive · η_motor)      real power drawn from the supply
+S    = P_in / PF                          apparent power
+I    = S / (√3 · V)                       line current
+```
+
+Totals: `ΣP_in`, `ΣS`, `I_FLC = ΣS / (√3 · V)`, `PF_system = ΣP_in / ΣS`.
+
+| Load | PF | η drive | η motor | Basis |
+|---|---|---|---|---|
+| VFD | 0.95 | 0.97 | 0.85 | Diode-rectifier front end has high displacement PF; small IE3 motor |
+| Servo | 0.90 | 0.95 | 0.90 | Servo amplifier + permanent-magnet motor |
+| Motor DOL | 0.82 | — | 0.80 | Typical 1.5 kW 4-pole induction motor |
+| PSU (24 V) | 0.95 | 0.90 | — | Active PFC switch-mode supply |
+
+Implied ratings from the count-based config: `vfdKw 2.2`, `servoW 750`,
+`dolKw 1.5`. DOL count = `motors − VFD − servo`.
+
+**Cross-check.** A 1.5 kW 400 V motor computes to 3.30 A; nameplate FLC for that
+class is ~3.4 A. Good.
+
+**Known conservatism gap.** VFD input current is computed from shaft power, which
+gives 4.05 A for a 2.2 kW unit at 400 V. Datasheet rated input current is ~5.5 A
+because it includes harmonic current the ideal calculation ignores. The ×1.25
+breaker margin absorbs this for feeder sizing, but if you add harmonic filters or
+size a transformer, use datasheet current instead.
+
+### Starting current
+
+Only DOL motors inrush; VFD and servo axes are soft-started by their drive.
+
+```
+I_start = I_FLC + (I_LR,largest − I_FLC,largest)     largest motor starting, rest running
+I_LR    = I_FLC × 6.5                               IEC design N, 6–8× typical
+```
+
+This is the number that sizes a generator or upstream transformer. The prototype
+did not compute it at all, despite PRD Module 6 asking for it.
+
+---
+
+## 2. 24 V DC budget
+
+Split by **where the heat ends up** — this is what makes the thermal model
+honest, and it removes the prototype's double-count (it charged solenoids twice,
+once as `valve × 2` and again inside `do_ × 2`).
+
+**Internal** (dissipates inside the enclosure → counts as thermal load):
+PLC CPU 30 W · each expansion module 5 W · Ethernet switch 8 W · safety relay
+4 W · interface relay coil 0.5 W · contactor coil 2 W · HMI 15 W (door-mounted,
+still inside).
+
+**External** (field devices, dissipate outside → excluded from thermal load):
+DI field sensor 0.6 W each (PNP sensor ≈ 25 mA at 24 V) · solenoid pilot coil
+2.5 W each.
+
+Sized at 100% coincidence — no diversity credit, because the supply has to
+survive the worst case.
+
+### Power supply selection
+
+```
+I_required = I_load / (maxUtil · derate)
+```
+
+`psuMaxUtil = 0.70`, giving the ~30% spare the PRD asks for. `derate = 1.0` up to
+45 °C, then −2%/K to a floor of 0.6 (QUINT-class behaviour). The smallest supply
+in the ladder meeting `I_required` wins. Ladder: 5 / 10 / 20 / 40 A.
+
+The prototype used `dcLoad/24 > 9 ? 20A : 10A`, which allowed 89% utilisation
+before any derating.
+
+---
+
+## 3. Protection
+
+All selections are table lookups from real frame/trip ranges, and the selected
+part number is what reaches the BOM. The prototype computed
+`ceil(peakA*1.25/8)*8*2` and then overrode it with a hardcoded "set 40 A".
+
+| Device | Rule |
+|---|---|
+| Incoming MCCB | smallest trip ≥ `I_FLC × 1.25` (IEC 60204-1 §7.2.1 continuous duty) |
+| Drives feeder MCB | smallest trip ≥ `ΣI_drives × 1.25` |
+| Control MCB | `max(I_psu,ac × 1.25, 6 A)` — floored at C6 for switch-mode inrush |
+| Contactor | smallest AC-3 frame with `kW ≥ motor kW` **and** `A ≥ I_FLC` |
+| Overload | range must bracket `I_FLC`; set to `I_FLC` |
+
+Frames: MCCB NF32-SV / NF63-CV / NF125-SV / NF250-SV. MCB trips 2…63 A.
+Contactors TeSys LC1D09…D38 with **24 VDC coils** (`BD` suffix) so the whole
+control system runs off the one 24 V rail — the prototype specified 220 VAC coils
+while also fitting a 24 V supply and safety relay, needing an undeclared second
+control voltage.
+
+Instantaneous trip is assumed at the manufacturer default (~10× In for motor
+circuits), which clears the computed starting current. **Not modelled:** discrimination
+between incoming and outgoing devices, and short-circuit withstand — there is no
+`Isc` input yet, so **Icu/Ics must be confirmed against the supply fault level
+manually.**
+
+---
+
+## 4. Drive voltage class
+
+The prototype specified `FR-D720` and `MR-JE-70A` — both **200 V-class** — while
+calculating current at 400 V. Ordering that BOM for a 400 V supply destroys the
+drives. Selection is now voltage-aware:
+
+| Supply | VFD 2.2 kW | Servo 750 W |
+|---|---|---|
+| ≤ 300 V (200 V class) | FR-D720-2.2K | MR-JE-70A |
+| > 300 V (400 V class) | FR-D740-2.2K | MR-J4-100A4 |
+
+The 400 V MR-J4 range starts at 600 W and has no 750 W frame, so a 750 W axis
+takes the next frame up (1 kW). Sizing up to the nearest available frame is
+normal practice; the engine emits a `SERVO_FRAME` info warning so the
+substitution is never silent.
+
+---
+
+## 5. Thermal
+
+### Heat load
+
+Only heat released **inside** the enclosure counts:
+
+- VFD loss = `P_shaft × (1 − 0.97)`
+- Servo loss = `P_shaft × (1 − 0.95)`
+- PSU conversion loss = `P_24V,total × (1/0.90 − 1)` — on the whole throughput,
+  including power headed out to the field
+- Internal 24 V gear = 100% of its consumption
+- Switchgear I²R: contactor 4 W, overload 3 W, MCCB 2.5 W/pole, MCB 1.2 W/pole
+
+Field-device power is excluded and reported separately.
+
+### Temperature rise
+
+Practical form of **IEC 60890**. The effective cooling surface is the sum of the
+faces, each weighted by exposure:
+
+| Face | Factor `b` |
+|---|---|
+| Top | 1.4 |
+| Front | 0.9 |
+| Sides (×2) | 0.9 |
+| Back (against a wall) | 0.5 |
+| Bottom | 0.5 wall-mounted, 0 free-standing |
+
+`Ae = Σ(area × b)`, then the steady-state balance including forced air:
+
+```
+P = (k · Ae) · ΔT + (V̇ / 3.1) · ΔT
+ΔT = P / (k · Ae + V̇ / 3.1)
+```
+
+`k = 5.5 W/(m²·K)` for painted sheet steel under natural convection. `V̇ = 0`
+gives the natural case, which is why one formula covers both. Design ceiling
+inside the panel is 40 °C.
+
+This replaces the prototype's `temp = 30 + heat/40`, whose constant divisor made
+cabinet temperature **independent of cabinet size** — a 1200 mm enclosure ran as
+hot as a 500 mm one, inverting the point of the module. Ambient was hardcoded at
+30 °C; it is now an input.
+
+### Airflow
+
+```
+V̇_ideal    = 3.1 × (P / ΔT_allowed − k · Ae)      m³/h
+V̇_required = V̇_ideal × 1.25                       clogged filters, fan ageing
+fans        = ceil(V̇_required / 100)               100 m³/h per fan WITH filter
+CFM         = m³/h × 0.588
+```
+
+The 150 mm filter fan is rated ~180 m³/h free-blowing; 100 m³/h is the realistic
+figure with a filter fitted. Above 4 fans the engine stops recommending fans and
+calls for a cooling unit. If `ambient ≥ 40 °C` it goes straight to a cooling unit,
+because forced air cannot pull the inside below ambient — a check the prototype
+had no way to express.
+
+Fan quantity now drives the layout **and** the BOM. The prototype printed "Dual
+exhaust fans" above 250 W while unconditionally placing and purchasing one.
+
+---
+
+## 6. Enclosure sizing
+
+- **Width** — user input (400/600/800/1000/1200 mm), per project.
+- **Height** — from the packed layout, rounded up to 500/600/700/800/1000/1200/
+  1400/1600/1800/2000 mm. Above 2000 mm, rounded to 100 mm with a
+  `HEIGHT_NONSTD` warning.
+- **Depth** — `deepest component + 80 mm` wiring clearance, rounded up to
+  200/250/300/400 mm. The prototype hardcoded the string `× 300 mm`; depth was
+  never calculated, and `COMPONENT_DB` had no depth field at all.
+- **Mounting** — free-standing above 800 mm, which also changes `Ae`.
+
+Rows **wrap** when a rail runs out of width, so a crowded design grows the
+cabinet. The prototype set an `overflow` flag and then drew the components past
+the enclosure wall anyway.
+
+Fans get a reserved right-hand column. They are door- or side-mounted in reality
+(`mount: 'door'`), but keeping the column clear guarantees the airflow path and
+wiring space — the prototype placed a 150 mm filter fan on the backplate,
+overlapping the rail-1 band.
+
+---
+
+## 7. Terminals and wiring
+
+```
+power terminals   = 3 incoming + 1 N + (VFD + servo + DOL) × 3 + motors
+control terminals = DI + DO + (AI + AO) × 2
+spares            = 15% of the above, installed
+```
+
+Wire colours follow **IEC 60204-1 §13.2**: power black · neutral light blue ·
+AC control red · DC control dark blue · externally-supplied interlock orange ·
+PE green-yellow. An invariant test asserts colour and size annotation always
+agree (every `G/Y` wire is green-yellow and vice versa).
+
+The wiring generator was missing whole circuit classes, all now present:
+contactor coil circuits (PLC output → A1, A2 → safety contact), overload trip
+feedback, per-motor and per-drive PE, door and backplate bonding, safety relay
+outputs actually landing on drive STO inputs and the contactor return path, and
+encoder cables. Field I/O is generated in full — the prototype capped the list at
+`min(di, 32)`.
+
+**Not modelled:** cable cross-sections are still nominal annotations, not sized.
+Proper sizing needs current, length, installation method, grouping and
+temperature per IEC 60364-5-52, plus a voltage-drop check. That is the next
+step; **do not treat the size column as a calculated result.**
+
+---
+
+## 8. Layout geometry
+
+`gap 15` between components · `pad 20` backplate margin · `gapV 12` between rails
+· `ductH 45` · `tstripH 40` (mm). Tunable in the Layout Generator view.
+
+**Not modelled:** manufacturer-specific thermal clearance. VFDs typically want
+100 mm above and below for airflow; the engine currently applies the uniform
+`gapV`. Do not treat drive spacing as compliant with the drive manual.
+
+---
+
+## Deliberate omissions
+
+Things the tool could easily fabricate and deliberately does not:
+
+- **Stock status and lead time.** There is no supplier feed. The prototype
+  assigned "In stock / Lead 2 wk / RFQ sent" by row index (`statuses[i % 5]`) —
+  fiction in front of purchasing. Each BOM line instead carries `source:
+  'calculated' | 'estimated'`.
+- **Prices.** `unitPrice` and `subtotal` exist as `null` so the schema is ready
+  for the cost estimator; nothing invents a number.
+- **Vendor order numbers for commodities.** Enclosure, backplate, gland plate,
+  DIN rail, duct, PE bar and glands are generic descriptors flagged
+  `generic: true` (shown as ◇). A fabricated Rittal order number would look
+  authoritative and be wrong.
+- **Wire lengths.** Flagged `estimated` with a 1.2 m per-wire allowance stated in
+  the line note. Real lengths need routing, which is Phase 4.
+
+## Test coverage
+
+`npm test` — 125 assertions, no dependencies. Golden values pin the reference
+machine; invariants hold across a 12-config matrix including an empty panel and
+garbage input. The invariants are the ones that catch regressions: PSU headroom,
+fan-count agreement across thermal/layout/BOM/wiring, every component inside the
+backplate using resolved footprints, voltage-class match, no silent truncation,
+monotonicity, heat excluding field devices, BOM completeness, wire-colour
+consistency, determinism, and legacy-config migration.

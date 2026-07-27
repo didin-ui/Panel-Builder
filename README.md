@@ -3,6 +3,34 @@
 ## Kebutuhan
 Node.js 18+ (cek: `node -v`)
 
+## Struktur
+| File | Isi |
+|---|---|
+| `engine.js` | Semua kalkulasi & pemilihan komponen. Murni, tanpa DOM, tanpa dependency. |
+| `index.html` | UI + render. Tidak menghitung apa pun sendiri. |
+| `server.js` | API penyimpanan (Express + SQLite). |
+| `test/engine.test.js` | 125 assertion, jalankan `npm test`. |
+| `ENGINEERING.md` | Dasar perhitungan: rumus, konstanta, standar, dan batasannya. |
+
+`engine.js` bisa dipakai sendiri tanpa browser:
+```js
+const {compute, DEFAULT_CFG} = require('./engine.js');
+const R = compute({...DEFAULT_CFG, vfd: 4, supplyV: 400, ambientC: 35});
+console.log(R.mccb.pn, R.psu.pn, R.thermal.fans, R.bom.length);
+```
+
+## Test
+```
+npm test
+```
+
+> ⚠ **Sebelum pembelian:** dimensi dan part number di database komponen adalah
+> estimasi engineering (`dimsVerified: false`) — verifikasi ke datasheet vendor.
+> Aplikasi ini tidak punya data stok/lead time dan tidak akan menampilkannya.
+> Baris BOM bertanda `estimated` adalah alowansi, bukan hasil kalkulasi.
+> Ukuran kabel belum dihitung (belum ada voltage drop / grouping) — lihat
+> [ENGINEERING.md](ENGINEERING.md).
+
 ## Langkah
 ```
 cd panel-builder

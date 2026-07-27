@@ -5,7 +5,8 @@
   "description": "Panel Builder Assistant - MicroPlus Engineering",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test test/engine.test.js"
   },
   "dependencies": {
     "express": "^4.19.2",

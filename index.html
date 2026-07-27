@@ -250,6 +250,20 @@
         <section class="card">
           <div class="card-h">Machine configuration</div>
           <div class="card-b">
+            <div class="grid2">
+              <div class="field"><label>Supply voltage</label>
+                <select id="cfg-supplyv">
+                  <option value="200">200 V 3P</option>
+                  <option value="230">230 V 3P</option>
+                  <option value="380">380 V 3P</option>
+                  <option value="400" selected>400 V 3P</option>
+                  <option value="415">415 V 3P</option>
+                </select></div>
+              <div class="field"><label>Ambient (°C)</label>
+                <input id="cfg-ambient" type="number" value="30" min="-10" max="60"></div>
+            </div>
+            <div class="field"><label>Cabinet width (mm)</label>
+              <select id="cfg-cabw"><option>400</option><option>600</option><option selected>800</option><option>1000</option><option>1200</option></select></div>
             <div class="field"><label>PLC</label>
               <select id="cfg-plc"><option>Mitsubishi FX5U</option><option>Mitsubishi FX5UJ</option></select></div>
             <div class="grid2">
@@ -297,21 +311,26 @@
             <div class="card-h"><span class="dot" style="background:#2478CE;"></span>Power calculation</div>
             <div class="card-b">
               <table class="kv">
-                <tr><td>Total connected load</td><td id="r-load">—</td></tr>
-                <tr><td>Peak current (3P 400 V)</td><td id="r-peak">—</td></tr>
+                <tr><td>Total input power</td><td id="r-load">—</td></tr>
+                <tr><td>Apparent power / PF</td><td id="r-va">—</td></tr>
+                <tr><td id="r-flc-lbl">Full-load current</td><td id="r-peak">—</td></tr>
+                <tr><td>Starting current</td><td id="r-start">—</td></tr>
+                <tr><td>Incoming breaker</td><td class="accent" id="r-mccb">—</td></tr>
                 <tr><td>Control load 24 VDC</td><td id="r-dc">—</td></tr>
                 <tr><td>Recommended PSU</td><td class="accent" id="r-psu">—</td></tr>
               </table>
               <div class="util"><i id="r-util-bar" style="width:0%"></i></div>
-              <div style="font-size:11px;color:var(--gray-500);margin-top:4px;">PSU utilization <span id="r-util">—</span></div>
+              <div style="font-size:11px;color:var(--gray-500);margin-top:4px;">PSU utilization <span id="r-util">—</span> (cap <span id="r-util-cap">70</span>%)</div>
             </div>
           </section>
           <section class="card">
             <div class="card-h"><span class="dot" style="background:#C08415;"></span>Heat analysis</div>
             <div class="card-b">
               <table class="kv">
-                <tr><td>Heat dissipation</td><td id="r-heat">—</td></tr>
-                <tr><td>Cabinet temperature</td><td id="r-temp">—</td></tr>
+                <tr><td>Internal heat load</td><td id="r-heat">—</td></tr>
+                <tr><td>Effective surface</td><td id="r-ae">—</td></tr>
+                <tr><td>Rise / inside temp</td><td id="r-temp">—</td></tr>
+                <tr><td>Required airflow</td><td id="r-cfm">—</td></tr>
                 <tr><td>Recommendation</td><td class="accent" id="r-cool">—</td></tr>
               </table>
             </div>
@@ -321,7 +340,9 @@
             <div class="card-b" style="font-size:12px;color:var(--gray-700);line-height:1.7;">
               <span id="r-mount">Wall mount</span> · IP55<br>
               <span class="mono" style="color:var(--ink);font-weight:500;" id="r-size">—</span><br>
-              Mild steel, RAL 7035, bottom gland plate
+              Mild steel, RAL 7035, bottom gland plate<br>
+              <span style="font-size:11px;color:var(--gray-500);">Depth from deepest component + <span id="r-clear">80</span> mm wiring clearance.
+              Rail <span id="r-railfree">—</span> spare.</span>
               <div class="warn" id="r-warn"></div>
             </div>
           </section>
@@ -376,21 +397,17 @@
             <div class="grid2">
               <div class="field"><label>Jarak antar komponen (mm)</label><input id="set-gap" type="number" min="5" max="50"></div>
               <div class="field"><label>Margin backplate (mm)</label><input id="set-pad" type="number" min="10" max="60"></div>
-              <div class="field"><label>Lebar kabinet (mm)</label>
-                <select id="set-cabw"><option>600</option><option selected>800</option><option>1000</option><option>1200</option></select></div>
+              <div class="field"><label>Jarak antar rail (mm)</label><input id="set-gapv" type="number" min="5" max="60"></div>
               <div class="field"><label>Tinggi duct (mm)</label><input id="set-duct" type="number" min="30" max="80"></div>
             </div>
+            <p style="font-size:11px;color:var(--gray-500);margin:2px 0 8px;">
+              Lebar kabinet kini per-proyek (ada di Panel designer), karena ikut menentukan
+              ukuran &amp; suhu kabinet.</p>
             <button class="btn primary" onclick="saveEngineSettings()">Apply &amp; regenerate</button>
           </div>
         </div>
-        <div class="card"><div class="card-h">Aturan penempatan aktif</div>
-          <div class="card-b" style="font-size:12px;color:var(--gray-500);line-height:1.9;">
-            Rail 1 — incoming &amp; power (MCCB, SPD, PSU, kontaktor+overload, fan pojok kanan)<br>
-            Rail 2 — control (PLC, modul I/O, switch, safety, MCB, relay)<br>
-            Rail 3 — drives (VFD, servo)<br>
-            Baris bawah — terminal blocks X1–X4<br>
-            Tinggi kabinet dibulatkan ke ukuran standar 500/600/700/800/1000/1200.
-          </div>
+        <div class="card"><div class="card-h">Layout aktif (proyek ini)</div>
+          <div class="card-b" id="layout-rules" style="font-size:12px;color:var(--gray-700);line-height:1.9;">—</div>
         </div>
       </div>
     </section>
@@ -405,7 +422,7 @@
     <!-- ═══ REPORTS ═══ -->
     <section class="view" id="view-reports">
       <div class="page-h no-print"><h1>Reports</h1><span class="spacer"></span>
-        <button class="btn primary" onclick="window.print()">Print / save PDF</button></div>
+        <button class="btn primary" onclick="printReport()">Print / save PDF</button></div>
       <div class="card"><div class="card-b report" id="report-body"></div></div>
     </section>
 
@@ -433,7 +450,7 @@
 
 <footer class="toolbar">
   <span class="lbl">Export:</span>
-  <button class="btn" onclick="window.print()">PDF</button>
+  <button class="btn" onclick="printReport()">PDF</button>
   <button class="btn" onclick="exportBomCsv()">Excel/CSV</button>
   <button class="btn" title="Placeholder — butuh backend CAD">DWG</button>
   <button class="btn" title="Placeholder — butuh backend CAD">DXF</button>
@@ -452,44 +469,47 @@
   </div>
 </div>
 
+<script src="engine.js"></script>
 <script>
-/* ══════════ DATABASE KOMPONEN (dimensi mm, front view) ══════════ */
-const COMPONENT_DB = {
-  mccb:      {asset:'mccb-3p-40a.png',      w:75,  h:130, cat:'Protection', label:'Main Breaker',   color:'#B3372E', bg:'#FAE3E1', pn:'NV32-SW-3P-40A',        desc:'Main breaker MCCB 3P 40 A',            vendor:'Mitsubishi Electric'},
-  spd:       {asset:'spd-3p-385v.png',      w:72,  h:90,  cat:'Protection', label:'SPD',            color:'#C08415', bg:'#FBEED3', pn:'SPD-3P-385V-T2',        desc:'Surge protection device 3P+N T2',      vendor:'CITEL'},
-  psu20:     {asset:'psu-24vdc-20a.png',    w:97,  h:130, cat:'Power',      label:'Power Supply',   color:'#2478CE', bg:'#E3EEF9', pn:'QUINT4-PS/1AC/24DC/20', desc:'Power supply 24 VDC 20 A',             vendor:'Phoenix Contact'},
-  psu10:     {asset:'psu-24vdc-10a.png',    w:60,  h:130, cat:'Power',      label:'Power Supply',   color:'#2478CE', bg:'#E3EEF9', pn:'QUINT4-PS/1AC/24DC/10', desc:'Power supply 24 VDC 10 A',             vendor:'Phoenix Contact'},
-  contactor: {asset:'contactor-9a.png',     w:45,  h:75,  cat:'Switching',  label:'Contactor',      color:'#6B7885', bg:'#EEF1F4', pn:'LC1D09M7',              desc:'Contactor 9 A AC-3, coil 220 VAC',     vendor:'Schneider Electric'},
-  overload:  {asset:'thermal-overload.png', w:45,  h:70,  cat:'Protection', label:'',               color:'#6B7885', bg:'#EEF1F4', pn:'LRD10',                 desc:'Thermal overload relay 4–6 A',         vendor:'Schneider Electric'},
-  safety:    {asset:'safety-relay.png',     w:22.5,h:99,  cat:'Safety',     label:'Safety Relay',   color:'#0F7A6C', bg:'#DDF1EE', pn:'PSR-SCP-24DC/ESD/4X1',  desc:'Safety relay dual channel 4 NO',       vendor:'Phoenix Contact'},
-  irelay:    {asset:'interface-relay.png',  w:15,  h:80,  cat:'Switching',  label:'Relays',         color:'#6B7885', bg:'#EEF1F4', pn:'RIF-0-RPT-24DC',        desc:'Interface relay slim 24 VDC + socket', vendor:'Phoenix Contact'},
-  plc:       {asset:'plc-fx5u-32m.png',     w:150, h:90,  cat:'Control',    label:'PLC',            color:'#2478CE', bg:'#E3EEF9', pn:'FX5U-32MT/ES',          desc:'PLC CPU 16 DI / 16 DO, Ethernet',      vendor:'Mitsubishi Electric'},
-  di16:      {asset:'io-module-16di.png',   w:40,  h:90,  cat:'Control',    label:'I/O Modules',    color:'#2478CE', bg:'#E3EEF9', pn:'FX5-16EX/ES',           desc:'Expansion module 16 DI',               vendor:'Mitsubishi Electric'},
-  do16:      {asset:'io-module-16do.png',   w:40,  h:90,  cat:'Control',    label:'',               color:'#2478CE', bg:'#E3EEF9', pn:'FX5-16EYT/ES',          desc:'Expansion module 16 DO transistor',    vendor:'Mitsubishi Electric'},
-  ad4:       {asset:'analog-module-4ad.png',w:40,  h:90,  cat:'Control',    label:'',               color:'#2478CE', bg:'#E3EEF9', pn:'FX5-4AD',               desc:'Analog input module 4 ch',             vendor:'Mitsubishi Electric'},
-  da2:       {asset:'analog-module-2da.png',w:40,  h:90,  cat:'Control',    label:'',               color:'#2478CE', bg:'#E3EEF9', pn:'FX5-4DA',               desc:'Analog output module',                 vendor:'Mitsubishi Electric'},
-  eth:       {asset:'ethernet-switch-8p.png',w:52, h:135, cat:'Network',    label:'Ethernet Switch',color:'#0F7A6C', bg:'#DDF1EE', pn:'FL-SWITCH-1008N',       desc:'Ethernet switch industri 8 port',      vendor:'Phoenix Contact'},
-  mcb3:      {asset:'mcb-3p.png',           w:54,  h:90,  cat:'Protection', label:'MCB',            color:'#6B7885', bg:'#EEF1F4', pn:'MCB-3P-C10',            desc:'MCB 3P C10 feeder drive',              vendor:'Schneider Electric'},
-  mcb1:      {asset:'mcb-1p.png',           w:18,  h:90,  cat:'Protection', label:'',               color:'#6B7885', bg:'#EEF1F4', pn:'MCB-1P-C4',             desc:'MCB 1P C4 kontrol',                    vendor:'Schneider Electric'},
-  vfd:       {asset:'vfd-2200w.png',        w:108, h:128, cat:'Drives',     label:'VFD Drives',     color:'#5B4BB5', bg:'#EAE7F8', pn:'FR-D720-2.2K',          desc:'Inverter VFD 2.2 kW 3P 200 V',         vendor:'Mitsubishi Electric'},
-  servo:     {asset:'servo-750w.png',       w:70,  h:168, cat:'Drives',     label:'Servo Drives',   color:'#B03A6C', bg:'#F8E4ED', pn:'MR-JE-70A',             desc:'Servo amplifier 750 W',                vendor:'Mitsubishi Electric'},
-  fan:       {asset:'cooling-fan-150.png',  w:150, h:150, cat:'Cooling',    label:'Cooling Fan',    color:'#6B7885', bg:'#EEF1F4', pn:'SK-3239-100',           desc:'Filter fan exhaust 150 mm',            vendor:'Rittal'},
-};
-const STD_HEIGHTS = [500,600,700,800,1000,1200];
-const DEFAULT_CFG = {plc:'Mitsubishi FX5U', di:24, do_:16, ai:4, ao:2, vfd:3, servo:2, hmi:2, motor:6, valve:5};
+/* ══════════ ENGINE ══════════
+   Semua kalkulasi & pemilihan komponen ada di engine.js (murni, tanpa DOM,
+   diuji di test/engine.test.js). File ini hanya render + state. */
+const {COMPONENT_DB, DEFAULT_CFG, STD_HEIGHTS, STD_WIDTHS, WIRE_COLOUR} = PanelEngine;
+
 
 /* ══════════ STATE (SQLite via API bila server aktif, fallback localStorage) ══════════ */
 const LS_KEY = 'pba-state-v1';
 let state = loadState();
 let dbMode = false, syncTimer = null;
+/* Function declaration, not const: `let state = loadState()` above runs first
+   and a const would still be in its temporal dead zone. */
+function DEFAULT_SETTINGS(){ return {layout:{...PanelEngine.ASSUMPTIONS.layout}}; }
 function loadState(){
-  try{ const s = JSON.parse(localStorage.getItem(LS_KEY)); if(s && s.projects) return s; }catch(e){}
-  return {
+  try{ const s = JSON.parse(localStorage.getItem(LS_KEY)); if(s && s.projects) return migrate(s); }catch(e){}
+  return migrate({
     projects:[{id:1, name:'Packaging Line 01', customer:'ABC Manufacturing', rev:'C',
                cfg:{...DEFAULT_CFG}, updated:Date.now()}],
-    activeId:1, nextId:2,
-    settings:{gap:15, pad:20, cabW:800, duct:45}
-  };
+    activeId:1, nextId:2, settings:DEFAULT_SETTINGS()
+  });
+}
+/* Projects saved by an earlier version are missing supplyV/ambientC/cabW, and
+   settings used to be flat {gap,pad,cabW,duct}. Bring both forward so an old
+   panelbuilder.db keeps working instead of computing NaN. */
+function migrate(s){
+  const old = s.settings || {};
+  if(!old.layout){
+    s.settings = {layout:{
+      gap:   old.gap  ?? PanelEngine.ASSUMPTIONS.layout.gap,
+      pad:   old.pad  ?? PanelEngine.ASSUMPTIONS.layout.pad,
+      gapV:  PanelEngine.ASSUMPTIONS.layout.gapV,
+      ductH: old.duct ?? PanelEngine.ASSUMPTIONS.layout.ductH,
+      tstripH: PanelEngine.ASSUMPTIONS.layout.tstripH,
+    }};
+    /* cabW was global; it is per-project now */
+    if(old.cabW) for(const p of s.projects||[]) if(p.cfg && p.cfg.cabW==null) p.cfg.cabW = old.cabW;
+  }
+  for(const p of s.projects||[]) p.cfg = PanelEngine.normalizeCfg(p.cfg);
+  return s;
 }
 function persist(){
   localStorage.setItem(LS_KEY, JSON.stringify(state));
@@ -518,6 +538,7 @@ async function connectDb(){
       if(data.settings) state.settings = data.settings;
       state.nextId = Math.max(...state.projects.map(p=>p.id))+1;
       if(!state.projects.some(p=>p.id===state.activeId)) state.activeId = state.projects[0].id;
+      state = migrate(state);                    /* proyek lama dari DB ikut dimigrasi */
     }
     setDbStatus(true);
     persist();                                   /* dorong seed awal ke DB bila DB kosong */
@@ -553,115 +574,16 @@ function go(id){
   if(render) render();
 }
 
-/* ══════════ ENGINE ══════════ */
-function compute(c){
-  const S = state.settings, GAP=S.gap, PAD=S.pad, W=S.cabW, DUCT=S.duct, TSTRIP=40, GAPV=12;
-  const items=[];
-  const dol = Math.max(0, c.motor - c.vfd - c.servo);
-  const diExtra = Math.ceil(Math.max(0,c.di-16)/16);
-  const doExtra = Math.ceil(Math.max(0,c.do_-16)/16);
-  const dcLoad = 30 + (diExtra+doExtra+(c.ai>0)+(c.ao>0))*5 + 8 + 4 + c.valve*2 + c.hmi*15 + c.di*0.5 + c.do_*2;
-  const psuType = dcLoad/24 > 9 ? 'psu20' : 'psu10';
-
-  const rail1 = ['mccb','spd',psuType, ...Array(dol).fill('contactor'), ...Array(dol).fill('overload')];
-  const rail2 = ['plc', ...Array(diExtra).fill('di16'), ...Array(doExtra).fill('do16')];
-  if(c.ai>0) rail2.push('ad4'); if(c.ao>0) rail2.push('da2');
-  rail2.push('eth','safety','mcb3', ...Array(2+c.hmi).fill('mcb1'), ...Array(Math.min(c.valve,8)).fill('irelay'));
-  const rail3 = [...Array(c.vfd).fill('vfd'), ...Array(c.servo).fill('servo')];
-
-  const rowH = r => Math.max(60, ...r.map(t=>COMPONENT_DB[t].h));
-  const STACK = COMPONENT_DB.contactor.h + 4 + COMPONENT_DB.overload.h;
-  const h1 = Math.max(rowH(rail1), dol>0?STACK:0), h2=rowH(rail2), h3=rowH(rail3);
-
-  let y = PAD; const rows=[];
-  const pushRow=(list,h,name)=>{ rows.push({list,h,railY:y+h/2,name}); y+=h+GAPV; };
-  const pushBand=(kind,h,label)=>{ rows.push({kind,y0:y,h,label}); y+=h+GAPV; };
-  pushRow(rail1,h1,'DIN RAIL 1 · INCOMING / POWER');
-  pushBand('duct',DUCT,'WIRE DUCT 40×60');
-  pushRow(rail2,h2,'DIN RAIL 2 · CONTROL');
-  pushBand('duct',DUCT,'WIRE DUCT 40×60');
-  pushRow(rail3,h3,'DIN RAIL 3 · DRIVES');
-  pushBand('duct',DUCT,'WIRE DUCT 40×60');
-  pushBand('tstrip',TSTRIP,'TERMINAL BLOCKS X1–X4');
-  const needH = y - GAPV + PAD;
-  const H = STD_HEIGHTS.find(s=>s>=needH) || Math.ceil(needH/100)*100;
-
-  let overflow=false;
-  const fanW = COMPONENT_DB.fan.w;
-  for(const row of rows){
-    if(!row.list) continue;
-    let x=PAD;
-    const limit = row===rows[0] ? W-PAD-fanW-GAP : W-PAD;
-    for(const t of row.list){
-      const d=COMPONENT_DB[t];
-      if(t==='overload'){
-        const host=items.filter(i=>i.type==='contactor');
-        const mine=items.filter(i=>i.type==='overload').length;
-        if(host[mine]) items.push({type:t,x:host[mine].x,y:host[mine].y+(COMPONENT_DB.contactor.h+d.h)/2+4});
-        continue;
-      }
-      if(x+d.w>limit) overflow=true;
-      const yPos = (t==='contactor') ? row.railY-(COMPONENT_DB.overload.h+4)/2 : row.railY;
-      items.push({type:t,x:x+d.w/2,y:yPos});
-      x+=d.w+GAP;
-    }
-  }
-  items.push({type:'fan', x:W-PAD-fanW/2, y:PAD+COMPONENT_DB.fan.h/2});
-
-  /* kalkulasi */
-  const driveW=c.vfd*2200+c.servo*750, dolW=dol*1500;
-  const totalW=driveW+dolW+dcLoad;
-  const peakA=totalW/(Math.sqrt(3)*400*0.85);
-  const psuA=psuType==='psu20'?20:10;
-  const util=(dcLoad/24)/psuA*100;
-  const heat=Math.round(driveW*0.04+dolW*0.01+dcLoad*0.2);
-  const temp=Math.round(30+heat/40);
-  const termPoints=c.di+c.do_+(c.ai+c.ao)*2+c.motor*3+c.valve*2+24;
-  const wires=Math.round(termPoints*0.66);
-
-  /* BOM agregat */
-  const agg={}; for(const it of items) agg[it.type]=(agg[it.type]||0)+1;
-  const statuses=['b-green|In stock','b-green|In stock','b-amber|Lead 2 wk','b-green|In stock','b-red|RFQ sent'];
-  const bom=Object.entries(agg).map(([t,q],i)=>{
-    const d=COMPONENT_DB[t]; const [cls,txt]=statuses[i%statuses.length].split('|');
-    return {pn:d.pn, desc:d.desc, qty:q, vendor:d.vendor, cls, txt};
-  });
-  const totalQty=bom.reduce((a,b)=>a+b.qty,0);
-
-  return {items,rows,W,H,needH,overflow,dol,diExtra,doExtra,dcLoad,psuType,psuA,
-          driveW,dolW,totalW,peakA,util,heat,temp,termPoints,wires,bom,totalQty,cfg:c};
-}
-
-/* ══════════ WIRING LIST ══════════ */
-function buildWiring(R){
-  const c=R.cfg, rows=[]; let n=1;
-  const add=(from,to,size,note)=>rows.push({no:'W'+String(n++).padStart(3,'0'),from,to,size,note});
-  add('Incoming L1/L2/L3','MCCB 1/3/5','6 mm²','Power in');
-  add('MCCB 2/4/6','SPD + PSU L/N','2.5 mm²','Power dist');
-  add('MCCB 2/4/6','MCB-3P 1/3/5','2.5 mm²','Drives feeder');
-  for(let i=1;i<=c.vfd;i++)  add('MCB-3P 2/4/6',`VFD${i} R/S/T`,'2.5 mm²','Drive supply');
-  for(let i=1;i<=c.vfd;i++)  add(`VFD${i} U/V/W`,`X2:${i*3-2}–${i*3} → Motor M${i}`,'2.5 mm² shielded','Motor');
-  for(let i=1;i<=c.servo;i++)add('MCB-3P 2/4/6',`Servo${i} L1/L2`,'2.5 mm²','Servo supply');
-  for(let i=1;i<=c.servo;i++)add(`Servo${i} U/V/W`,`Servo motor SM${i}`,'Servo cable','Motor');
-  for(let i=1;i<=R.dol;i++){ add('MCB-3P',`K${i} 1/3/5`,'2.5 mm²','DOL feeder'); add(`K${i} 2/4/6 via OL`,`Motor M${c.vfd+c.servo+i}`,'2.5 mm²','DOL motor'); }
-  add('PSU +24V','PLC + modules 24V','1.0 mm²','Control power');
-  add('PSU +24V','ETH switch / Safety relay','0.75 mm²','Control power');
-  add('PSU 0V','PE/0V bar','1.0 mm²','Common');
-  for(let i=1;i<=Math.min(c.di,32);i++) add(`X1:${i}`,`PLC X${i-1}`,'0.5 mm²','Digital input');
-  for(let i=1;i<=Math.min(c.do_,32);i++) add(`PLC Y${i-1}`,`X3:${i}${i<=c.valve?' → SV'+i:''}`,'0.5 mm²','Digital output');
-  for(let i=1;i<=c.ai;i++) add(`X4:${i*2-1}/${i*2}`,`FX5-4AD CH${i}`,'0.5 mm² shielded','Analog input');
-  for(let i=1;i<=c.ao;i++) add(`FX5-4DA CH${i}`,`X4:${c.ai*2+i*2-1}/${c.ai*2+i*2}`,'0.5 mm² shielded','Analog output');
-  for(let i=1;i<=c.hmi;i++) add('ETH switch',`HMI${i}`,'Cat5e','Ethernet');
-  add('ETH switch','PLC Ethernet port','Cat5e','Ethernet');
-  add('E-stop circuit','Safety relay S11/S12/S21/S22','0.75 mm²','Safety');
-  return rows;
-}
-
 /* ══════════ SHARED ══════════ */
 let zoom=1, R=null;   /* R = hasil compute terakhir untuk proyek aktif */
-function recompute(){ R = compute(activeProject().cfg); }
+function recompute(){ R = PanelEngine.compute(activeProject().cfg, state.settings); }
+/* Semua teks dari user (nama proyek, customer) lewat sini sebelum innerHTML. */
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,
+  ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+const WARN_COLOR = {error:'var(--red-600)', warn:'var(--amber-700)', info:'var(--gray-500)'};
 function set(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
 function fmtDate(t){ return new Date(t).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'}); }
+/* set() uses textContent, so these two are safe without esc() */
 function updateTopbar(){ const p=activeProject(); set('tb-proj',p.name); set('tb-cust','Customer: '+p.customer+' · Rev '+p.rev); }
 
 /* ══════════ DASHBOARD ══════════ */
@@ -676,7 +598,7 @@ function renderDashboard(){
   document.getElementById('dash-projects').innerHTML =
     '<tr><th>Project</th><th>Customer</th><th>Updated</th><th></th></tr>' +
     [...state.projects].sort((a,b)=>b.updated-a.updated).slice(0,6).map(p=>
-      `<tr class="click" onclick="openProject(${p.id})"><td><b>${p.name}</b></td><td>${p.customer}</td><td>${fmtDate(p.updated)}</td>
+      `<tr class="click" onclick="openProject(${p.id})"><td><b>${esc(p.name)}</b></td><td>${esc(p.customer)}</td><td>${fmtDate(p.updated)}</td>
        <td>${p.id===state.activeId?'<span class="badge b-blue">Active</span>':''}</td></tr>`).join('');
   /* asset readiness: cek berapa sprite yang sudah ada */
   const types=Object.values(COMPONENT_DB); let done=0, total=types.length, pending=[];
@@ -700,8 +622,8 @@ function renderProjects(){
   document.getElementById('proj-table').innerHTML =
     '<tr><th>Project</th><th>Customer</th><th>PLC</th><th>Updated</th><th style="width:220px;"></th></tr>' +
     state.projects.map(p=>`<tr>
-      <td><b>${p.name}</b> ${p.id===state.activeId?'<span class="badge b-blue">Active</span>':''}</td>
-      <td>${p.customer}</td><td>${p.cfg.plc}</td><td>${fmtDate(p.updated)}</td>
+      <td><b>${esc(p.name)}</b> ${p.id===state.activeId?'<span class="badge b-blue">Active</span>':''}</td>
+      <td>${esc(p.customer)}</td><td>${esc(p.cfg.plc)}</td><td>${fmtDate(p.updated)}</td>
       <td style="text-align:right;">
         <button class="btn" onclick="openProject(${p.id})">Open</button>
         <button class="btn" onclick="dupProject(${p.id})">Duplicate</button>
@@ -742,14 +664,18 @@ function saveProjectMeta(){
 /* ══════════ DESIGNER ══════════ */
 function readCfgForm(){
   const n=id=>Math.max(0,parseInt(document.getElementById(id).value)||0);
-  return {plc:document.getElementById('cfg-plc').value, di:n('cfg-di'), do_:n('cfg-do'),
-          ai:n('cfg-ai'), ao:n('cfg-ao'), vfd:n('cfg-vfd'), servo:n('cfg-servo'),
-          hmi:n('cfg-hmi'), motor:n('cfg-motor'), valve:n('cfg-valve')};
+  const v=id=>document.getElementById(id).value;
+  return PanelEngine.normalizeCfg({
+    plc:v('cfg-plc'), di:n('cfg-di'), do_:n('cfg-do'),
+    ai:n('cfg-ai'), ao:n('cfg-ao'), vfd:n('cfg-vfd'), servo:n('cfg-servo'),
+    hmi:n('cfg-hmi'), motor:n('cfg-motor'), valve:n('cfg-valve'),
+    supplyV:+v('cfg-supplyv'), ambientC:+v('cfg-ambient'), cabW:+v('cfg-cabw')});
 }
 function fillCfgForm(c){
   document.getElementById('cfg-plc').value=c.plc;
   const m={'cfg-di':c.di,'cfg-do':c.do_,'cfg-ai':c.ai,'cfg-ao':c.ao,'cfg-vfd':c.vfd,
-           'cfg-servo':c.servo,'cfg-hmi':c.hmi,'cfg-motor':c.motor,'cfg-valve':c.valve};
+           'cfg-servo':c.servo,'cfg-hmi':c.hmi,'cfg-motor':c.motor,'cfg-valve':c.valve,
+           'cfg-supplyv':c.supplyV,'cfg-ambient':c.ambientC,'cfg-cabw':c.cabW};
   for(const k in m) document.getElementById(k).value=m[k];
 }
 function enterDesigner(){ fillCfgForm(activeProject().cfg); generate(false); }
@@ -757,32 +683,52 @@ function generate(save){
   if(save){ saveProject(false); }
   recompute();
   const c=R.cfg;
-  set('r-load',(R.totalW/1000).toFixed(1).replace('.0','')+' kW');
-  set('r-peak',R.peakA.toFixed(1)+' A');
-  set('r-dc',Math.round(R.dcLoad)+' W');
-  set('r-psu','24VDC '+R.psuA+'A');
+  set('r-load',(R.totalW/1000).toFixed(2)+' kW');
+  set('r-va',(R.totalVA/1000).toFixed(2)+' kVA · PF '+R.systemPf.toFixed(2));
+  set('r-flc-lbl',`Full-load current (3P ${c.supplyV} V)`);
+  set('r-peak',R.flcA.toFixed(1)+' A');
+  set('r-start',R.startA.toFixed(1)+' A');
+  set('r-mccb',R.mccb.pn);
+  set('r-dc',Math.round(R.dcLoad)+' W ('+R.dcAmps.toFixed(1)+' A)');
+  set('r-psu',R.psu.pn.replace('QUINT4-PS/1AC/','')+' · '+R.psu.ratedA+' A');
   set('r-util',Math.round(R.util)+'%');
+  set('r-util-cap',Math.round(R.assumptions.psuMaxUtil*100));
   document.getElementById('r-util-bar').style.width=Math.min(100,R.util)+'%';
   set('r-heat',R.heat+' W');
-  set('r-temp',R.temp+' °C');
-  set('r-cool',R.heat>250?'Dual exhaust fans':'Single exhaust fan');
-  set('r-size',`${R.W} × ${R.H} × 300 mm`);
-  set('r-mount',R.H>800?'Free standing':'Wall mount');
-  set('cab-chip',`Cabinet ${R.W} × ${R.H} × 300 mm · IP55`);
+  set('r-ae',R.thermal.Ae.toFixed(2)+' m²');
+  set('r-temp',R.thermal.naturalDT.toFixed(1)+' K → '+R.temp+' °C');
+  set('r-cfm',R.thermal.requiredM3h>0
+    ? Math.round(R.thermal.requiredM3h)+' m³/h ('+Math.round(R.thermal.requiredCfm)+' CFM)'
+    : 'none — natural convection');
+  set('r-cool',{natural:'Vents only',forced:R.fans+' × filter fan 150 mm',
+                'cooling-unit':'Cooling unit required'}[R.thermal.method]);
+  set('r-size',`${R.W} × ${R.H} × ${R.D} mm`);
+  set('r-mount',R.dims.freeStanding?'Free standing':'Wall mount');
+  set('r-clear',80);
+  set('r-railfree',Math.round(R.railFreeMm)+' mm of '+Math.round(R.railLengthMm)+' mm');
+  set('cab-chip',`Cabinet ${R.W} × ${R.H} × ${R.D} mm · IP55`);
+
+  /* Warnings come from the engine now — no hardcoded advice. */
   const warn=document.getElementById('r-warn');
-  warn.classList.toggle('show',R.overflow);
-  warn.textContent=R.overflow?'⚠ Rail penuh — pertimbangkan lebar kabinet lebih besar (Layout generator).':'';
+  warn.classList.toggle('show',R.warnings.length>0);
+  warn.innerHTML=R.warnings.map(w=>
+    `<div style="color:${WARN_COLOR[w.level]};margin-top:4px;">${w.level==='error'?'⛔':w.level==='warn'?'⚠':'ℹ'} ${esc(w.msg)}</div>`).join('');
+  const errs=R.warnings.filter(w=>w.level==='error').length;
   set('s-comp',R.totalQty); set('s-term',R.termPoints); set('s-wire',R.wires);
-  set('toolbar-meta',`Layout generated · ${R.totalQty} components placed · ${R.overflow?'1 clearance warning':'0 clearance violations'}`);
-  set('ai-msg',`Power supply utilization is ${Math.round(R.util)}%. `+
-    (R.heat>250?'Heat load requires dual exhaust fans per IEC 61439 derating. ':'Cabinet ventilation meets IEC recommendations. ')+
-    `Consider leaving 20% spare I/O for future expansion.`+
-    (R.overflow?' Rail is near capacity — a wider cabinet gives safer wiring clearance.':''));
+  set('toolbar-meta',`${R.items.length} components placed · ${R.bom.length} BOM lines · `+
+    (errs?`${errs} error${errs>1?'s':''}`:'no errors'));
+  document.querySelector('.ai-h span').textContent = errs?`${errs} ⛔`:'OK';
+  set('ai-msg',
+    `PSU ${R.psu.ratedA} A at ${Math.round(R.util)}% (cap ${Math.round(R.assumptions.psuMaxUtil*100)}%). `+
+    `${R.heat} W internal over ${R.thermal.Ae.toFixed(2)} m² → `+
+    `${R.thermal.naturalDT.toFixed(1)} K natural rise. ${R.thermal.note} `+
+    `Incoming ${R.mccb.pn} covers ${R.flcA.toFixed(1)} A FLC (${R.startA.toFixed(1)} A starting).`+
+    (R.warnings.length?` ${R.warnings.length} item(s) need review — see Cabinet card.`:''));
   draw(); zoomFit();
 }
 function draw(){
   if(!R) return;
-  const {items,rows,W,H}=R, FRAME=22, PAD=state.settings.pad;
+  const {items,rows,W,H}=R, FRAME=22, PAD=R.assumptions.layout.pad;
   const stage=document.getElementById('stage');
   const showGrid=document.getElementById('chk-grid').checked;
   const showTags=document.getElementById('chk-tags').checked;
@@ -803,20 +749,23 @@ function draw(){
   }
   const tagged=new Set();
   for(const it of items){
-    const d=COMPONENT_DB[it.type], l=it.x-d.w/2, t=it.y-d.h/2;
-    html+=`<div class="comp" style="left:${l}px;top:${t}px;width:${d.w}px;height:${d.h}px;">
+    /* R.specs, not COMPONENT_DB — the selected part sets the real footprint */
+    const d=R.specs[it.type], l=it.x-d.w/2, t=it.y-d.h/2;
+    const dash=it.doorMounted?'opacity:.75;':'';
+    html+=`<div class="comp" style="left:${l}px;top:${t}px;width:${d.w}px;height:${d.h}px;${dash}">
       <div class="ph" style="border-color:${d.color};background:${d.bg}CC;color:${d.color};">
-        <b>${d.desc.split(' ').slice(0,2).join(' ')}</b><i>${d.asset}</i><i>${d.w}×${d.h} mm</i></div>
-      <img src="assets/components/${d.asset}" alt="${d.desc}" onload="this.parentNode.classList.add('has-img')"></div>`;
+        <b>${esc(d.desc.split(' ').slice(0,2).join(' '))}</b><i>${esc(d.pn)}</i><i>${d.w}×${d.h} mm</i>
+        ${it.doorMounted?'<i>door / side</i>':''}</div>
+      <img src="assets/components/${d.asset}" alt="${esc(d.desc)}" onload="this.parentNode.classList.add('has-img')"></div>`;
     if(showTags && d.label && !tagged.has(it.type)){
       tagged.add(it.type);
-      html+=`<div class="tag" style="left:${it.x}px;top:${t-4}px;">${d.label}</div>`;
+      html+=`<div class="tag" style="left:${it.x}px;top:${t-4}px;">${esc(d.label)}</div>`;
     }
   }
   html+=`</div>`;
   html+=`<div class="dim dim-h" style="left:${OX+FRAME}px;top:${OY-24}px;width:${W}px;">${W} mm</div>`;
   html+=`<div class="dim dim-v" style="left:${OX+W+FRAME*2+8}px;top:${OY+FRAME}px;height:${H}px;">${H} mm</div>`;
-  html+=`<div class="dim mono" style="left:${OX+W+FRAME*2-58}px;top:${OY+H+FRAME*2+6}px;">↘ 300 mm</div>`;
+  html+=`<div class="dim mono" style="left:${OX+W+FRAME*2-58}px;top:${OY+H+FRAME*2+6}px;">↘ ${R.D} mm</div>`;
   stage.innerHTML=html;
   stage.style.width=totW+'px'; stage.style.height=totH+'px';
   stage.style.transform=`scale(${zoom})`;
@@ -853,73 +802,111 @@ function renderLibrary(){
 function renderBom(){
   recompute();
   const p=activeProject();
-  set('bom-sub',p.name+' · '+R.bom.length+' line items · '+R.totalQty+' pcs');
+  const est=R.bom.filter(b=>b.source==='estimated').length;
+  set('bom-sub',`${p.name} · ${R.bom.length} line items · ${R.bom.length-est} calculated, ${est} estimated`);
   document.getElementById('bom-table').innerHTML=
-    '<tr><th>Part number</th><th>Description</th><th>Qty</th><th>Vendor</th><th>Status</th></tr>'+
-    R.bom.map(b=>`<tr><td class="pn">${b.pn}</td><td>${b.desc}</td><td>${b.qty}</td><td>${b.vendor}</td>
-      <td><span class="badge ${b.cls}">${b.txt}</span></td></tr>`).join('');
+    '<tr><th>Category</th><th>Part number</th><th>Description</th><th>Qty</th><th>Unit</th><th>Vendor</th><th>Basis</th></tr>'+
+    R.bom.map(b=>`<tr>
+      <td style="color:var(--gray-500);">${esc(b.cat)}</td>
+      <td class="pn">${esc(b.pn)}${b.generic?' <span title="Generic descriptor — pick a vendor part" style="color:var(--gray-300);">◇</span>':''}</td>
+      <td>${esc(b.desc)}${b.note?`<br><small style="color:var(--gray-500);">${esc(b.note)}</small>`:''}</td>
+      <td><b>${b.qty}</b></td><td style="color:var(--gray-500);">${esc(b.unit)}</td>
+      <td>${esc(b.vendor)}</td>
+      <td><span class="badge ${b.source==='calculated'?'b-blue':'b-amber'}">${b.source}</span></td>
+      </tr>`).join('');
 }
 function exportBomCsv(){
   recompute();
-  const rows=[['Part Number','Description','Qty','Vendor','Status'],
-    ...R.bom.map(b=>[b.pn,b.desc,b.qty,b.vendor,b.txt])];
+  const rows=[['Category','Part Number','Description','Qty','Unit','Vendor','Basis','Generic','Note'],
+    ...R.bom.map(b=>[b.cat,b.pn,b.desc,b.qty,b.unit,b.vendor,b.source,b.generic?'yes':'',b.note||''])];
   downloadCsv(rows, activeProject().name.replace(/\s+/g,'-')+'-BOM.csv');
 }
 function exportWireCsv(){
   recompute();
-  const rows=[['Wire No','From','To','Size','Note'],
-    ...buildWiring(R).map(w=>[w.no,w.from,w.to,w.size,w.note])];
+  const rows=[['Wire No','From','To','Size','Colour','Note'],
+    ...R.wiring.map(w=>[w.no,w.from,w.to,w.size,w.colour,w.note])];
   downloadCsv(rows, activeProject().name.replace(/\s+/g,'-')+'-WIRING.csv');
 }
 function downloadCsv(rows,name){
-  const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
   const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=name; a.click();
+  /* BOM prefix so Excel reads the µ/² characters as UTF-8 */
+  const url=URL.createObjectURL(new Blob(['﻿'+csv,],{type:'text/csv;charset=utf-8'}));
+  a.href=url; a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 5000);
 }
 
 /* ══════════ CALCULATIONS ══════════ */
 function renderCalc(){
-  recompute(); const c=R.cfg;
-  set('calc-sub',activeProject().name);
+  recompute(); const c=R.cfg, A=R.assumptions;
+  set('calc-sub',`${activeProject().name} · ${c.supplyV} V 3P · ambient ${c.ambientC} °C`);
+
+  /* Load schedule straight from the engine: real power, apparent power, current
+     per load type. PF and efficiency are shown so the numbers are auditable. */
   document.getElementById('calc-load').innerHTML=
-    '<tr><th>Beban</th><th>Qty</th><th>Unit (W)</th><th>Total (W)</th></tr>'+
-    [['VFD 2.2 kW',c.vfd,2200,c.vfd*2200],
-     ['Servo 750 W',c.servo,750,c.servo*750],
-     ['Motor DOL (est.)',R.dol,1500,R.dolW],
-     ['PLC + modul I/O',1,'—',Math.round(30+(R.diExtra+R.doExtra+(c.ai>0)+(c.ao>0))*5)],
-     ['HMI',c.hmi,15,c.hmi*15],
-     ['Ethernet switch + safety',1,'—',12],
-     ['Solenoid valves',c.valve,2,c.valve*2],
-     ['Sinyal DI/DO (est.)','—','—',Math.round(c.di*0.5+c.do_*2)]]
-    .map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td><b>${r[3]}</b></td></tr>`).join('')+
-    `<tr><td colspan="3"><b>Total connected load</b></td><td><b>${(R.totalW/1000).toFixed(2)} kW</b></td></tr>`;
+    '<tr><th>Load</th><th>Qty</th><th>PF</th><th>η</th><th>P in (W)</th><th>S (VA)</th><th>I (A)</th></tr>'+
+    R.schedule.map(r=>`<tr><td>${esc(r.name)}</td><td>${r.qty}</td>
+      <td>${r.pf.toFixed(2)}</td><td>${r.eff.toFixed(2)}</td>
+      <td>${Math.round(r.pIn)}</td><td>${Math.round(r.s)}</td>
+      <td><b>${r.a.toFixed(2)}</b></td></tr>`).join('')+
+    `<tr><td colspan="4"><b>Total</b></td><td><b>${Math.round(R.totalW)}</b></td>
+     <td><b>${Math.round(R.totalVA)}</b></td><td><b>${R.flcA.toFixed(2)}</b></td></tr>
+     <tr><td colspan="6">System power factor (computed)</td><td><b>${R.systemPf.toFixed(3)}</b></td></tr>
+     <tr><td colspan="6">Starting current (largest DOL inrushing, ${A.dolStartMultiple}× FLC)</td>
+     <td><b>${R.startA.toFixed(1)}</b></td></tr>`;
+
+  const psuAcA=(R.dcLoad/A.eff.psu)/(c.supplyV/Math.sqrt(3));
   document.getElementById('calc-size').innerHTML=
-    `<tr><td>Arus puncak 3P 400 V (PF 0.85)</td><td>${R.peakA.toFixed(1)} A</td></tr>
-     <tr><td>Rekomendasi MCCB</td><td>${Math.ceil(R.peakA*1.25/8)*8*2} A frame → set 40 A</td></tr>
-     <tr><td>Beban 24 VDC</td><td>${Math.round(R.dcLoad)} W (${(R.dcLoad/24).toFixed(1)} A)</td></tr>
-     <tr><td>PSU terpilih</td><td class="accent">24VDC ${R.psuA}A (util ${Math.round(R.util)}%)</td></tr>`;
+    `<tr><td>Full-load current</td><td>${R.flcA.toFixed(2)} A</td></tr>
+     <tr><td>Required (× ${A.breakerMargin} per IEC 60204-1)</td><td>${R.mccb.requiredA.toFixed(2)} A</td></tr>
+     <tr><td>Incoming breaker</td><td class="accent">${esc(R.mccb.pn)}</td></tr>
+     <tr><td>Drives feeder (${R.driveA.toFixed(1)} A)</td><td>${esc(R.driveMcb.pn)}</td></tr>
+     <tr><td>Control feeder (${psuAcA.toFixed(2)} A, floor C${A.minControlMcbA})</td><td>${esc(R.controlMcb.pn)}</td></tr>
+     ${R.starter?`<tr><td>DOL starter (FLC ${R.starter.setA.toFixed(1)} A)</td>
+        <td>${esc(R.starter.contactor.pn)} + ${esc(R.starter.overload.pn)}</td></tr>`:''}
+     <tr><td>24 VDC internal / field</td><td>${Math.round(R.dcInternalW)} / ${Math.round(R.dcExternalW)} W</td></tr>
+     <tr><td>24 VDC total</td><td>${Math.round(R.dcLoad)} W (${R.dcAmps.toFixed(2)} A)</td></tr>
+     <tr><td>PSU required at ${Math.round(A.psuMaxUtil*100)}% cap</td><td>${R.psu.requiredA.toFixed(2)} A</td></tr>
+     <tr><td>PSU selected</td><td class="accent">${esc(R.psu.pn)} (${Math.round(R.util)}%)</td></tr>`;
+
   document.getElementById('calc-heat').innerHTML=
-    `<tr><td>Disipasi drive (4%)</td><td>${Math.round(R.driveW*0.04)} W</td></tr>
-     <tr><td>Disipasi kontrol</td><td>${Math.round(R.dcLoad*0.2)} W</td></tr>
-     <tr><td>Total heat</td><td>${R.heat} W</td></tr>
-     <tr><td>Estimasi suhu kabinet</td><td>${R.temp} °C @ ambient 30 °C</td></tr>
-     <tr><td>Ventilasi</td><td class="accent">${R.heat>250?'Dual':'Single'} exhaust fan 150 mm</td></tr>`;
+    R.heatDetail.lines.map(l=>`<tr><td>${esc(l.name)}</td><td>${l.w} W</td></tr>`).join('')+
+    `<tr><td><b>Total internal heat</b></td><td><b>${R.heat} W</b></td></tr>
+     <tr><td colspan="2" style="color:var(--gray-500);font-weight:400;font-size:11px;padding-top:6px;">${esc(R.heatDetail.note)}</td></tr>
+     <tr><td>Effective surface Ae (IEC 60890)</td><td>${R.thermal.Ae.toFixed(3)} m²</td></tr>
+     <tr><td>Dissipation k · Ae</td><td>${R.thermal.surfaceWperK.toFixed(1)} W/K</td></tr>
+     <tr><td>Natural rise</td><td>${R.thermal.naturalDT.toFixed(1)} K → ${R.thermal.naturalC.toFixed(1)} °C</td></tr>
+     <tr><td>Allowed rise (ceiling ${A.maxInternalC} °C)</td><td>${R.thermal.allowedDT.toFixed(1)} K</td></tr>
+     ${R.thermal.requiredM3h>0?`<tr><td>Airflow (× ${A.fanMargin} margin)</td>
+        <td>${Math.round(R.thermal.requiredM3h)} m³/h · ${Math.round(R.thermal.requiredCfm)} CFM</td></tr>`:''}
+     <tr><td>Cooling</td><td class="accent">${esc(R.thermal.note)}</td></tr>
+     <tr><td>Predicted inside temp</td><td><b>${R.temp} °C</b> @ ambient ${c.ambientC} °C</td></tr>`;
 }
 
 /* ══════════ LAYOUT GEN / SETTINGS ══════════ */
 function enterLayoutGen(){
-  const S=state.settings;
-  document.getElementById('set-gap').value=S.gap;
-  document.getElementById('set-pad').value=S.pad;
-  document.getElementById('set-cabw').value=S.cabW;
-  document.getElementById('set-duct').value=S.duct;
+  const L=state.settings.layout;
+  document.getElementById('set-gap').value=L.gap;
+  document.getElementById('set-pad').value=L.pad;
+  document.getElementById('set-gapv').value=L.gapV;
+  document.getElementById('set-duct').value=L.ductH;
+  recompute();
+  document.getElementById('layout-rules').innerHTML=
+    R.rows.map(r=>r.list
+      ? `<b>${esc(r.name)}</b> — ${r.list.length} items, ${Math.round(r.h)} mm tall`
+      : `<span style="color:var(--gray-500);">${esc(r.label)} — ${r.h} mm</span>`).join('<br>')+
+    `<br><br>Backplate ${R.W} × ${R.H} mm · required ${Math.round(R.needH)} mm ·
+     rail ${Math.round(R.railLengthMm)} mm total, ${Math.round(R.railFreeMm)} mm free
+     (${Math.round(R.railFreeMm/R.railLengthMm*100)}% spare).<br>
+     Rows wrap automatically when a rail runs out of width, so the cabinet grows
+     instead of components overhanging the enclosure.`;
 }
 function saveEngineSettings(){
-  const S=state.settings;
-  S.gap=+document.getElementById('set-gap').value||15;
-  S.pad=+document.getElementById('set-pad').value||20;
-  S.cabW=+document.getElementById('set-cabw').value||800;
-  S.duct=+document.getElementById('set-duct').value||45;
+  const L=state.settings.layout, d=PanelEngine.ASSUMPTIONS.layout;
+  L.gap  =+document.getElementById('set-gap').value  || d.gap;
+  L.pad  =+document.getElementById('set-pad').value  || d.pad;
+  L.gapV =+document.getElementById('set-gapv').value || d.gapV;
+  L.ductH=+document.getElementById('set-duct').value || d.ductH;
   persist(); go('designer');
 }
 function enterSettings(){
@@ -935,16 +922,22 @@ function resetAll(){
 /* ══════════ WIRING VIEW ══════════ */
 function renderWiring(){
   recompute();
-  const w=buildWiring(R);
-  set('wire-sub',activeProject().name+' · '+w.length+' kabel');
+  const w=R.wiring;
+  const pe=w.filter(x=>x.colour===WIRE_COLOUR.pe).length;
+  set('wire-sub',`${activeProject().name} · ${w.length} wires · ${pe} PE conductors`);
+  const swatch={'Black':'#22282E','Light blue':'#7FB6E0','Red':'#C4362C','Dark blue':'#1B4E8A',
+                'Orange':'#D2802A','Green-yellow':'#8FBF3F'};
   document.getElementById('wire-table').innerHTML=
-    '<tr><th>Wire no</th><th>From</th><th>To</th><th>Size</th><th>Note</th></tr>'+
-    w.map(x=>`<tr><td class="pn">${x.no}</td><td>${x.from}</td><td>${x.to}</td><td>${x.size}</td><td>${x.note}</td></tr>`).join('');
+    '<tr><th>Wire no</th><th>From</th><th>To</th><th>Size</th><th>Colour (IEC 60204-1)</th><th>Function</th></tr>'+
+    w.map(x=>`<tr><td class="pn">${esc(x.no)}</td><td>${esc(x.from)}</td><td>${esc(x.to)}</td>
+      <td>${esc(x.size)}</td>
+      <td><span class="dot" style="background:${swatch[x.colour]||'#999'};margin-right:6px;"></span>${esc(x.colour)}</td>
+      <td style="color:var(--gray-500);">${esc(x.note)}</td></tr>`).join('');
 }
 
 /* ══════════ REPORT ══════════ */
 function renderReport(){
-  recompute(); const p=activeProject(), c=R.cfg;
+  recompute(); const p=activeProject(), c=R.cfg, A=R.assumptions;
   document.getElementById('report-body').innerHTML=`
     <div class="rep-head">
       <img src="assets/ui/logo.svg" alt="" onload="this.parentNode.classList.add('has-logo')">
@@ -954,30 +947,53 @@ function renderReport(){
       </div>
       <div style="text-align:right;font-size:12px;color:var(--gray-500);">
         <b style="color:var(--ink);font-size:14px;">Panel Design Report</b><br>
-        ${p.name} · Rev ${p.rev}<br>Customer: ${p.customer}<br>${fmtDate(Date.now())}
+        ${esc(p.name)} · Rev ${esc(p.rev)}<br>Customer: ${esc(p.customer)}<br>${fmtDate(Date.now())}
       </div>
     </div>
     <h2>1. Konfigurasi mesin</h2>
     <table class="data"><tr><th>Parameter</th><th>Nilai</th><th>Parameter</th><th>Nilai</th></tr>
-      <tr><td>PLC</td><td>${c.plc}</td><td>VFD</td><td>${c.vfd} × 2.2 kW</td></tr>
-      <tr><td>Digital I/O</td><td>${c.di} DI / ${c.do_} DO</td><td>Servo</td><td>${c.servo} × 750 W</td></tr>
-      <tr><td>Analog I/O</td><td>${c.ai} AI / ${c.ao} AO</td><td>Motors / valves</td><td>${c.motor} / ${c.valve}</td></tr>
-      <tr><td>HMI</td><td>${c.hmi}</td><td>Kabinet</td><td>${R.W} × ${R.H} × 300 mm · IP55</td></tr></table>
+      <tr><td>Supply</td><td>${c.supplyV} V 3P · ambient ${c.ambientC} °C</td><td>VFD</td><td>${c.vfd} × ${A.vfdKw} kW</td></tr>
+      <tr><td>PLC</td><td>${esc(c.plc)}</td><td>Servo</td><td>${c.servo} × ${A.servoW} W</td></tr>
+      <tr><td>Digital I/O</td><td>${c.di} DI / ${c.do_} DO</td><td>Motors / valves</td><td>${c.motor} / ${c.valve}</td></tr>
+      <tr><td>Analog I/O</td><td>${c.ai} AI / ${c.ao} AO</td><td>HMI</td><td>${c.hmi}</td></tr>
+      <tr><td>Kabinet</td><td>${R.W} × ${R.H} × ${R.D} mm · IP55</td><td>Mounting</td><td>${R.dims.freeStanding?'Free standing':'Wall mount'}</td></tr></table>
     <h2>2. Ringkasan engineering</h2>
     <table class="data"><tr><th>Item</th><th>Nilai</th><th>Item</th><th>Nilai</th></tr>
-      <tr><td>Total connected load</td><td>${(R.totalW/1000).toFixed(2)} kW</td><td>Heat dissipation</td><td>${R.heat} W</td></tr>
-      <tr><td>Peak current</td><td>${R.peakA.toFixed(1)} A</td><td>Cabinet temp (est.)</td><td>${R.temp} °C</td></tr>
-      <tr><td>PSU</td><td>24VDC ${R.psuA}A (${Math.round(R.util)}%)</td><td>Ventilasi</td><td>${R.heat>250?'Dual':'Single'} exhaust fan</td></tr>
-      <tr><td>Components</td><td>${R.totalQty}</td><td>Terminal / wires</td><td>${R.termPoints} / ${R.wires}</td></tr></table>
-    <h2>3. Bill of materials</h2>
-    <table class="data"><tr><th>Part number</th><th>Description</th><th>Qty</th><th>Vendor</th></tr>
-      ${R.bom.map(b=>`<tr><td class="pn">${b.pn}</td><td>${b.desc}</td><td>${b.qty}</td><td>${b.vendor}</td></tr>`).join('')}</table>
-    <h2>4. Catatan</h2>
+      <tr><td>Total input power</td><td>${(R.totalW/1000).toFixed(2)} kW</td><td>Internal heat load</td><td>${R.heat} W</td></tr>
+      <tr><td>Apparent power / PF</td><td>${(R.totalVA/1000).toFixed(2)} kVA / ${R.systemPf.toFixed(3)}</td><td>Effective surface Ae</td><td>${R.thermal.Ae.toFixed(3)} m²</td></tr>
+      <tr><td>Full-load current</td><td>${R.flcA.toFixed(1)} A</td><td>Temp rise / inside</td><td>${R.thermal.naturalDT.toFixed(1)} K / ${R.temp} °C</td></tr>
+      <tr><td>Starting current</td><td>${R.startA.toFixed(1)} A</td><td>Cooling</td><td>${esc(R.thermal.note)}</td></tr>
+      <tr><td>Incoming breaker</td><td>${esc(R.mccb.pn)}</td><td>Terminal / wires</td><td>${R.termPoints} / ${R.wires}</td></tr>
+      <tr><td>PSU</td><td>${esc(R.psu.pn)} (${Math.round(R.util)}%)</td><td>Rail spare</td><td>${Math.round(R.railFreeMm)} mm</td></tr></table>
+    ${R.warnings.length?`<h2>3. Temuan review</h2>
+    <table class="data"><tr><th>Level</th><th>Kode</th><th>Temuan</th></tr>
+      ${R.warnings.map(w=>`<tr><td style="color:${WARN_COLOR[w.level]};">${w.level}</td>
+        <td class="pn">${esc(w.code)}</td><td>${esc(w.msg)}</td></tr>`).join('')}</table>`:''}
+    <h2>${R.warnings.length?4:3}. Bill of materials</h2>
+    <table class="data"><tr><th>Category</th><th>Part number</th><th>Description</th><th>Qty</th><th>Unit</th><th>Vendor</th><th>Basis</th></tr>
+      ${R.bom.map(b=>`<tr><td>${esc(b.cat)}</td><td class="pn">${esc(b.pn)}</td><td>${esc(b.desc)}</td>
+        <td>${b.qty}</td><td>${esc(b.unit)}</td><td>${esc(b.vendor)}</td><td>${esc(b.source)}</td></tr>`).join('')}</table>
+    <h2>${R.warnings.length?5:4}. Catatan &amp; asumsi</h2>
     <p style="font-size:12px;color:var(--gray-500);line-height:1.8;">
-      Perhitungan bersifat estimasi engineering awal (PF 0.85, disipasi drive 4%). Verifikasi akhir mengikuti datasheet
-      komponen terpasang dan IEC 61439. Layout 2D lengkap tersedia di menu Panel designer.
-      ${R.overflow?'<b style="color:var(--red-600);">Peringatan: rail mendekati kapasitas — pertimbangkan kabinet lebih lebar.</b>':''}
+      Perhitungan memakai PF dan efisiensi per jenis beban (VFD ${A.pf.vfd}/${(A.eff.vfdDrive*A.eff.vfdMotor).toFixed(2)},
+      servo ${A.pf.servo}, DOL ${A.pf.dol}/${A.eff.dolMotor}, PSU ${A.eff.psu}); power factor sistem
+      <b>dihitung</b> (${R.systemPf.toFixed(3)}), bukan diasumsikan. Proteksi disizing ×${A.breakerMargin}
+      (IEC 60204-1) dari tabel frame nyata. Termal memakai bentuk praktis IEC 60890
+      (k = ${A.kEnclosure} W/m²K, batas dalam ${A.maxInternalC} °C, margin fan ×${A.fanMargin}).
+      Baris BOM bertanda <b>estimated</b> adalah alowansi, bukan hasil kalkulasi —
+      terutama panjang kabel, ferrule, dan gland. Part number bertanda ◇ masih generik.
+      Dimensi komponen adalah estimasi engineering: <b>verifikasi datasheet sebelum pembelian</b>.
+      Rincian lengkap asumsi ada di <code>ENGINEERING.md</code>.
+      Tidak ada data stok / lead time di aplikasi ini — jangan pakai laporan ini untuk komitmen pengiriman.
     </p>`;
+}
+/* Print CSS hanya menampilkan #view-reports, jadi tombol PDF dari view lain
+   dulu menghasilkan halaman kosong. Pindah ke Reports dulu, lalu print. */
+function printReport(){
+  if(!document.getElementById('view-reports').classList.contains('active')){
+    go('reports');
+    setTimeout(()=>window.print(), 120);
+  } else window.print();
 }
 
 /* ══════════ GLOBAL SEARCH ══════════ */
