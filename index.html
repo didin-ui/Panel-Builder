@@ -936,9 +936,12 @@ function saveProjectMeta(){
 function readCfgForm(){
   const n=id=>Math.max(0,parseInt(document.getElementById(id).value)||0);
   const v=id=>document.getElementById(id).value;
+  /* Merge DI ATAS cfg yang ada, jangan bangun objek baru dari form.
+     Field yang tidak punya input (extras, doorPos, dan apa pun yang ditambah
+     nanti) otomatis ikut terbawa — dulu doorPos & extras hilang tiap kali
+     tombol Generate / dropdown dipakai. */
   return PanelEngine.normalizeCfg({
-    /* extras tidak ada di form — jangan sampai hilang saat save */
-    extras: activeProject().cfg.extras,
+    ...activeProject().cfg,
     plc:v('cfg-plc'), di:n('cfg-di'), do_:n('cfg-do'),
     ai:n('cfg-ai'), ao:n('cfg-ao'), vfd:n('cfg-vfd'), servo:n('cfg-servo'),
     hmi:n('cfg-hmi'), motor:n('cfg-motor'), valve:n('cfg-valve'),
