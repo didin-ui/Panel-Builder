@@ -35,8 +35,8 @@ describe('golden — reference machine (24DI/16DO/4AI/2AO, 3 VFD, 2 servo, 6 mot
   const r = R();
 
   test('electrical', () => {
-    assert.equal(Math.round(r.totalW), 11766);          // real input power, W
-    assert.equal(Math.round(r.totalVA), 12801);         // apparent power, VA
+    assert.equal(Math.round(r.totalW), 11768);          // real input power, W
+    assert.equal(Math.round(r.totalVA), 12803);         // apparent power, VA
     assert.equal(r.systemPf.toFixed(3), '0.919');       // computed, not assumed
     assert.equal(r.flcA.toFixed(2), '18.48');
     assert.equal(r.startA.toFixed(2), '36.63');         // largest DOL inrushing
@@ -52,26 +52,33 @@ describe('golden — reference machine (24DI/16DO/4AI/2AO, 3 VFD, 2 servo, 6 mot
   });
 
   test('24 V budget and PSU', () => {
-    assert.equal(r.dcInternalW.toFixed(1), '91.5');
+    assert.equal(r.dcInternalW.toFixed(1), '93.5');   // incl. 2 W door lamps
     assert.equal(r.dcExternalW.toFixed(1), '26.9');
     assert.equal(r.psu.pn, 'QUINT4-PS/1AC/24DC/10');
-    assert.equal(Math.round(r.util), 49);
+    assert.equal(Math.round(r.util), 50);
   });
 
   test('thermal', () => {
-    assert.equal(r.heat, 401);
+    assert.equal(r.heat, 403);
     assert.equal(r.thermal.Ae.toFixed(3), '1.996');
     assert.equal(r.thermal.method, 'forced');
     assert.equal(r.fans, 2);
-    assert.equal(Math.round(r.thermal.requiredCfm), 66);
+    assert.equal(Math.round(r.thermal.requiredCfm), 67);
     assert.equal(r.temp, 35);
   });
 
   test('enclosure and schedules', () => {
     assert.deepEqual([r.W, r.H, r.D], [800, 1000, 300]);
     assert.equal(r.termPoints, 92);
-    assert.equal(r.wires, 107);
-    assert.equal(r.bom.length, 48);
+    assert.equal(r.wires, 119);
+    assert.equal(r.bom.length, 59);
+  });
+
+  test('front cover', () => {
+    assert.equal(r.door.fits, true);
+    assert.equal(r.door.items.length, 12);
+    assert.equal(r.door.items.filter((i) => i.type === 'estop').length, 1);
+    assert.equal(r.door.items.filter((i) => i.type === 'hmi').length, 2);
   });
 });
 
@@ -499,6 +506,232 @@ describe('library — resolveDb', () => {
     assert.equal(db.thing.w, 20);
     assert.equal(db.thing.mount, E.BLANK_COMPONENT.mount);
     assert.equal(db.thing.cat, E.BLANK_COMPONENT.cat);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════ */
+describe('panel size — catalogue W×H vs automatic', () => {
+  test('the offered sizes are the ones the designer lists', () => {
+    assert.deepEqual(E.STD_SIZES.map((s) => s.w + 'x' + s.h),
+      ['400x300', '500x400', '600x400', '800x600', '1000x800', '1200x800']);
+  });
+
+  test('a chosen height is honoured exactly, not rounded', () => {
+    for (const s of E.STD_SIZES) {
+      const r = R({ cabW: s.w, cabH: s.h });
+      assert.equal(r.W, s.w);
+      assert.equal(r.H, s.h, `${s.w}×${s.h} was changed to ${r.H}`);
+      assert.equal(r.dims.fixedH, true);
+    }
+  });
+
+  test('cabH 0 keeps automatic sizing from the layout', () => {
+    const r = R({ cabH: 0 });
+    assert.equal(r.dims.fixedH, false);
+    assert.ok(E.STD_HEIGHTS.includes(r.H));
+    assert.ok(r.H >= r.needH);
+  });
+
+  test('a panel too small for its contents is an error, not a silent overflow', () => {
+    const r = R({ cabW: 400, cabH: 300 });
+    assert.equal(r.H, 300, 'the chosen size must still be reported as chosen');
+    const w = r.warnings.find((x) => x.code === 'PANEL_TOO_SMALL');
+    assert.ok(w && w.level === 'error', 'no PANEL_TOO_SMALL error');
+    assert.match(w.msg, /needs \d+ mm/);
+    assert.ok(Number.isFinite(r.heat), 'must still compute');
+  });
+
+  test('a size that genuinely fits raises no error', () => {
+    const small = { di: 4, do_: 4, ai: 0, ao: 0, vfd: 0, servo: 0,
+                    hmi: 0, motor: 1, valve: 1 };
+    const r = R(Object.assign({ cabW: 800, cabH: 600 }, small));
+    assert.ok(r.needH <= 600, 'fixture no longer fits: needs ' + Math.round(r.needH));
+    assert.ok(!r.warnings.some((x) => /TOO_SMALL/.test(x.code)),
+      'false positive: ' + JSON.stringify(r.warnings.map((x) => x.code)));
+  });
+
+  test('a narrower panel needs more height, because rails wrap', () => {
+    const small = { di: 4, do_: 4, ai: 0, ao: 0, vfd: 0, servo: 0,
+                    hmi: 0, motor: 1, valve: 1 };
+    const narrow = R(Object.assign({ cabW: 400, cabH: 0 }, small));
+    const wide = R(Object.assign({ cabW: 800, cabH: 0 }, small));
+    assert.ok(narrow.needH > wide.needH,
+      `400 mm wide needed ${Math.round(narrow.needH)}, 800 mm needed ${Math.round(wide.needH)}`);
+  });
+
+  test('a fixed height still drives the thermal surface', () => {
+    const short = R({ cabW: 800, cabH: 600 });
+    const tall = R({ cabW: 800, cabH: 800 });
+    assert.ok(tall.thermal.Ae > short.thermal.Ae);
+    assert.ok(tall.thermal.naturalDT < short.thermal.naturalDT);
+  });
+});
+
+describe('front cover layout', () => {
+  test('generates the operator devices IEC 60204-1 expects', () => {
+    const r = R();
+    const types = r.door.items.map((i) => i.type);
+    for (const need of ['estop', 'disconnect', 'pb_start', 'pb_stop', 'pb_reset',
+                        'sel_auto', 'lamp_pwr', 'lamp_run', 'lamp_flt'])
+      assert.ok(types.includes(need), 'front cover is missing ' + need);
+    assert.equal(types.filter((t) => t === 'estop').length, 1, 'exactly one E-stop');
+  });
+
+  test('HMI count follows the configuration', () => {
+    for (const hmi of [0, 1, 2, 4]) {
+      const r = R({ hmi });
+      assert.equal(r.door.items.filter((i) => i.type === 'hmi').length, hmi);
+    }
+  });
+
+  test('one run lamp per DOL starter plus a system lamp', () => {
+    for (const motor of [0, 5, 6, 9]) {
+      const r = R({ motor });
+      assert.equal(r.door.items.filter((i) => i.type === 'lamp_run').length,
+        1 + r.dol, `motor=${motor}`);
+    }
+  });
+
+  test('every door device is inside the door, clear of the margins', () => {
+    for (const s of E.STD_SIZES.concat([{ w: 800, h: 0 }])) {
+      const r = R({ cabW: s.w, cabH: s.h });
+      if (!r.door.fits) continue;
+      const M = r.door.margin;
+      for (const it of r.door.items) {
+        const d = r.specs[it.type];
+        assert.ok(it.x - d.w / 2 >= M - 0.01, `${it.type} inside the left margin`);
+        assert.ok(it.x + d.w / 2 <= r.W - M + 0.01 || it.type === 'estop',
+          `${it.type} past the right margin`);
+        assert.ok(it.y - d.h / 2 >= M - 0.01, `${it.type} inside the top margin`);
+        assert.ok(it.y + d.h / 2 <= r.H - 0.01, `${it.type} past the bottom edge`);
+      }
+    }
+  });
+
+  test('nothing overlaps the reserved E-stop block', () => {
+    const r = R({ hmi: 4 });
+    const est = r.door.items.find((i) => i.type === 'estop');
+    const e = r.specs.estop;
+    const box = { x1: est.x - e.w / 2, x2: est.x + e.w / 2,
+                  y1: est.y - e.h / 2, y2: est.y + e.h / 2 };
+    for (const it of r.door.items) {
+      if (it.type === 'estop') continue;
+      const d = r.specs[it.type];
+      const overlap = it.x + d.w / 2 > box.x1 && it.x - d.w / 2 < box.x2 &&
+                      it.y + d.h / 2 > box.y1 && it.y - d.h / 2 < box.y2;
+      assert.ok(!overlap, it.type + ' overlaps the E-stop');
+    }
+  });
+
+  test('a door too small for its devices is an error', () => {
+    const r = R({ cabW: 400, cabH: 300, hmi: 4 });
+    assert.ok(r.warnings.some((w) => w.code === 'DOOR_TOO_SMALL' && w.level === 'error'));
+  });
+
+  test('door devices reach the BOM, flagged as door-mounted', () => {
+    const r = R();
+    for (const pn of ['XB4BS8445', 'GS2107-WTBD', 'XB4BA31', 'XB4BA42', 'XB4BVM3'])
+      assert.ok(r.bom.some((b) => b.pn === pn), 'BOM is missing ' + pn);
+    const estop = r.bom.find((b) => b.pn === 'XB4BS8445');
+    assert.equal(estop.qty, 1);
+    assert.equal(estop.door, true);
+    assert.ok(r.bom.some((b) => b.pn === 'LEGEND-PLATE'), 'no legend plates');
+  });
+
+  test('door devices are wired', () => {
+    const r = R();
+    for (const re of [/S3 START/, /S4 STOP/, /S5 RESET/, /H1 POWER/, /H2 RUN/,
+                      /AUTO\/OFF\/MAN|S2 AUTO/, /disconnect handle/])
+      assert.ok(r.wiring.some((w) => re.test(w.from) || re.test(w.to)),
+        'no wiring for ' + re);
+  });
+
+  test('pilot lamps are charged to the 24 V budget once', () => {
+    const r = R();
+    const line = r.dcDetail.internal.find((x) => /Pilot lamps/.test(x.name));
+    assert.ok(line, 'lamps missing from the 24 V budget');
+    const lamps = r.door.items.filter((i) => /^lamp_/.test(i.type)).length;
+    assert.equal(line.w, lamps * E.COMPONENT_DB.lamp_pwr.powerW);
+  });
+
+  test('HMI power is not double-counted between door and budget', () => {
+    const r = R({ hmi: 2 });
+    const hmiLines = r.dcDetail.internal.filter((x) => /HMI/.test(x.name));
+    assert.equal(hmiLines.length, 1, 'HMI counted more than once');
+    assert.equal(hmiLines[0].w, 30);
+  });
+});
+
+describe('no PLC', () => {
+  const noPlc = (over) => R(Object.assign({ plc: E.NO_PLC, hmi: 0 }, over || {}));
+
+  test('no CPU, no I/O rack, no Ethernet switch', () => {
+    const r = noPlc();
+    assert.equal(r.hasPlc, false);
+    for (const t of ['plc', 'di16', 'do16', 'ad4', 'da4', 'eth'])
+      assert.equal(r.items.filter((i) => i.type === t).length, 0, t + ' still placed');
+    assert.equal(r.diExtra + r.doExtra + r.aiMods + r.aoMods, 0);
+    assert.ok(!r.bom.some((b) => /FX5U|FX5-|FL-SWITCH/.test(b.pn)), 'PLC parts in BOM');
+  });
+
+  test('the 24 V budget drops accordingly', () => {
+    assert.ok(noPlc().dcLoad < R({ hmi: 0 }).dcLoad);
+    assert.ok(!noPlc().dcDetail.internal.some((x) => /PLC CPU/.test(x.name)));
+  });
+
+  test('no wiring row references a PLC that is not there', () => {
+    const r = noPlc({ di: 24, do_: 16, valve: 5, motor: 6 });
+    const refs = r.wiring.filter((w) => /PLC/.test(w.from + ' ' + w.to));
+    assert.deepEqual(refs, [], 'dangling PLC references: ' +
+      refs.slice(0, 3).map((w) => w.no + ' ' + w.from + '→' + w.to).join('; '));
+  });
+
+  test('starters are commanded from the door instead', () => {
+    const r = noPlc({ vfd: 0, servo: 0, motor: 3 });
+    assert.ok(r.wiring.some((w) => /K1 A1/.test(w.to) && /START|latch/i.test(w.from)),
+      'no hard-wired start path');
+  });
+
+  test('configured I/O is preserved but flagged as unusable', () => {
+    const r = noPlc({ di: 24, do_: 16, ai: 4, ao: 2 });
+    assert.equal(r.cfg.di, 24, 'user data must not be destroyed');
+    const w = r.warnings.find((x) => x.code === 'IO_WITHOUT_PLC');
+    assert.ok(w && w.level === 'warn');
+    assert.match(w.msg, /46/);
+  });
+
+  test('an HMI without a PLC is called out', () => {
+    const r = R({ plc: E.NO_PLC, hmi: 2 });
+    assert.ok(r.warnings.some((x) => x.code === 'HMI_WITHOUT_PLC'));
+  });
+
+  test('safety chain, door devices and starters still work', () => {
+    const r = noPlc({ vfd: 0, servo: 0, motor: 4 });
+    assert.equal(r.items.filter((i) => i.type === 'safety').length, 1);
+    assert.equal(r.items.filter((i) => i.type === 'contactor').length, 4);
+    assert.equal(r.door.items.filter((i) => i.type === 'estop').length, 1);
+    assert.ok(r.wiring.some((w) => /13\/14/.test(w.from)), 'safety output unwired');
+  });
+
+  test('all invariants hold with no PLC', () => {
+    const r = noPlc({ di: 48, do_: 32, motor: 8, valve: 10 });
+    const bad = [];
+    (function scan(o, p) {
+      if (typeof o === 'number') { if (!Number.isFinite(o)) bad.push(p); return; }
+      if (o && typeof o === 'object') Object.keys(o).forEach((k) => scan(o[k], p + '.' + k));
+    })(r, 'R');
+    assert.deepEqual(bad, []);
+    assert.ok(r.util <= E.ASSUMPTIONS.psuMaxUtil * 100 + 1e-9);
+    assert.equal(r.items.filter((i) => i.type === 'fan').length, r.thermal.fans);
+    const nos = r.wiring.map((w) => w.no);
+    assert.equal(new Set(nos).size, nos.length, 'duplicate wire numbers');
+  });
+
+  test('selecting a PLC again restores the I/O rack', () => {
+    const off = noPlc({ di: 48 });
+    const on = R({ di: 48, hmi: 0 });
+    assert.equal(off.diExtra, 0);
+    assert.equal(on.diExtra, 2);
   });
 });
 

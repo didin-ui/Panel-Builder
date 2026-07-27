@@ -111,6 +111,15 @@
   .stage{position:absolute;top:0;left:0;transform-origin:0 0;}
   .enclosure{position:absolute;background:#E9ECEF;border:3px solid #55636F;border-radius:6px;box-shadow:inset 0 0 0 1px #fff;}
   .backplate{position:absolute;background:#F6F8F9 url('assets/textures/backplate.png');background-size:400px;border:1px solid var(--gray-300);}
+  /* Front cover */
+  .doorplate{position:absolute;background:#EDF0F2;border:1px solid var(--gray-300);
+    box-shadow:inset 0 0 0 2px #fff, inset 0 0 14px rgba(18,56,94,.06);}
+  .door-margin{position:absolute;border:1px dashed #C7D0D9;pointer-events:none;}
+  .hinge{position:absolute;width:8px;height:44px;background:#8A98A5;border-radius:2px;}
+  .handle{position:absolute;width:12px;height:52px;background:#9AA6B1;border-radius:3px;
+    box-shadow:inset 0 0 0 1px #fff;}
+  .comp.round,.comp .ph.round{border-radius:50%;}
+  .comp.round img{border-radius:50%;}
   .gridlayer{position:absolute;inset:0;background-image:linear-gradient(#2478CE1A 1px,transparent 1px),linear-gradient(90deg,#2478CE1A 1px,transparent 1px);background-size:20px 20px;pointer-events:none;}
   .rail{position:absolute;background:#AEB9C4 url('assets/textures/din-rail.png');background-size:auto 100%;border-top:1px solid #8A98A5;border-bottom:2px solid #7A8894;}
   .duct{position:absolute;background:#D4DAE0 url('assets/textures/wire-duct-45.png');background-size:auto 100%;border:1px solid #B9C2CB;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#6B7885;letter-spacing:.5px;}
@@ -304,16 +313,24 @@
               <div class="field"><label>Ambient (°C)</label>
                 <input id="cfg-ambient" type="number" value="30" min="-10" max="60"></div>
             </div>
-            <div class="field"><label>Cabinet width (mm)</label>
-              <select id="cfg-cabw"><option>400</option><option>600</option><option selected>800</option><option>1000</option><option>1200</option></select></div>
+            <div class="field"><label>Panel size (L × T)</label>
+              <select id="cfg-size" onchange="generate(true)"></select></div>
             <div class="field"><label>PLC</label>
-              <select id="cfg-plc"><option>Mitsubishi FX5U</option><option>Mitsubishi FX5UJ</option></select></div>
+              <select id="cfg-plc" onchange="syncPlcFields();generate(true)">
+                <option value="none">— No PLC (relay / starter panel) —</option>
+                <option value="Mitsubishi FX5U">Mitsubishi FX5U</option>
+                <option value="Mitsubishi FX5UJ">Mitsubishi FX5UJ</option>
+              </select></div>
             <div class="grid2">
-              <div class="field"><label>Digital inputs</label><input id="cfg-di" type="number" value="24" min="0" max="128"></div>
-              <div class="field"><label>Digital outputs</label><input id="cfg-do" type="number" value="16" min="0" max="128"></div>
-              <div class="field"><label>Analog inputs</label><input id="cfg-ai" type="number" value="4" min="0" max="16"></div>
-              <div class="field"><label>Analog outputs</label><input id="cfg-ao" type="number" value="2" min="0" max="16"></div>
+              <div class="field io-fld"><label>Digital inputs</label><input id="cfg-di" type="number" value="24" min="0" max="128"></div>
+              <div class="field io-fld"><label>Digital outputs</label><input id="cfg-do" type="number" value="16" min="0" max="128"></div>
+              <div class="field io-fld"><label>Analog inputs</label><input id="cfg-ai" type="number" value="4" min="0" max="16"></div>
+              <div class="field io-fld"><label>Analog outputs</label><input id="cfg-ao" type="number" value="2" min="0" max="16"></div>
             </div>
+            <p id="cfg-noplc-note" style="display:none;font-size:11px;color:var(--amber-700);
+              background:var(--amber-100);border-radius:6px;padding:7px 9px;margin:0 0 10px;">
+              Tanpa PLC: nilai I/O di atas tetap tersimpan tapi tidak membeli modul apa pun.
+              Kontrol lewat pushbutton pintu, selector, dan safety relay.</p>
             <div class="grid2">
               <div class="field"><label>VFD (× 2.2 kW)</label><input id="cfg-vfd" type="number" value="3" min="0" max="6"></div>
               <div class="field"><label>Servo (× 750 W)</label><input id="cfg-servo" type="number" value="2" min="0" max="6"></div>
@@ -331,7 +348,12 @@
         </section>
 
         <section class="card">
-          <div class="card-h cab-head"><span>2D panel layout</span><span class="chip" id="cab-chip">—</span></div>
+          <div class="card-h cab-head">
+            <div class="lib-tabs">
+              <button id="tab-plate" class="on" onclick="setDrawMode('plate')">2D panel layout</button>
+              <button id="tab-door" onclick="setDrawMode('door')">Front cover layout</button>
+            </div>
+            <span class="chip" id="cab-chip">—</span></div>
           <div class="cab-tools">
             <button class="tbtn" onclick="zoomBy(1.15)" title="Zoom in">+</button>
             <button class="tbtn" onclick="zoomBy(1/1.15)" title="Zoom out">−</button>
@@ -383,6 +405,8 @@
             <div class="card-b" style="font-size:12px;color:var(--gray-700);line-height:1.7;">
               <span id="r-mount">Wall mount</span> · IP55<br>
               <span class="mono" style="color:var(--ink);font-weight:500;" id="r-size">—</span><br>
+              Control: <span id="r-plc">—</span><br>
+              Front cover: <span id="r-door">—</span><br>
               Mild steel, RAL 7035, bottom gland plate<br>
               <span style="font-size:11px;color:var(--gray-500);">Depth from deepest component + <span id="r-clear">80</span> mm wiring clearance.
               Rail <span id="r-railfree">—</span> spare.</span>
@@ -832,8 +856,12 @@ async function newProject(){
       {id:'supplyV',  label:'Supply voltage', type:'select', value:400,
        options:[[200,'200 V 3P'],[230,'230 V 3P'],[380,'380 V 3P'],[400,'400 V 3P'],[415,'415 V 3P']]},
       {id:'ambientC', label:'Ambient (°C)', type:'number', value:30, min:-10, max:60},
-      {id:'cabW',     label:'Lebar kabinet (mm)', type:'select', value:800,
-       options:[400,600,800,1000,1200]},
+      {id:'plc',      label:'PLC', type:'select', value:'Mitsubishi FX5U',
+       options:[['none','— No PLC —'],['Mitsubishi FX5U','Mitsubishi FX5U'],
+                ['Mitsubishi FX5UJ','Mitsubishi FX5UJ']]},
+      {id:'size',     label:'Panel size (L × T)', type:'select', value:'auto',
+       options:[['auto','Auto — dari layout']].concat(
+         PanelEngine.STD_SIZES.map(s=>[`${s.w}x${s.h}`, `${s.w} × ${s.h} mm`]))},
     ],
     validate:v=>state.projects.some(p=>p.name.toLowerCase()===v.name.toLowerCase())
       ? 'Sudah ada proyek dengan nama itu.' : null,
@@ -842,7 +870,7 @@ async function newProject(){
   state.projects.push({id:state.nextId++, name:v.name, customer:v.customer||'—',
     rev:v.rev||'A', updated:Date.now(),
     cfg:PanelEngine.normalizeCfg({...DEFAULT_CFG, supplyV:+v.supplyV,
-      ambientC:v.ambientC, cabW:+v.cabW})});
+      ambientC:v.ambientC, plc:v.plc, ...sizeFromValue(v.size)})});
   state.activeId = state.nextId-1; persist();
   toast('Proyek "'+v.name+'" dibuat','ok');
   go('designer');
@@ -885,14 +913,37 @@ function readCfgForm(){
     plc:v('cfg-plc'), di:n('cfg-di'), do_:n('cfg-do'),
     ai:n('cfg-ai'), ao:n('cfg-ao'), vfd:n('cfg-vfd'), servo:n('cfg-servo'),
     hmi:n('cfg-hmi'), motor:n('cfg-motor'), valve:n('cfg-valve'),
-    supplyV:+v('cfg-supplyv'), ambientC:+v('cfg-ambient'), cabW:+v('cfg-cabw')});
+    supplyV:+v('cfg-supplyv'), ambientC:+v('cfg-ambient'),
+    ...sizeFromValue(v('cfg-size'))});
+}
+/* Nilai dropdown: "auto" atau "LxT" */
+function sizeFromValue(s){
+  if(s==='auto') return {cabW:800, cabH:0};
+  const [w,h]=String(s).split('x').map(Number);
+  return {cabW:w||800, cabH:h||0};
+}
+function buildSizeOptions(){
+  const el=document.getElementById('cfg-size');
+  el.innerHTML=`<option value="auto">Auto — tinggi dari layout</option>`+
+    PanelEngine.STD_SIZES.map(s=>`<option value="${s.w}x${s.h}">${s.w} × ${s.h} mm</option>`).join('');
 }
 function fillCfgForm(c){
-  document.getElementById('cfg-plc').value=c.plc;
+  document.getElementById('cfg-plc').value=c.hasPlc?c.plc:'none';
+  document.getElementById('cfg-size').value = c.cabH>0 ? `${c.cabW}x${c.cabH}` : 'auto';
   const m={'cfg-di':c.di,'cfg-do':c.do_,'cfg-ai':c.ai,'cfg-ao':c.ao,'cfg-vfd':c.vfd,
            'cfg-servo':c.servo,'cfg-hmi':c.hmi,'cfg-motor':c.motor,'cfg-valve':c.valve,
-           'cfg-supplyv':c.supplyV,'cfg-ambient':c.ambientC,'cfg-cabw':c.cabW};
+           'cfg-supplyv':c.supplyV,'cfg-ambient':c.ambientC};
   for(const k in m) document.getElementById(k).value=m[k];
+  syncPlcFields();
+}
+/* Tanpa PLC, field I/O tidak berarti — dinonaktifkan (nilainya tetap disimpan). */
+function syncPlcFields(){
+  const none=document.getElementById('cfg-plc').value==='none';
+  document.querySelectorAll('.io-fld').forEach(f=>{
+    f.style.opacity=none?'.45':'';
+    const i=f.querySelector('input'); if(i) i.disabled=none;
+  });
+  document.getElementById('cfg-noplc-note').style.display=none?'block':'none';
 }
 function enterDesigner(){ fillCfgForm(activeProject().cfg); renderExtras(); generate(false); }
 /* Komponen dari library yang ditambahkan manual ke proyek ini */
@@ -934,11 +985,12 @@ function generate(save){
     : 'none — natural convection');
   set('r-cool',{natural:'Vents only',forced:R.fans+' × filter fan 150 mm',
                 'cooling-unit':'Cooling unit required'}[R.thermal.method]);
-  set('r-size',`${R.W} × ${R.H} × ${R.D} mm`);
+  set('r-size',`${R.W} × ${R.H} × ${R.D} mm`+(R.dims.fixedH?' (dipilih)':' (auto)'));
   set('r-mount',R.dims.freeStanding?'Free standing':'Wall mount');
   set('r-clear',80);
   set('r-railfree',Math.round(R.railFreeMm)+' mm of '+Math.round(R.railLengthMm)+' mm');
-  set('cab-chip',`Cabinet ${R.W} × ${R.H} × ${R.D} mm · IP55`);
+  set('r-plc',R.hasPlc?R.cfg.plc:'No PLC — relay / starter panel');
+  set('r-door',`${R.door.items.length} devices · needs ${Math.round(R.door.neededW)} × ${Math.round(R.door.neededH)} mm`);
 
   /* Warnings come from the engine now — no hardcoded advice. */
   const warn=document.getElementById('r-warn');
@@ -958,8 +1010,69 @@ function generate(save){
     (R.warnings.length?` ${R.warnings.length} item(s) need review — see Cabinet card.`:''));
   draw(); zoomFit();
 }
-function draw(){
+let drawMode='plate';
+function setDrawMode(m){
+  drawMode=m;
+  document.getElementById('tab-plate').classList.toggle('on',m==='plate');
+  document.getElementById('tab-door').classList.toggle('on',m==='door');
+  draw(); zoomFit();
+}
+/* Chip menjelaskan gambar yang sedang tampil, jadi ikut berubah saat tab pindah
+   — bukan hanya saat generate(). */
+function updateChip(){
   if(!R) return;
+  set('cab-chip', drawMode==='door'
+    ? `Front cover ${R.W} × ${R.H} mm · ${R.door.items.length} devices`
+    : `Cabinet ${R.W} × ${R.H} × ${R.D} mm · IP55`);
+}
+function draw(){ if(!R) return; updateChip(); drawMode==='door'?drawDoor():drawPlate(); }
+
+/* ── Front cover: operator devices seen from outside the panel ────────── */
+function drawDoor(){
+  const {W,H}=R, FRAME=22, M=R.door.margin;
+  const stage=document.getElementById('stage');
+  const showTags=document.getElementById('chk-tags').checked;
+  const showGrid=document.getElementById('chk-grid').checked;
+  const OX=46, OY=30, totW=OX+W+FRAME*2+40, totH=OY+H+FRAME*2+26;
+  let html='';
+  html+=`<div class="enclosure" style="left:${OX}px;top:${OY}px;width:${W+FRAME*2}px;height:${H+FRAME*2}px;"></div>`;
+  html+=`<div class="doorplate" style="left:${OX+FRAME}px;top:${OY+FRAME}px;width:${W}px;height:${H}px;">`;
+  if(showGrid) html+=`<div class="gridlayer"></div>`;
+  /* zona bebas bor: gasket + flange pintu */
+  html+=`<div class="door-margin" style="inset:${M}px;"></div>`;
+  /* hinge + handle supaya orientasi pintu jelas */
+  html+=`<div class="hinge" style="left:-4px;top:${H*0.18}px;"></div>`;
+  html+=`<div class="hinge" style="left:-4px;top:${H*0.78}px;"></div>`;
+  html+=`<div class="handle" style="right:-6px;top:${H/2-26}px;"></div>`;
+  for(const z of R.door.zones)
+    html+=`<div class="rail-tag" style="left:${M}px;top:${z.y0-13}px;">${esc(z.label)}</div>`;
+  const tagged=new Set();
+  for(const it of R.door.items){
+    const d=R.specs[it.type], l=it.x-d.w/2, t=it.y-d.h/2;
+    const src=imgSrc(d);
+    html+=`<div class="comp${d.round?' round':''}" style="left:${l}px;top:${t}px;width:${d.w}px;height:${d.h}px;">
+      <div class="ph${d.round?' round':''}" style="border-color:${d.color};background:${d.bg}CC;color:${d.color};">
+        ${d.w>=60?`<b>${esc(d.desc.split(' ').slice(0,2).join(' '))}</b><i>${esc(d.pn)}</i>`:''}
+      </div>
+      ${src?`<img src="${esc(src)}" alt="${esc(d.desc)}" onload="this.parentNode.classList.add('has-img')">`:''}</div>`;
+    if(showTags && d.label && !tagged.has(it.type)){
+      tagged.add(it.type);
+      html+=`<div class="tag" style="left:${it.x}px;top:${t-4}px;">${esc(d.label)}</div>`;
+    }
+  }
+  html+=`</div>`;
+  html+=`<div class="dim dim-h" style="left:${OX+FRAME}px;top:${OY-24}px;width:${W}px;">${W} mm</div>`;
+  html+=`<div class="dim dim-v" style="left:${OX+W+FRAME*2+8}px;top:${OY+FRAME}px;height:${H}px;">${H} mm</div>`;
+  html+=`<div class="dim mono" style="left:${OX+FRAME}px;top:${OY+H+FRAME*2+6}px;">Front cover · ${R.door.items.length} devices · margin ${M} mm</div>`;
+  stage.innerHTML=html;
+  stage.style.width=totW+'px'; stage.style.height=totH+'px';
+  stage.style.transform=`scale(${zoom})`;
+  const wrap=document.getElementById('stage-wrap');
+  wrap.style.width=totW*zoom+'px'; wrap.style.height=totH*zoom+'px';
+  set('zoom-pct',Math.round(zoom*100)+'%');
+}
+
+function drawPlate(){
   const {items,rows,W,H}=R, FRAME=22, PAD=R.assumptions.layout.pad;
   const stage=document.getElementById('stage');
   const showGrid=document.getElementById('chk-grid').checked;
@@ -1410,7 +1523,7 @@ function renderReport(){
     <h2>1. Konfigurasi mesin</h2>
     <table class="data"><tr><th>Parameter</th><th>Nilai</th><th>Parameter</th><th>Nilai</th></tr>
       <tr><td>Supply</td><td>${c.supplyV} V 3P · ambient ${c.ambientC} °C</td><td>VFD</td><td>${c.vfd} × ${A.vfdKw} kW</td></tr>
-      <tr><td>PLC</td><td>${esc(c.plc)}</td><td>Servo</td><td>${c.servo} × ${A.servoW} W</td></tr>
+      <tr><td>PLC</td><td>${R.hasPlc?esc(c.plc):'<b>No PLC</b> — relay / starter panel'}</td><td>Servo</td><td>${c.servo} × ${A.servoW} W</td></tr>
       <tr><td>Digital I/O</td><td>${c.di} DI / ${c.do_} DO</td><td>Motors / valves</td><td>${c.motor} / ${c.valve}</td></tr>
       <tr><td>Analog I/O</td><td>${c.ai} AI / ${c.ao} AO</td><td>HMI</td><td>${c.hmi}</td></tr>
       <tr><td>Kabinet</td><td>${R.W} × ${R.H} × ${R.D} mm · IP55</td><td>Mounting</td><td>${R.dims.freeStanding?'Free standing':'Wall mount'}</td></tr></table>
@@ -1422,15 +1535,32 @@ function renderReport(){
       <tr><td>Starting current</td><td>${R.startA.toFixed(1)} A</td><td>Cooling</td><td>${esc(R.thermal.note)}</td></tr>
       <tr><td>Incoming breaker</td><td>${esc(R.mccb.pn)}</td><td>Terminal / wires</td><td>${R.termPoints} / ${R.wires}</td></tr>
       <tr><td>PSU</td><td>${esc(R.psu.pn)} (${Math.round(R.util)}%)</td><td>Rail spare</td><td>${Math.round(R.railFreeMm)} mm</td></tr></table>
-    ${R.warnings.length?`<h2>3. Temuan review</h2>
+    <h2>3. Front cover layout</h2>
+    <table class="data"><tr><th>Tag</th><th>Device</th><th>Part number</th><th>Qty</th><th>Posisi X / Y (mm)</th></tr>
+      ${(()=>{ const tags={estop:'S1',disconnect:'S0',sel_auto:'S2',pb_start:'S3',pb_stop:'S4',
+                          pb_reset:'S5',lamp_pwr:'H1',lamp_run:'H2',lamp_flt:'H3',hmi:'HMI'};
+        const seen={};
+        return R.door.items.map(it=>{
+          const d=R.specs[it.type]; seen[it.type]=(seen[it.type]||0)+1;
+          const n=R.door.items.filter(x=>x.type===it.type).length;
+          const tag=(tags[it.type]||it.type)+(n>1?'.'+seen[it.type]:'');
+          return `<tr><td class="pn">${esc(tag)}</td><td>${esc(d.desc)}</td>
+            <td class="pn">${esc(d.pn)}</td><td>1</td>
+            <td>${Math.round(it.x)} / ${Math.round(it.y)}</td></tr>`;
+        }).join(''); })()}</table>
+    <p style="font-size:11px;color:var(--gray-500);line-height:1.7;">
+      Posisi diukur dari sudut kiri-atas pintu ke titik tengah lubang. Zona bebas bor
+      ${R.door.margin} mm di semua sisi (gasket + flange).
+      ${R.door.fits?'':'<b style="color:var(--red-600);">Perangkat pintu tidak muat pada ukuran panel ini.</b>'}</p>
+    ${R.warnings.length?`<h2>4. Temuan review</h2>
     <table class="data"><tr><th>Level</th><th>Kode</th><th>Temuan</th></tr>
       ${R.warnings.map(w=>`<tr><td style="color:${WARN_COLOR[w.level]};">${w.level}</td>
         <td class="pn">${esc(w.code)}</td><td>${esc(w.msg)}</td></tr>`).join('')}</table>`:''}
-    <h2>${R.warnings.length?4:3}. Bill of materials</h2>
+    <h2>${R.warnings.length?5:4}. Bill of materials</h2>
     <table class="data"><tr><th>Category</th><th>Part number</th><th>Description</th><th>Qty</th><th>Unit</th><th>Vendor</th><th>Basis</th></tr>
       ${R.bom.map(b=>`<tr><td>${esc(b.cat)}</td><td class="pn">${esc(b.pn)}</td><td>${esc(b.desc)}</td>
         <td>${b.qty}</td><td>${esc(b.unit)}</td><td>${esc(b.vendor)}</td><td>${esc(b.source)}</td></tr>`).join('')}</table>
-    <h2>${R.warnings.length?5:4}. Catatan &amp; asumsi</h2>
+    <h2>${R.warnings.length?6:5}. Catatan &amp; asumsi</h2>
     <p style="font-size:12px;color:var(--gray-500);line-height:1.8;">
       Perhitungan memakai PF dan efisiensi per jenis beban (VFD ${A.pf.vfd}/${(A.eff.vfdDrive*A.eff.vfdMotor).toFixed(2)},
       servo ${A.pf.servo}, DOL ${A.pf.dol}/${A.eff.dolMotor}, PSU ${A.eff.psu}); power factor sistem
@@ -1463,7 +1593,7 @@ document.getElementById('global-search').addEventListener('keydown',e=>{
 });
 
 /* ══════════ INIT ══════════ */
-buildNav(); updateTopbar();
+buildNav(); buildSizeOptions(); updateTopbar();
 window.addEventListener('resize',()=>{ if(document.getElementById('view-designer').classList.contains('active')) zoomFit(); });
 (async ()=>{
   await connectDb();                             /* coba server; gagal = tetap jalan lokal */

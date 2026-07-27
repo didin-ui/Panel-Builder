@@ -48,6 +48,20 @@ indikator menunjukkan "● Local only" dan data disimpan di localStorage browser
 Saat server dijalankan lagi, data dari browser akan disinkronkan ke database
 pada penyimpanan berikutnya.
 
+## Panel designer
+- **Panel size (L × T)** — pilih `Auto` (tinggi dihitung dari layout) atau ukuran
+  katalog: 400×300, 500×400, 600×400, 800×600, 1000×800, 1200×800 mm. Ukuran yang
+  dipilih dipakai apa adanya; kalau isinya tidak muat, muncul error
+  `PANEL_TOO_SMALL` yang menyebutkan tinggi yang dibutuhkan. Panel lebih sempit
+  biasanya butuh lebih tinggi karena rail terpaksa wrap.
+- **Tab 2D panel layout / Front cover layout** — backplate (rail, duct, terminal)
+  dan pintu (E-stop, HMI, tombol ON/OFF, selector, pilot lamp). Perangkat pintu
+  ikut masuk BOM, wiring list, dan laporan (dengan tag S0–S5 / H1–H3 + posisi X/Y).
+- **PLC → No PLC** — untuk panel tanpa PLC (relay logic / motor starter). CPU,
+  modul I/O, dan Ethernet switch tidak dipasang; kontaktor dikomando dari tombol
+  pintu lewat kontak latching. Angka I/O tetap tersimpan, jadi memilih PLC lagi
+  memulihkan raknya.
+
 ## Components library
 Menu **Components library** bisa dipakai untuk mengelola database komponen:
 

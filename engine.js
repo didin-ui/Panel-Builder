@@ -78,12 +78,30 @@
       ductH: 45,    /* wire duct height */
       tstripH: 40,  /* terminal strip band height */
     },
+
+    /* Front cover geometry, mm. The margin clears the door gasket and the
+       return flange, where you cannot drill. */
+    door: {
+      margin: 60,
+      gap: 21,      /* 29 mm bezel + 21 mm = 50 mm pitch for Ø22 devices */
+      rowGap: 26,
+    },
   };
 
   /* ══════════ STANDARD SIZES ══════════ */
   const STD_HEIGHTS = [500, 600, 700, 800, 1000, 1200, 1400, 1600, 1800, 2000];
   const STD_WIDTHS  = [400, 600, 800, 1000, 1200];
   const STD_DEPTHS  = [200, 250, 300, 400];
+  /* Catalogue W×H the designer offers. cabH = 0 keeps automatic sizing, where
+     the height comes from the packed layout instead. */
+  const STD_SIZES = [
+    { w: 400,  h: 300 },
+    { w: 500,  h: 400 },
+    { w: 600,  h: 400 },
+    { w: 800,  h: 600 },
+    { w: 1000, h: 800 },
+    { w: 1200, h: 800 },
+  ];
 
   /* Wiring clearance in front of the deepest component, mm */
   const DEPTH_CLEARANCE = 80;
@@ -169,7 +187,25 @@
     vfd:       { asset:'vfd.png',              w:108,  h:128, d:145, cat:'Drives',     label:'VFD Drives',      color:'#5B4BB5', bg:'#EAE7F8', pn:'FR-D740-2.2K',          desc:'Inverter VFD',                         vendor:'Mitsubishi Electric', mount:'rail', powerW:0,  dimsVerified:false },
     servo:     { asset:'servo.png',            w:85,   h:168, d:195, cat:'Drives',     label:'Servo Drives',    color:'#B03A6C', bg:'#F8E4ED', pn:'MR-J4-100A4',           desc:'Servo amplifier',                      vendor:'Mitsubishi Electric', mount:'rail', powerW:0,  dimsVerified:false },
     fan:       { asset:'cooling-fan-150.png',  w:150,  h:150, d:100, cat:'Cooling',    label:'Filter Fan',      color:'#6B7885', bg:'#EEF1F4', pn:'SK-3239-100',           desc:'Filter fan 150 mm (door/side mounted)',vendor:'Rittal',              mount:'door', powerW:0,  dimsVerified:false },
+
+    /* ── Front cover / door devices ──────────────────────────────────────
+       w/h are the bezel footprint, not the panel cutout. Ø22 mm devices have
+       a ~29 mm bezel; the E-stop is a 40 mm mushroom on a larger plate.
+       Schneider Harmony XB4 range; HMI is a Mitsubishi GOT SIMPLE 7". */
+    estop:      { asset:'estop-40.png',      w:60,  h:60,  d:70, cat:'Safety',   label:'E-Stop',      color:'#B3372E', bg:'#FAE3E1', pn:'XB4BS8445',   desc:'Emergency stop Ø40 mm mushroom, latching, 2 NC', vendor:'Schneider Electric', mount:'door', powerW:0,   round:true, dimsVerified:false },
+    hmi:        { asset:'hmi-7in.png',       w:202, h:148, d:47, cat:'Control',  label:'HMI',         color:'#2478CE', bg:'#E3EEF9', pn:'GS2107-WTBD', desc:'HMI 7 inch TFT, Ethernet',                       vendor:'Mitsubishi Electric', mount:'door', powerW:0,   dimsVerified:false },
+    disconnect: { asset:'disconnect.png',    w:65,  h:65,  d:60, cat:'Switching',label:'Main Switch', color:'#C08415', bg:'#FBEED3', pn:'KCF1PZC',     desc:'Door-mounted disconnect handle, lockable',       vendor:'Schneider Electric', mount:'door', powerW:0,   dimsVerified:false },
+    pb_start:   { asset:'pb-green.png',      w:29,  h:29,  d:60, cat:'Control',  label:'Buttons',     color:'#1E7B4D', bg:'#DFF2E7', pn:'XB4BA31',     desc:'Pushbutton flush green 1 NO — START',            vendor:'Schneider Electric', mount:'door', powerW:0,   round:true, dimsVerified:false },
+    pb_stop:    { asset:'pb-red.png',        w:29,  h:29,  d:60, cat:'Control',  label:'',            color:'#B3372E', bg:'#FAE3E1', pn:'XB4BA42',     desc:'Pushbutton flush red 1 NC — STOP',               vendor:'Schneider Electric', mount:'door', powerW:0,   round:true, dimsVerified:false },
+    pb_reset:   { asset:'pb-blue.png',       w:29,  h:29,  d:60, cat:'Control',  label:'',            color:'#1B5FA8', bg:'#E3EEF9', pn:'XB4BA61',     desc:'Pushbutton flush blue 1 NO — RESET',             vendor:'Schneider Electric', mount:'door', powerW:0,   round:true, dimsVerified:false },
+    sel_auto:   { asset:'selector-3pos.png', w:29,  h:29,  d:60, cat:'Control',  label:'Selector',    color:'#42505C', bg:'#EEF1F4', pn:'XB4BD33',     desc:'Selector switch 3-position stay-put AUTO/OFF/MAN', vendor:'Schneider Electric', mount:'door', powerW:0, round:true, dimsVerified:false },
+    lamp_pwr:   { asset:'lamp-white.png',    w:29,  h:29,  d:60, cat:'Control',  label:'Pilot Lamps', color:'#6B7885', bg:'#F4F6F8', pn:'XB4BVM1',     desc:'Pilot lamp white 24 VDC LED — POWER ON',         vendor:'Schneider Electric', mount:'door', powerW:0.5, round:true, dimsVerified:false },
+    lamp_run:   { asset:'lamp-green.png',    w:29,  h:29,  d:60, cat:'Control',  label:'',            color:'#1E7B4D', bg:'#DFF2E7', pn:'XB4BVM3',     desc:'Pilot lamp green 24 VDC LED — RUNNING',          vendor:'Schneider Electric', mount:'door', powerW:0.5, round:true, dimsVerified:false },
+    lamp_flt:   { asset:'lamp-red.png',      w:29,  h:29,  d:60, cat:'Control',  label:'',            color:'#B3372E', bg:'#FAE3E1', pn:'XB4BVM4',     desc:'Pilot lamp red 24 VDC LED — FAULT',              vendor:'Schneider Electric', mount:'door', powerW:0.5, round:true, dimsVerified:false },
   };
+  /* Door devices never consume backplate space; they are laid out separately. */
+  const DOOR_KEYS = ['estop','hmi','disconnect','pb_start','pb_stop','pb_reset',
+                     'sel_auto','lamp_pwr','lamp_run','lamp_flt'];
 
   /* ══════════ IEC 60204-1 §13.2 WIRE COLOURS ══════════ */
   const WIRE_COLOUR = {
@@ -188,8 +224,10 @@
     supplyV: 400,     /* 3-phase line voltage at the incoming terminals */
     ambientC: 30,     /* design ambient outside the enclosure */
     cabW: 800,        /* per-project, was a global setting */
+    cabH: 0,          /* 0 = derive height from the layout; else a fixed size */
     extras: [],       /* [{type, qty, rail}] — library components added by hand */
   };
+  const NO_PLC = 'none';
 
   /* Base used when the library defines a component the built-in DB never had.
      Deliberately unflattering defaults so an unfilled field is obvious. */
@@ -214,6 +252,8 @@
     c.supplyV = num(c.supplyV, 400);
     c.ambientC = num(c.ambientC, 30);
     c.cabW = num(c.cabW, 800);
+    c.cabH = Math.max(0, num(c.cabH, 0));
+    c.hasPlc = c.plc !== NO_PLC && !!c.plc;
     /* Only 200 V and 400 V classes are in the drive tables */
     c.voltClass = c.supplyV <= 300 ? 200 : 400;
     c.extras = (Array.isArray(c.extras) ? c.extras : [])
@@ -286,17 +326,19 @@
             (e.qty > 1 ? ' ×' + e.qty : ''),
       w: ((D[e.type] && D[e.type].powerW) || 0) * e.qty,
     }));
+    const lampCount = 2 + Math.max(1, 1 + counts.dol);   /* power + fault + run(s) */
     const internal = extras.concat([
-      { name: 'PLC CPU',             w: D.plc.powerW },
+      { name: 'PLC CPU',             w: counts.hasPlc ? D.plc.powerW : 0 },
       { name: 'DI expansion',        w: counts.diExtra * D.di16.powerW },
       { name: 'DO expansion',        w: counts.doExtra * D.do16.powerW },
       { name: 'Analog in modules',   w: counts.aiMods * D.ad4.powerW },
       { name: 'Analog out modules',  w: counts.aoMods * D.da4.powerW },
-      { name: 'Ethernet switch',     w: D.eth.powerW },
+      { name: 'Ethernet switch',     w: (counts.hasPlc || c.hmi > 0) ? D.eth.powerW : 0 },
       { name: 'Safety relay',        w: D.safety.powerW },
       { name: 'Interface relays',    w: counts.relays * D.irelay.powerW },
       { name: 'Contactor coils',     w: counts.dol * D.contactor.powerW },
       { name: 'HMI (door)',          w: c.hmi * 15 },
+      { name: 'Pilot lamps (door)',  w: lampCount * (D.lamp_pwr.powerW || 0) },
     ]).filter((x) => x.w > 0);
 
     /* Field devices. One PNP sensor per DI at ~25 mA; one pilot solenoid per
@@ -467,15 +509,28 @@
     const W = c.cabW;
 
     /* ── module counts ─────────────────────────────────────────────── */
-    const diExtra = Math.ceil(Math.max(0, c.di - 16) / 16);
-    const doExtra = Math.ceil(Math.max(0, c.do_ - 16) / 16);
-    const aiMods  = Math.ceil(c.ai / 4);      /* FX5-4AD is 4 channels */
-    const aoMods  = Math.ceil(c.ao / 4);      /* FX5-4DA is 4 channels */
+    const hasPlc = c.hasPlc;
+    /* Without a CPU there is no I/O rack at all — a relay-logic or purely
+       motor-starter panel. The I/O figures are kept in the config (so nothing
+       is destroyed if a PLC is chosen again) but they buy no hardware. */
+    const diExtra = hasPlc ? Math.ceil(Math.max(0, c.di - 16) / 16) : 0;
+    const doExtra = hasPlc ? Math.ceil(Math.max(0, c.do_ - 16) / 16) : 0;
+    const aiMods  = hasPlc ? Math.ceil(c.ai / 4) : 0;   /* FX5-4AD is 4 channels */
+    const aoMods  = hasPlc ? Math.ceil(c.ao / 4) : 0;   /* FX5-4DA is 4 channels */
     const relays  = c.valve;                  /* one per solenoid, no cap */
     const dol     = Math.max(0, c.motor - c.vfd - c.servo);
     const expansionModules = diExtra + doExtra + aiMods + aoMods;
-    const counts = { diExtra, doExtra, aiMods, aoMods, relays, dol };
+    const counts = { diExtra, doExtra, aiMods, aoMods, relays, dol, hasPlc };
 
+    if (!hasPlc && (c.di || c.do_ || c.ai || c.ao))
+      warnings.push({ level: 'warn', code: 'IO_WITHOUT_PLC',
+        msg: 'No PLC selected, so the ' + (c.di + c.do_ + c.ai + c.ao) +
+             ' configured I/O points buy no modules and are not wired to a CPU. ' +
+             'Field devices are still terminated on the terminal strip.' });
+    if (!hasPlc && c.hmi > 0)
+      warnings.push({ level: 'warn', code: 'HMI_WITHOUT_PLC',
+        msg: c.hmi + ' HMI configured without a PLC — it has nothing to talk to. ' +
+             'Remove it or select a PLC.' });
     if (expansionModules > A.maxExpansionModules)
       warnings.push({ level: 'error', code: 'BUS_LIMIT',
         msg: expansionModules + ' expansion modules exceed the FX5U limit of ' +
@@ -593,10 +648,12 @@
     /* ── thermal (needs a size; size needs a layout; so: layout first) ── */
     const rail1 = ['mccb', 'spd', 'psu']
       .concat(fill(dol, 'contactor'), fill(dol, 'overload'));
-    const rail2 = ['plc']
+    /* An Ethernet switch only earns its place if there is something to network */
+    const needsEth = hasPlc || c.hmi > 0;
+    const rail2 = (hasPlc ? ['plc'] : [])
       .concat(fill(diExtra, 'di16'), fill(doExtra, 'do16'),
               fill(aiMods, 'ad4'), fill(aoMods, 'da4'),
-              ['eth', 'safety', 'mcb3'],
+              needsEth ? ['eth'] : [], ['safety', 'mcb3'],
               fill(2 + c.hmi, 'mcb1'), fill(relays, 'irelay'));
     const rail3 = fill(c.vfd, 'vfd').concat(fill(c.servo, 'servo'));
 
@@ -622,10 +679,14 @@
         layout.items.map((i) => spec(i.type).d).concat([100]));
       dims = {
         W,
-        H: pickAtLeast(STD_HEIGHTS.map((h) => ({ h })), layout.needH, 'h').h,
+        /* A chosen catalogue height is honoured as given; only automatic sizing
+           rounds up to the next standard size. */
+        H: c.cabH > 0 ? c.cabH
+                      : pickAtLeast(STD_HEIGHTS.map((h) => ({ h })), layout.needH, 'h').h,
         D: pickAtLeast(STD_DEPTHS.map((d) => ({ d })), maxDepth + DEPTH_CLEARANCE, 'd').d,
+        fixedH: c.cabH > 0,
       };
-      if (layout.needH > STD_HEIGHTS[STD_HEIGHTS.length - 1]) {
+      if (!dims.fixedH && layout.needH > STD_HEIGHTS[STD_HEIGHTS.length - 1]) {
         dims.H = Math.ceil(layout.needH / 100) * 100;
         dims.nonStandardH = true;
       }
@@ -639,10 +700,24 @@
     }
     const heat = th.heat;
 
+    /* ── door layout (needs the final enclosure size) ───────────────── */
+    const door = buildDoorLayout(c, counts, spec, dims.W, dims.H, A);
+
     if (dims.nonStandardH)
       warnings.push({ level: 'warn', code: 'HEIGHT_NONSTD',
         msg: 'Required height ' + Math.round(layout.needH) +
              ' mm is above the standard range; verify the enclosure is available.' });
+    /* A chosen size is respected, but it must be told when it cannot work. */
+    if (dims.fixedH && layout.needH > dims.H)
+      warnings.push({ level: 'error', code: 'PANEL_TOO_SMALL',
+        msg: 'The backplate needs ' + Math.round(layout.needH) + ' mm of height but the ' +
+             'selected panel is ' + dims.W + '×' + dims.H + ' mm. Choose a taller size, ' +
+             'a wider one so rails pack better, or switch the size back to Auto.' });
+    if (!door.fits)
+      warnings.push({ level: 'error', code: 'DOOR_TOO_SMALL',
+        msg: 'Front-cover devices need ' + Math.round(door.neededW) + '×' +
+             Math.round(door.neededH) + ' mm but the door is ' + dims.W + '×' + dims.H +
+             ' mm. Reduce door devices or choose a larger panel.' });
     if (layout.overflow)
       warnings.push({ level: 'error', code: 'TOO_WIDE',
         msg: 'A single component is wider than the usable backplate width. ' +
@@ -666,7 +741,7 @@
 
     /* ── BOM ───────────────────────────────────────────────────────── */
     const bom = buildBom({
-      layout, dims, specs, counts, cfg: c, termPoints, powerTerms,
+      layout, door, dims, specs, counts, cfg: c, termPoints, powerTerms,
       controlTerms, spares, wiring, thermal: th, assumptions: A,
     });
 
@@ -679,6 +754,8 @@
       /* layout */
       items: layout.items, rows: layout.rows, W: dims.W, H: dims.H, D: dims.D,
       dims, needH: layout.needH, overflow: layout.overflow,
+      /* front cover */
+      door, hasPlc,
       railLengthMm: layout.railLengthMm, railFreeMm: layout.railFreeMm,
       ductLengthMm: layout.ductLengthMm,
       /* electrical */
@@ -788,6 +865,55 @@
              ductLengthMm };
   }
 
+  /* ══════════ FRONT COVER (DOOR) LAYOUT ══════════
+     Operator devices on the door. Zones run top to bottom; the E-stop gets a
+     reserved top-right block because IEC 60204-1 §10.7 wants it unobstructed
+     and immediately reachable, so nothing else may crowd it. */
+  function buildDoorLayout(c, counts, spec, W, H, A) {
+    const D = A.door, M = D.margin;
+    const items = [], zones = [];
+    const est = spec('estop');
+
+    /* reserved E-stop block, top-right */
+    items.push({ type: 'estop', x: W - M - est.w / 2, y: M + est.h / 2 });
+    const estopReserve = est.w + D.gap * 2;
+    let y = M;
+
+    const emit = (list, title, usableW) => {
+      if (!list.length) return;
+      const chunks = packRows(list, usableW, D.gap, spec);
+      chunks.forEach((chunk) => {
+        if (!chunk.length) return;
+        const rowH = Math.max.apply(null, chunk.map((t) => spec(t).h));
+        let x = M;
+        for (const t of chunk) {
+          const d = spec(t);
+          items.push({ type: t, x: x + d.w / 2, y: y + rowH / 2 });
+          x += d.w + D.gap;
+        }
+        zones.push({ y0: y, h: rowH, label: title, count: chunk.length });
+        y += rowH + D.rowGap;
+      });
+    };
+
+    /* HMI sits beside the E-stop block, so its usable width is reduced */
+    emit(fill(c.hmi, 'hmi'), 'HMI', W - M * 2 - estopReserve);
+    /* everything below must clear the E-stop block */
+    y = Math.max(y, M + est.h + D.rowGap);
+
+    emit(['disconnect', 'sel_auto', 'pb_start', 'pb_stop', 'pb_reset'],
+         'CONTROLS', W - M * 2);
+    /* one run lamp per DOL starter (hard-wired indication) plus a system run */
+    emit(['lamp_pwr'].concat(fill(1 + counts.dol, 'lamp_run'), ['lamp_flt']),
+         'INDICATION', W - M * 2);
+
+    const neededH = Math.max(y - D.rowGap + M, M + est.h + M);
+    const widest = items.reduce((mx, it) =>
+      Math.max(mx, it.x + spec(it.type).w / 2), 0) + M;
+    return { items, zones, neededH, neededW: widest,
+             fits: neededH <= H && widest <= W, margin: M };
+  }
+
   /* ══════════ HEAT LOAD ══════════ */
   function heatLoad(layout, sched, dc, counts, A, spec) {
     const lines = [];
@@ -855,17 +981,24 @@
       add('K' + i + ' 2/4/6', 'F' + i + ' overload 1/3/5', '2.5 mm²', C.power, 'To overload');
       add('F' + i + ' 2/4/6', 'X2 → Motor M' + m, '2.5 mm²', C.power, 'DOL motor');
       add('Motor M' + m + ' PE', 'PE bar', '2.5 mm² G/Y', C.pe, 'Motor earth');
-      add('PLC Y' + (c.valve + i - 1), 'K' + i + ' A1 (coil +)', '0.75 mm²', C.dcControl, 'Contactor coil');
+      /* With no CPU the starter is commanded by the door pushbuttons through a
+         latching contact instead of a PLC output. */
+      add(k.hasPlc ? 'PLC Y' + (c.valve + i - 1) : 'S3 START 13/14 (latched by K' + i + ' 13/14)',
+          'K' + i + ' A1 (coil +)', '0.75 mm²', C.dcControl, 'Contactor coil');
       add('K' + i + ' A2', 'Safety relay 14 → 0 V', '0.75 mm²', C.dcControl, 'Coil return via safety');
-      add('F' + i + ' 95/96', 'PLC X' + (c.di + i - 1), '0.5 mm²', C.dcControl, 'Overload trip feedback');
+      add('F' + i + ' 95/96',
+          k.hasPlc ? 'PLC X' + (c.di + i - 1) : 'H3 FAULT lamp + K' + i + ' coil interrupt',
+          '0.5 mm²', C.dcControl, 'Overload trip feedback');
     }
 
     /* control power */
     add('PSU +24V', 'X0:1 → 24 V distribution', '2.5 mm²', C.dcControl, 'Control power');
     add('PSU 0V', 'X0:2 → 0 V distribution', '2.5 mm²', C.dcControl, 'Control common');
     add('PSU PE', 'PE bar', '2.5 mm² G/Y', C.pe, 'PSU earth');
-    add('X0:1 / X0:2', 'PLC 24 V / 0 V', '1.0 mm²', C.dcControl, 'PLC supply');
-    add('X0:1 / X0:2', 'Ethernet switch 24 V / 0 V', '0.75 mm²', C.dcControl, 'Switch supply');
+    if (k.hasPlc)
+      add('X0:1 / X0:2', 'PLC 24 V / 0 V', '1.0 mm²', C.dcControl, 'PLC supply');
+    if (k.hasPlc || c.hmi > 0)
+      add('X0:1 / X0:2', 'Ethernet switch 24 V / 0 V', '0.75 mm²', C.dcControl, 'Switch supply');
     add('X0:1 / X0:2', 'Safety relay A1 / A2', '0.75 mm²', C.dcControl, 'Safety supply');
 
     /* safety chain — outputs now actually go somewhere */
@@ -877,28 +1010,56 @@
       add('Safety relay 23/24', 'VFD' + i + ' STO / MRS', '0.75 mm²', C.dcControl, 'Safe torque off');
     for (let i = 1; i <= c.servo; i++)
       add('Safety relay 33/34', 'Servo' + i + ' CN8 STO', '0.75 mm²', C.dcControl, 'Safe torque off');
-    add('Safety relay reset', 'Reset pushbutton S1', '0.75 mm²', C.dcControl, 'Manual reset');
+    add('Safety relay 41/42', 'H3 FAULT lamp', '0.75 mm²', C.dcControl, 'Safety status');
 
-    /* field I/O — no truncation */
+    /* ── front cover / door devices ──────────────────────────────────── */
+    add('X0:1', 'S0 disconnect handle aux', '1.5 mm²', C.power, 'Main switch position');
+    add('E-stop S1 terminals', 'X5:1/X5:2 → door harness', '0.75 mm²', C.dcControl, 'E-stop to door');
+    add('S2 AUTO/OFF/MAN common', 'X0:1 (+24 V)', '0.75 mm²', C.dcControl, 'Selector supply');
+    add('S2 AUTO 13/14', k.hasPlc ? 'PLC X (auto request)' : 'K1 coil path (auto)',
+        '0.75 mm²', C.dcControl, 'Selector AUTO');
+    add('S2 MAN 23/24', k.hasPlc ? 'PLC X (manual request)' : 'K1 coil path (manual)',
+        '0.75 mm²', C.dcControl, 'Selector MANUAL');
+    add('S3 START 13/14', k.hasPlc ? 'PLC X (start)' : 'Contactor coil latch',
+        '0.75 mm²', C.dcControl, 'Start pushbutton');
+    add('S4 STOP 11/12', k.hasPlc ? 'PLC X (stop)' : 'Contactor coil series',
+        '0.75 mm²', C.dcControl, 'Stop pushbutton, NC');
+    add('S5 RESET 13/14', 'Safety relay reset input', '0.75 mm²', C.dcControl, 'Safety reset');
+    add('X0:1', 'H1 POWER lamp', '0.75 mm²', C.dcControl, 'Power-on indication');
+    add(k.hasPlc ? 'PLC Y (system run)' : 'K1 13/14 aux', 'H2 RUN lamp',
+        '0.75 mm²', C.dcControl, 'Run indication');
+    for (let i = 1; i <= k.dol; i++)
+      add('K' + i + ' 23/24 aux', 'H2.' + i + ' RUN lamp M' + (c.vfd + c.servo + i),
+          '0.75 mm²', C.dcControl, 'Starter run indication');
+    add('Door devices 0 V', 'X0:2', '0.75 mm²', C.dcControl, 'Door common');
+
+    /* field I/O — no truncation. Without a CPU everything still lands on the
+       terminal strip so the machine wiring is unchanged. */
     for (let i = 1; i <= c.di; i++)
-      add('X1:' + i, 'PLC X' + (i - 1), '0.5 mm²', C.dcControl, 'Digital input');
+      add('X1:' + i, k.hasPlc ? 'PLC X' + (i - 1) : 'X1:' + i + ' (spare, no CPU)',
+          '0.5 mm²', C.dcControl, 'Digital input');
     for (let i = 1; i <= c.do_; i++) {
       const isValve = i <= c.valve;
-      add('PLC Y' + (i - 1), isValve ? 'KA' + i + ' A1 (relay coil)' : 'X3:' + i,
+      add(k.hasPlc ? 'PLC Y' + (i - 1) : 'X0:1 via control logic',
+          isValve ? 'KA' + i + ' A1 (relay coil)' : 'X3:' + i,
           '0.5 mm²', C.dcControl, isValve ? 'Output via interface relay' : 'Digital output');
       if (isValve)
         add('KA' + i + ' 11/14', 'X3:' + i + ' → SV' + i, '0.75 mm²', C.dcControl, 'Solenoid valve');
     }
     for (let i = 1; i <= c.ai; i++)
-      add('X4:' + (i * 2 - 1) + '/' + (i * 2), 'FX5-4AD#' + Math.ceil(i / 4) +
-          ' CH' + (((i - 1) % 4) + 1), '0.5 mm² shielded', C.dcControl, 'Analog input');
+      add('X4:' + (i * 2 - 1) + '/' + (i * 2),
+          k.hasPlc ? 'FX5-4AD#' + Math.ceil(i / 4) + ' CH' + (((i - 1) % 4) + 1)
+                   : 'X4 (spare, no CPU)',
+          '0.5 mm² shielded', C.dcControl, 'Analog input');
     for (let i = 1; i <= c.ao; i++)
-      add('FX5-4DA#' + Math.ceil(i / 4) + ' CH' + (((i - 1) % 4) + 1),
+      add(k.hasPlc ? 'FX5-4DA#' + Math.ceil(i / 4) + ' CH' + (((i - 1) % 4) + 1)
+                   : 'X4 (spare, no CPU)',
           'X4:' + (c.ai * 2 + i * 2 - 1) + '/' + (c.ai * 2 + i * 2),
           '0.5 mm² shielded', C.dcControl, 'Analog output');
 
     /* network & enclosure bonding */
-    add('Ethernet switch P1', 'PLC Ethernet', 'Cat5e S/FTP', C.dcControl, 'Ethernet');
+    if (k.hasPlc)
+      add('Ethernet switch P1', 'PLC Ethernet', 'Cat5e S/FTP', C.dcControl, 'Ethernet');
     for (let i = 1; i <= c.hmi; i++)
       add('Ethernet switch P' + (i + 1), 'HMI' + i, 'Cat5e S/FTP', C.dcControl, 'Ethernet');
     for (let i = 1; i <= c.hmi; i++)
@@ -941,14 +1102,22 @@
     line('MP-GLANDPLATE', 'Bottom gland plate with grommets', 1, 'pcs',
       'to be specified', 'Enclosure', 'calculated', { generic: true });
 
-    /* active components, from what the layout actually placed */
+    /* active components, from what the layout actually placed — backplate and
+       front cover both, so door devices can no longer be missed */
     const agg = {};
-    for (const it of layout.items) agg[it.type] = (agg[it.type] || 0) + 1;
+    for (const it of layout.items.concat(o.door ? o.door.items : []))
+      agg[it.type] = (agg[it.type] || 0) + 1;
     for (const t of Object.keys(agg)) {
       const d = specs[t];
       line(d.pn, d.desc, agg[t], 'pcs', d.vendor, d.cat, 'calculated',
-        { dimsVerified: d.dimsVerified });
+        { dimsVerified: d.dimsVerified, door: d.mount === 'door' });
     }
+    /* legend engraving / labels for the operator devices */
+    const doorCount = o.door ? o.door.items.length : 0;
+    if (doorCount)
+      line('LEGEND-PLATE', 'Legend plate / engraved label for door device',
+        doorCount, 'pcs', 'to be specified', 'Consumables', 'estimated',
+        { generic: true });
     /* outlet filter always pairs with a fan */
     if (th.fans > 0)
       line('SK-3239-200', 'Outlet filter 150 mm (matches filter fan)',
@@ -1061,8 +1230,8 @@
   return {
     compute, buildWiring, normalizeCfg, resolveDb,
     COMPONENT_DB, DEFAULT_CFG, ASSUMPTIONS, WIRE_COLOUR,
-    BLANK_COMPONENT, SELECTION_DRIVEN,
-    STD_HEIGHTS, STD_WIDTHS, STD_DEPTHS,
+    BLANK_COMPONENT, SELECTION_DRIVEN, DOOR_KEYS, NO_PLC,
+    STD_HEIGHTS, STD_WIDTHS, STD_DEPTHS, STD_SIZES,
     MCCB_FRAMES, MCB_TRIPS, CONTACTORS, OVERLOADS, PSU_LADDER, DRIVES,
     /* exposed for tests */
     _internal: { effectiveSurfaceM2, thermal, selectPsu, selectMccb, selectMcb,

@@ -205,10 +205,25 @@ exhaust fans" above 250 W while unconditionally placing and purchasing one.
 
 ## 6. Enclosure sizing
 
-- **Width** — user input (400/600/800/1000/1200 mm), per project.
-- **Height** — from the packed layout, rounded up to 500/600/700/800/1000/1200/
-  1400/1600/1800/2000 mm. Above 2000 mm, rounded to 100 mm with a
-  `HEIGHT_NONSTD` warning.
+Two modes, chosen in the designer's **Panel size (L × T)** dropdown:
+
+**Auto** (`cabH = 0`) — width is chosen, height is derived from the packed layout
+and rounded up to the next standard size. Above 2000 mm it rounds to 100 mm with
+a `HEIGHT_NONSTD` warning.
+
+**Catalogue size** — one of 400×300, 500×400, 600×400, 800×600, 1000×800,
+1200×800 mm. The chosen height is used **exactly as given**, never silently
+adjusted. If the packed backplate needs more height than the chosen panel, the
+engine raises a `PANEL_TOO_SMALL` **error** stating the required figure — the
+size is respected, and you are told it does not work. Same for the front cover
+via `DOOR_TOO_SMALL`.
+
+Note that a narrower panel usually needs *more* height, because rails wrap into
+more rows: the same small machine needs 850 mm at 400 mm wide but only 504 mm at
+800 mm wide.
+
+- **Width** — from the chosen size, or user input in Auto mode.
+- **Height** — see above.
 - **Depth** — `deepest component + 80 mm` wiring clearance, rounded up to
   200/250/300/400 mm. The prototype hardcoded the string `× 300 mm`; depth was
   never calculated, and `COMPONENT_DB` had no depth field at all.
@@ -263,7 +278,53 @@ step; **do not treat the size column as a calculated result.**
 
 ---
 
-## 9. Component library overrides
+## 9. Front cover (door) layout
+
+A second view alongside the backplate, generated from the same config. Devices
+are derived, not guessed at random:
+
+| Device | Quantity | Basis |
+|---|---|---|
+| Emergency stop | 1 | IEC 60204-1 §10.7 — always present |
+| Disconnect handle | 1 | door operator for the incoming MCCB |
+| HMI | `cfg.hmi` | as configured |
+| Selector AUTO/OFF/MAN | 1 | mode selection |
+| START / STOP / RESET | 1 each | RESET drives the safety-relay reset input |
+| Pilot lamp POWER (white) | 1 | supply healthy |
+| Pilot lamp RUN (green) | `1 + DOL starters` | system run + hard-wired per starter |
+| Pilot lamp FAULT (red) | 1 | from the safety relay and overload contacts |
+
+Geometry: Ø22 mm devices have a 29 mm bezel laid out on a 50 mm pitch
+(`gap 21`); rows are 26 mm apart; a 60 mm margin on every edge keeps holes clear
+of the gasket and return flange. The **E-stop gets a reserved block top-right**
+that nothing else may enter — a test asserts no overlap — because the standard
+wants it unobstructed. Rows wrap on width like the DIN rails.
+
+Door devices reach the BOM flagged `door: true`, get a legend-plate line, and are
+wired (selector, start, stop, reset, lamps, disconnect aux). Pilot lamps add
+0.5 W each to the internal 24 V load; HMI power stays on its existing budget line
+so it is never counted twice. The report carries a front-cover schedule with tags
+(S0–S5, H1–H3, HMI) and X/Y hole positions measured from the top-left corner.
+
+**Not modelled:** hole diameters as a drilling table (the positions are there,
+the cutout sizes are not), door interlocks, and any ergonomic height check.
+
+## 10. Panels without a PLC
+
+Selecting **No PLC** treats the panel as relay-logic or pure motor-starter gear:
+no CPU, no I/O rack, no analog modules, and no Ethernet switch unless an HMI
+needs one. Contactors are commanded from the door pushbuttons through a latching
+auxiliary contact instead of a PLC output, and overload trip contacts drive the
+fault lamp and drop the coil directly. The 24 V budget loses the CPU and module
+load accordingly.
+
+Configured I/O counts are **kept, not zeroed** — selecting a PLC again restores
+the rack exactly. While no CPU is selected the engine raises `IO_WITHOUT_PLC`
+(and `HMI_WITHOUT_PLC` if an HMI is configured with nothing to talk to), and the
+form disables those fields so no new meaningless values can be entered. A test
+asserts no wiring row references a PLC that is not in the panel.
+
+## 11. Component library overrides
 
 The built-in database is estimate-grade (`dimsVerified: false`). The Components
 library view lets you correct it, and corrections are **design inputs**, not
