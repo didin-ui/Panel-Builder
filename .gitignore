@@ -1,10 +1,14 @@
 # Dependencies
 node_modules/
 
-# Runtime database (SQLite + WAL). Back up by copying, do not version.
-panelbuilder.db
-panelbuilder.db-shm
-panelbuilder.db-wal
+# Runtime database (SQLite + WAL) and its backups. Berisi data proyek &
+# customer — jangan pernah masuk repo publik. Pola *.db menangkap backup
+# bernama panelbuilder-backup-YYYYMMDD-HHMM.db juga.
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
 
 # Source snapshots / archives
 *.zip

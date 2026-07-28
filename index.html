@@ -611,8 +611,30 @@ function migrate(s){
   for(const p of s.projects||[]) p.cfg = PanelEngine.normalizeCfg(p.cfg);
   return s;
 }
+/* State untuk localStorage: byte gambar dibuang. Jaring pengaman — kalau ada
+   jalur yang masih menaruh data URI di state, jangan sampai memakan kuota. */
+function slimState(){
+  const comps={};
+  for(const k in state.library.components){
+    const {image, ...rest}=state.library.components[k];
+    comps[k]=rest;
+  }
+  return {...state, library:{...state.library, components:comps}};
+}
 function persist(){
-  localStorage.setItem(LS_KEY, JSON.stringify(state));
+  /* Dulu setItem tanpa try/catch: begitu kuota penuh, exception-nya membatalkan
+     persist() SEBELUM fetch ke database — jadi tidak tersimpan sama sekali,
+     tanpa pesan apa pun. Sekarang kegagalan cache lokal tidak boleh
+     menghentikan penyimpanan ke database. */
+  try{
+    localStorage.setItem(LS_KEY, JSON.stringify(slimState()));
+  }catch(e){
+    console.warn('localStorage penuh / tidak tersedia:', e && e.name);
+    toast(dbMode
+      ? 'Cache browser penuh — data tetap tersimpan ke database.'
+      : 'Cache browser penuh dan server tidak aktif — data BELUM tersimpan. '+
+        'Jalankan "npm start" lalu simpan lagi.', dbMode?null:'err');
+  }
   if(!dbMode) return;
   clearTimeout(syncTimer);                       /* debounce agar tidak membanjiri server */
   syncTimer = setTimeout(()=>{
@@ -653,6 +675,7 @@ async function connectDb(){
     }
     setDbStatus(true);
     persist();                                   /* dorong seed awal ke DB bila DB kosong */
+    flushPendingImages();                        /* kirim gambar yang dibuat saat offline */
     return true;
   }catch(e){ setDbStatus(false); return false; }
 }
@@ -694,7 +717,135 @@ function recompute(){
 /* Database komponen setelah library user diterapkan — sumber tunggal untuk
    view Library. Gambar hasil upload (data URI) menang atas file di assets/. */
 function libDb(){ return PanelEngine.resolveDb(state.library.components); }
-function imgSrc(d){ return d.image || (d.asset ? 'assets/components/'+d.asset : ''); }
+/* ══════════ GAMBAR KOMPONEN ══════════
+   Byte gambar TIDAK ikut `state` dan TIDAK masuk localStorage. Sumbernya:
+     1. IndexedDB  — cache lokal + tempat simpan saat server mati
+     2. /api/image/<key> — sumber sebenarnya, di tabel images pada SQLite
+     3. assets/components/<file> — sprite bawaan repo
+   Dulu semuanya data URI di dalam state: 17 gambar = 2,9 MB di localStorage
+   (≈5,8 MB kuota UTF-16), dan tiap penyimpanan menulis ulang semuanya. */
+const IDB_NAME='pba-images', IDB_STORE='img';
+let idbConn=null;
+function idb(){
+  if(idbConn) return idbConn;
+  idbConn=new Promise((res,rej)=>{
+    if(typeof indexedDB==='undefined') return rej(new Error('no indexedDB'));
+    const rq=indexedDB.open(IDB_NAME,1);
+    rq.onupgradeneeded=()=>{ if(!rq.result.objectStoreNames.contains(IDB_STORE))
+      rq.result.createObjectStore(IDB_STORE); };
+    rq.onsuccess=()=>res(rq.result);
+    rq.onerror=()=>rej(rq.error);
+  }).catch(e=>{ idbConn=null; throw e; });
+  return idbConn;
+}
+async function idbOp(mode, fn){
+  const db=await idb();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(IDB_STORE,mode), st=tx.objectStore(IDB_STORE);
+    const rq=fn(st);
+    tx.oncomplete=()=>res(rq?rq.result:undefined);
+    tx.onerror=()=>rej(tx.error);
+  });
+}
+const idbPut =(k,rec)=>idbOp('readwrite',st=>st.put(rec,k));
+const idbGet =k=>idbOp('readonly', st=>st.get(k));
+const idbDel =k=>idbOp('readwrite',st=>st.delete(k));
+const idbKeys=()=>idbOp('readonly', st=>st.getAllKeys());
+
+/* blob: URL per komponen, dibuat sekali dan dilepas saat gambar diganti */
+const blobUrls={};
+function setBlobUrl(key, blob){
+  if(blobUrls[key]) URL.revokeObjectURL(blobUrls[key]);
+  blobUrls[key]=URL.createObjectURL(blob);
+  return blobUrls[key];
+}
+function dropBlobUrl(key){
+  if(blobUrls[key]){ URL.revokeObjectURL(blobUrls[key]); delete blobUrls[key]; }
+}
+/* Muat gambar dari IndexedDB ke blob URL supaya render tidak menunggu jaringan
+   dan tetap jalan tanpa server. */
+async function hydrateImages(){
+  let keys=[]; try{ keys=await idbKeys(); }catch(e){ return; }
+  for(const k of keys){
+    try{ const rec=await idbGet(k); if(rec&&rec.blob) setBlobUrl(k,rec.blob); }catch(e){}
+  }
+  if(keys.length) redrawImages();
+}
+function redrawImages(){
+  if(document.getElementById('view-library').classList.contains('active')) renderLibrary();
+  if(document.getElementById('view-designer').classList.contains('active')) draw();
+}
+function imgSrc(d,key){
+  if(key && blobUrls[key]) return blobUrls[key];
+  if(d.image) return d.image;                       /* data URI lama, masih di memori */
+  if(key && d.hasImage) return `api/image/${encodeURIComponent(key)}?v=${d.imgVersion||0}`;
+  return d.asset ? 'assets/components/'+d.asset : '';
+}
+
+/* Decode sendiri, jangan lewat fetch(dataUrl) — decoding base64 tidak ada
+   hubungannya dengan jaringan, dan fetch bisa diblokir di file:// atau CSP. */
+function dataUrlToBlob(dataUrl){
+  const m=/^data:([^;,]+);base64,(.*)$/.exec(String(dataUrl||''));
+  if(!m) return null;
+  const bin=atob(m[2]), u8=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+  return new Blob([u8],{type:m[1]});
+}
+/* Simpan gambar: IndexedDB dulu (selalu berhasil, kuota besar), lalu PUT ke
+   server. Kalau server mati, ditandai pending dan dikirim saat tersambung. */
+async function saveImage(key, dataUrl){
+  const blob=dataUrlToBlob(dataUrl);
+  if(blob){
+    try{ await idbPut(key,{blob, pending:true, updated:Date.now()}); setBlobUrl(key,blob); }
+    catch(e){ /* tanpa IndexedDB, andalkan server saja */ }
+  }
+  const patch=state.library.components[key]||(state.library.components[key]={});
+  patch.hasImage=true; patch.imgVersion=Date.now();
+  delete patch.image;                               /* jangan pernah simpan byte di state */
+  const ok=await pushImage(key,dataUrl);
+  persist();
+  return ok;
+}
+async function pushImage(key, dataUrl){
+  if(!dbMode) return false;
+  try{
+    const r=await fetch('api/image/'+encodeURIComponent(key),{method:'PUT',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({dataUrl})});
+    if(!r.ok){
+      const j=await r.json().catch(()=>({}));
+      toast('Gambar gagal disimpan ke database: '+(j.error||('HTTP '+r.status)),'err');
+      return false;
+    }
+    const j=await r.json();
+    const patch=state.library.components[key];
+    if(patch) patch.imgVersion=j.updated;
+    try{ const rec=await idbGet(key); if(rec) await idbPut(key,{...rec,pending:false}); }catch(e){}
+    return true;
+  }catch(e){ return false; }
+}
+async function deleteImage(key){
+  dropBlobUrl(key);
+  try{ await idbDel(key); }catch(e){}
+  const patch=state.library.components[key];
+  if(patch){ delete patch.hasImage; delete patch.imgVersion; delete patch.image; }
+  if(dbMode) try{ await fetch('api/image/'+encodeURIComponent(key),{method:'DELETE'}); }catch(e){}
+}
+/* Kirim gambar yang tertunda begitu server muncul. */
+async function flushPendingImages(){
+  if(!dbMode) return;
+  let keys=[]; try{ keys=await idbKeys(); }catch(e){ return; }
+  let sent=0;
+  for(const k of keys){
+    let rec; try{ rec=await idbGet(k); }catch(e){ continue; }
+    if(!rec||!rec.pending||!rec.blob) continue;
+    const dataUrl=await new Promise(res=>{
+      const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=()=>res(null);
+      fr.readAsDataURL(rec.blob);
+    });
+    if(dataUrl && await pushImage(k,dataUrl)) sent++;
+  }
+  if(sent){ persist(); toast(sent+' gambar tertunda berhasil diunggah','ok'); }
+}
 /* Semua teks dari user (nama proyek, customer) lewat sini sebelum innerHTML. */
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,
   ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
@@ -843,7 +994,7 @@ function renderDashboard(){
   let done=0, total=types.length, pending=[], checked=0;
   if(!total) return fin();
   types.forEach(t=>{
-    const src=imgSrc(t.d);
+    const src=imgSrc(t.d, t.type);
     if(!src){ pending.push(t.d.pn||t.key); if(++checked===total) fin(); return; }
     const img=new Image();
     img.onload=()=>{done++; if(++checked===total) fin();};
@@ -1085,7 +1236,7 @@ function drawDoor(){
     html+=`<div class="rail-tag" style="left:${M}px;top:${z.y0-13}px;">${esc(z.label)}</div>`;
   for(const it of R.door.items){
     const d=R.specs[it.type], l=it.x-d.w/2, t=it.y-d.h/2;
-    const src=imgSrc(d);
+    const src=imgSrc(d, it.type);
     html+=`<div class="comp drag${d.round?' round':''}${it.manual?' manual':''}"
         data-id="${esc(it.id)}" title="${esc(it.tag+' — '+d.desc)}${it.manual?' (manual)':''} · tarik untuk memindahkan"
         style="left:${l}px;top:${t}px;width:${d.w}px;height:${d.h}px;">
@@ -1192,7 +1343,7 @@ function drawPlate(){
       <div class="ph" style="border-color:${d.color};background:${d.bg}CC;color:${d.color};">
         <b>${esc(d.desc.split(' ').slice(0,2).join(' '))}</b><i>${esc(d.pn)}</i><i>${d.w}×${d.h} mm</i>
         ${it.doorMounted?'<i>door / side</i>':''}</div>
-      ${imgSrc(d)?`<img src="${esc(imgSrc(d))}" alt="${esc(d.desc)}" onload="this.parentNode.classList.add('has-img')">`:''}</div>`;
+      ${imgSrc(d,it.type)?`<img src="${esc(imgSrc(d,it.type))}" alt="${esc(d.desc)}" onload="this.parentNode.classList.add('has-img')">`:''}</div>`;
     if(showTags && d.label && !tagged.has(it.type)){
       tagged.add(it.type);
       html+=`<div class="tag" style="left:${it.x}px;top:${t-4}px;">${esc(d.label)}</div>`;
@@ -1232,7 +1383,7 @@ function staticDrawing(mode, maxW){
       const d=R.specs[it.type];
       h+=`<div class="comp${d.round?' round':''}" style="left:${p(it.x-d.w/2)}px;top:${p(it.y-d.h/2)}px;width:${p(d.w)}px;height:${p(d.h)}px;">
         <div class="ph${d.round?' round':''}" style="border-color:${d.color};background:${d.bg}CC;"></div>
-        ${imgSrc(d)?`<img src="${esc(imgSrc(d))}" alt="" onload="this.parentNode.classList.add('has-img')">`:''}</div>`;
+        ${imgSrc(d,it.type)?`<img src="${esc(imgSrc(d,it.type))}" alt="" onload="this.parentNode.classList.add('has-img')">`:''}</div>`;
       h+=`<div class="dtag" style="left:${p(it.x)}px;top:${p(it.y-d.h/2)-2}px;">${esc(it.tag)}</div>`;
     }
   }else{
@@ -1248,7 +1399,7 @@ function staticDrawing(mode, maxW){
       const d=R.specs[it.type];
       h+=`<div class="comp" style="left:${p(it.x-d.w/2)}px;top:${p(it.y-d.h/2)}px;width:${p(d.w)}px;height:${p(d.h)}px;">
         <div class="ph" style="border-color:${d.color};background:${d.bg}CC;"></div>
-        ${imgSrc(d)?`<img src="${esc(imgSrc(d))}" alt="" onload="this.parentNode.classList.add('has-img')">`:''}</div>`;
+        ${imgSrc(d,it.type)?`<img src="${esc(imgSrc(d,it.type))}" alt="" onload="this.parentNode.classList.add('has-img')">`:''}</div>`;
       h+=`<div class="dtag" style="left:${p(it.x)}px;top:${p(it.y-d.h/2)-2}px;">${esc(it.tag)}</div>`;
     }
   }
@@ -1343,7 +1494,7 @@ function renderLibrary(){
   set('lib-count',`${entries.length} tampil · ${counts.all} komponen (${counts.door} front cover, ${counts.custom} custom, ${counts.modified} diubah)`);
 
   document.getElementById('lib-grid').innerHTML=entries.length? entries.map(x=>{
-    const d=x.d, src=imgSrc(d);
+    const d=x.d, src=imgSrc(d, x.key);
     const badges=[`<span class="badge b-blue">${esc(d.cat)}</span>`];
     if(x.isDoor)    badges.push('<span class="badge b-amber">front cover</span>');
     if(x.isCustom)  badges.push('<span class="badge b-green">custom</span>');
@@ -1413,7 +1564,11 @@ function componentEditor(key,isNew){
   const patch=isNew? {} : (state.library.components[key]||{});
   const builtin=!isNew && !!COMPONENT_DB[key];
   const selDriven=PanelEngine.SELECTION_DRIVEN.indexOf(key)>=0;
-  let image=base.image||'';
+  /* Pratinjau memakai sumber yang sama dengan tempat lain (blob/URL server/asset).
+     `image` hanya terisi kalau user memilih file baru di dialog ini. */
+  const shown=isNew? '' : imgSrc(base,key);
+  let image='', imageNew=false, imageCleared=false;
+  const hadImage=!!(shown||base.hasImage);
 
   const f=(id,label,val,attrs='')=>`<div class="field"><label for="ce-${id}">${label}</label>
     <input id="ce-${id}" value="${esc(val??'')}" ${attrs}></div>`;
@@ -1443,15 +1598,15 @@ function componentEditor(key,isNew){
       <div class="field" style="grid-column:1/-1;">
         <label>Gambar komponen</label>
         <div class="drop" id="ce-drop">
-          <img id="ce-preview" style="${image?'':'display:none;'}" src="${esc(image||'')}" alt="">
-          <small id="ce-dropmsg">${image?'Klik atau jatuhkan gambar untuk mengganti':'Klik atau jatuhkan gambar di sini (PNG/JPG, maks 8 MB)'}</small>
+          <img id="ce-preview" style="${shown?'':'display:none;'}" src="${esc(shown)}" alt="">
+          <small id="ce-dropmsg">${shown?'Klik atau jatuhkan gambar untuk mengganti':'Klik atau jatuhkan gambar di sini (PNG/JPG, maks 8 MB)'}</small>
         </div>
         <input type="file" id="ce-file" accept="image/*" style="display:none;">
         <small style="font-size:10.5px;color:var(--gray-500);display:block;margin-top:4px;">
           Gambar disusutkan ke maks 360 px dan disimpan di database, jadi ikut terbawa
           ke browser/komputer lain. ${base.asset?`Fallback file: <code>assets/components/${esc(base.asset)}</code>`:''}
         </small>
-        ${image?`<button class="btn" id="ce-clear" style="margin-top:6px;">Hapus gambar</button>`:''}
+        ${hadImage?`<button class="btn" id="ce-clear" style="margin-top:6px;">Hapus gambar</button>`:''}
       </div>
     </div>`;
 
@@ -1467,7 +1622,8 @@ function componentEditor(key,isNew){
         try{
           const r=await readImageFile(f);
           if(!r) return;
-          image=r.dataUrl; prev.src=image; prev.style.display='';
+          image=r.dataUrl; imageNew=true; imageCleared=false;
+          prev.src=image; prev.style.display='';
           msg.textContent=`${r.srcW}×${r.srcH} → ${r.outW}×${r.outH} px · ${Math.round(image.length/1024)} KB`;
           modalError('');
         }catch(e){ modalError(e.message); }
@@ -1479,10 +1635,10 @@ function componentEditor(key,isNew){
       drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('over');
         load(e.dataTransfer.files[0]);});
       const clr=m.querySelector('#ce-clear');
-      if(clr) clr.onclick=()=>{ image=''; prev.style.display='none';
+      if(clr) clr.onclick=()=>{ image=''; imageCleared=true; prev.style.display='none';
         msg.textContent='Klik atau jatuhkan gambar di sini'; clr.remove(); };
 
-      m.querySelector('#ce-save').onclick=()=>{
+      m.querySelector('#ce-save').onclick=async()=>{
         const g=id=>m.querySelector('#ce-'+id).value.trim();
         const n=id=>{const v=m.querySelector('#ce-'+id).value; return v===''?null:+v;};
         const desc=g('desc');
@@ -1500,7 +1656,6 @@ function componentEditor(key,isNew){
         const next={desc, pn:g('pn'), vendor:g('vendor'), cat:g('cat'), mount:g('mount'),
           w:n('w'), h:n('h'), d:n('d'), powerW:n('powerW')||0,
           dimsVerified:m.querySelector('#ce-verified').checked};
-        if(image) next.image=image;
         if(isNew){
           next.label=''; next.color='#6B7885'; next.bg='#EEF1F4'; next.custom=true; next.asset='';
           state.library.components[k]=next;
@@ -1510,11 +1665,16 @@ function componentEditor(key,isNew){
           const def=COMPONENT_DB[k]||PanelEngine.BLANK_COMPONENT;
           const diff={};
           for(const [kk,vv] of Object.entries(next)) if(vv!==def[kk]) diff[kk]=vv;
-          if(!image && patch.image) diff.image=undefined, delete diff.image;
-          if(image) diff.image=image;
-          if(Object.keys(diff).length) state.library.components[k]=diff;
-          else delete state.library.components[k];
+          /* penanda gambar dipertahankan; byte-nya diurus saveImage/deleteImage */
+          if(patch.hasImage){ diff.hasImage=true; diff.imgVersion=patch.imgVersion; }
+          state.library.components[k]=diff;
         }
+        /* Byte gambar TIDAK masuk state — disimpan ke IndexedDB + tabel images */
+        if(imageNew && image) await saveImage(k, image);
+        else if(imageCleared) await deleteImage(k);
+        /* patch yang kosong sama sekali tidak perlu disimpan */
+        const cur=state.library.components[k];
+        if(!isNew && cur && !Object.keys(cur).length) delete state.library.components[k];
         persist(); closeModal(); renderLibrary();
         toast(isNew?`Komponen "${desc}" ditambahkan`:`"${desc}" diperbarui`,'ok');
       };
@@ -1525,6 +1685,7 @@ async function resetComponent(key){
   if(!await modalConfirm({title:'Reset komponen',confirmLabel:'Reset',
     message:`"${d.desc}" dikembalikan ke nilai bawaan. Perubahan dimensi dan gambar yang kamu simpan akan hilang.`})) return;
   delete state.library.components[key];
+  await deleteImage(key);            /* byte gambar ikut dibuang dari IDB + database */
   persist(); renderLibrary(); toast('Dikembalikan ke bawaan');
 }
 async function deleteComponent(key){
@@ -1534,6 +1695,7 @@ async function deleteComponent(key){
     message:`"${d.desc}" akan dihapus dari library.`+
       (used.length?` Komponen ini masih dipakai di ${used.length} proyek (${used.map(p=>p.name).join(', ')}) — di sana akan muncul peringatan sampai kamu hapus juga dari layoutnya.`:'')})) return;
   delete state.library.components[key];
+  await deleteImage(key);
   persist(); renderLibrary(); toast('Komponen dihapus');
 }
 /* Tambahkan komponen library ke layout proyek aktif */
@@ -1691,6 +1853,16 @@ async function resetAll(){
   if(!await modalConfirm({title:'Reset semua data', danger:true, confirmLabel:'Hapus semuanya',
     message:`Semua ${state.projects.length} proyek, pengaturan layout, dan seluruh perubahan `+
       `library komponen akan dihapus — termasuk di database bila server aktif. Tidak bisa dibatalkan.`})) return;
+  /* gambar tidak ada di localStorage lagi — bersihkan IndexedDB dan tabel images */
+  let keys=[]; try{ keys=await idbKeys(); }catch(e){}
+  for(const k of keys){ dropBlobUrl(k); try{ await idbDel(k); }catch(e){} }
+  if(dbMode){
+    try{
+      const r=await fetch('api/images');
+      if(r.ok) for(const im of await r.json())
+        await fetch('api/image/'+encodeURIComponent(im.key),{method:'DELETE'});
+    }catch(e){}
+  }
   localStorage.removeItem(LS_KEY); state=loadState(); persist(); updateTopbar();
   toast('Semua data direset'); go('dashboard');
 }
@@ -1803,6 +1975,7 @@ document.getElementById('global-search').addEventListener('keydown',e=>{
 buildNav(); buildSizeOptions(); updateTopbar();
 window.addEventListener('resize',()=>{ if(document.getElementById('view-designer').classList.contains('active')) zoomFit(); });
 (async ()=>{
+  hydrateImages();                               /* gambar dari IndexedDB, tidak menunggu jaringan */
   await connectDb();                             /* coba server; gagal = tetap jalan lokal */
   updateTopbar();
   const h=(location.hash||'#dashboard').slice(1);

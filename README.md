@@ -103,12 +103,45 @@ Centang *dimensi sudah diverifikasi* hanya setelah dicek ke datasheet — badge
 itu satu-satunya pembeda antara angka pasti dan estimasi.
 
 ## API (untuk integrasi, mis. dipanggil dari Qscada/MPEdge)
-- `GET  /api/health`        — status server
-- `GET  /api/state`         — semua proyek + settings + library
-- `GET  /api/projects/:id`  — satu proyek (konfigurasi JSON)
-- `POST /api/sync`          — simpan {projects, settings, library}; payload
+- `GET    /api/health`       — status server + jumlah gambar
+- `GET    /api/state`        — semua proyek + settings + library (tanpa byte gambar)
+- `GET    /api/projects/:id` — satu proyek (konfigurasi JSON)
+- `POST   /api/sync`         — simpan {projects, settings, library}; payload
   divalidasi dulu, dan kegagalan dibalas JSON (bukan HTML) supaya UI bisa
-  menampilkan pesannya. Limit body 25 MB karena gambar komponen.
+  menampilkan pesannya. Sekarang ~0,2 KB karena gambar tidak ikut. Kalau klien
+  lama masih mengirim data URI, server memindahkannya ke tabel `images`
+  alih-alih menyimpannya balik ke JSON.
+- `GET    /api/images`       — daftar gambar (key, mime, size, updated), tanpa byte
+- `GET    /api/image/:key`   — byte gambar + ETag; kirim `If-None-Match` → 304
+- `PUT    /api/image/:key`   — simpan gambar, body `{dataUrl}`, maks 2 MB
+- `DELETE /api/image/:key`   — hapus gambar
+
+## Penyimpanan gambar komponen
+Gambar **tidak** disimpan di dalam JSON library dan **tidak** masuk localStorage.
+
+| Di mana | Isi |
+|---|---|
+| Tabel `images` di `panelbuilder.db` | byte gambar (BLOB) — sumber sebenarnya |
+| IndexedDB browser | cache lokal + tempat simpan saat server mati |
+| `kv.library` | hanya penanda `hasImage` + `imgVersion` (~1 KB total) |
+| localStorage | proyek + settings saja (~50 KB) |
+
+Alurnya: unggah → disusutkan ke maks 360 px → masuk IndexedDB → `PUT /api/image/<key>`.
+Kalau server mati, gambar ditandai *pending* dan otomatis diunggah saat server
+muncul lagi. Render memakai `api/image/<key>?v=<imgVersion>`, jadi browser
+meng-cache tiap gambar terpisah (ETag + 304).
+
+Versi lama menyimpan data URI di dalam `kv.library`. Migrasi berjalan otomatis
+sekali saat `npm start` — gambar dipindah ke tabel `images`, lalu `VACUUM`.
+Pada database contoh: **5,49 MB → 2,22 MB**, dan `kv.library` 2992 KB → 1 KB.
+
+Kenapa ini penting: dulu setiap penyimpanan menulis ulang seluruh library dan
+mengirimnya utuh ke server, sementara localStorage (kuota ~5–10 MB, dihitung
+UTF-16 alias 2 byte/karakter) akan penuh sekitar gambar ke-29 — dan `setItem`
+yang gagal membatalkan penyimpanan ke database juga, tanpa pesan apa pun.
+Sekarang payload sync **0,2 KB** dan 20× penyimpanan hanya menambah puluhan KB.
+
+Batas: 2 MB per gambar (`MAX_IMAGE_BYTES`), tipe PNG/JPEG/WebP/GIF/SVG.
 
 ## Backup
 Cukup salin file `panelbuilder.db`. (Mode WAL: salin saat server berhenti,
