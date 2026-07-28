@@ -338,12 +338,12 @@
             </div>
             <div class="field"><label>Panel size (Tinggi × Lebar)</label>
               <select id="cfg-size" onchange="generate(true)"></select></div>
-            <div class="field"><label>PLC</label>
-              <select id="cfg-plc" onchange="syncPlcFields();generate(true)">
-                <option value="none">— No PLC (relay / starter panel) —</option>
-                <option value="Mitsubishi FX5U">Mitsubishi FX5U</option>
-                <option value="Mitsubishi FX5UJ">Mitsubishi FX5UJ</option>
-              </select></div>
+            <div class="field"><label>PLC
+                <a onclick="go('library');setLibFilter('plc')" style="float:right;font-weight:400;
+                  color:var(--blue-600);cursor:pointer;">+ tambah jenis</a></label>
+              <select id="cfg-plc" onchange="syncPlcFields();generate(true)"></select>
+              <small id="cfg-plc-info" style="font-size:10.5px;color:var(--gray-500);
+                display:block;margin-top:3px;"></small></div>
             <div class="grid2">
               <div class="field io-fld"><label>Digital inputs</label><input id="cfg-di" type="number" value="24" min="0" max="128"></div>
               <div class="field io-fld"><label>Digital outputs</label><input id="cfg-do" type="number" value="16" min="0" max="128"></div>
@@ -386,7 +386,8 @@
             <label><input type="checkbox" id="chk-tags" checked onchange="draw()"> Labels</label>
             <div class="sep"></div>
             <button class="btn" style="padding:5px 10px;" onclick="printLayout()">Export drawing (PDF)</button>
-            <button class="btn" style="padding:5px 10px;display:none;" id="btn-door-reset" onclick="resetDoorLayout()">Reset posisi</button>
+            <button class="btn" style="padding:5px 10px;" id="btn-reset-pos"
+              onclick="drawMode==='door'?resetDoorLayout():resetPlateLayout()">Reset posisi</button>
             <span style="margin-left:auto;font-size:11px;color:var(--gray-500);" id="zoom-pct">100%</span>
           </div>
           <div class="cab-scroll" id="scroll">
@@ -1107,6 +1108,33 @@ function sizeFromValue(s){
   return {cabW:w||600, cabH:h||0};
 }
 function sizeToValue(c){ return c.cabH>0 ? `${c.cabH}x${c.cabW}` : 'auto'; }
+/* Dropdown PLC dibangun dari library: setiap komponen ber-isPlc muncul di sini,
+   termasuk yang kamu tambahkan sendiri. Satu sumber, jadi selalu berkorelasi. */
+function buildPlcOptions(){
+  const el=document.getElementById('cfg-plc');
+  if(!el) return;
+  const keep=el.value;
+  const models=PanelEngine.plcModels(state.library.components);
+  let html='<option value="none">— No PLC (relay / starter panel) —</option>';
+  let vendor='';
+  for(const m of models){
+    if(m.vendor!==vendor){ if(vendor) html+='</optgroup>'; html+=`<optgroup label="${esc(m.vendor)}">`; vendor=m.vendor; }
+    html+=`<option value="${esc(m.key)}">${esc(m.name)} · ${m.di}DI/${m.do_}DO</option>`;
+  }
+  if(vendor) html+='</optgroup>';
+  el.innerHTML=html;
+  if(keep && [...el.options].some(o=>o.value===keep)) el.value=keep;
+}
+function updatePlcInfo(){
+  const el=document.getElementById('cfg-plc-info');
+  if(!el) return;
+  const key=document.getElementById('cfg-plc').value;
+  if(key==='none'){ el.textContent='Kontrol lewat pushbutton pintu + safety relay.'; return; }
+  const m=PanelEngine.plcModels(state.library.components).find(x=>x.key===key);
+  el.textContent=m
+    ? `${m.pn} · ${m.di} DI / ${m.do_} DO bawaan · maks ${m.maxExp} modul ekspansi`
+    : 'Model tidak ada di library.';
+}
 function buildSizeOptions(){
   const opts=PanelEngine.STD_SIZES.map(s=>
     `<option value="${s.h}x${s.w}">${s.h} × ${s.w} mm — T${s.h} × L${s.w}</option>`).join('');
@@ -1115,6 +1143,7 @@ function buildSizeOptions(){
   return opts;
 }
 function fillCfgForm(c){
+  buildPlcOptions();                     /* library bisa berubah kapan saja */
   document.getElementById('cfg-plc').value=c.hasPlc?c.plc:'none';
   document.getElementById('cfg-size').value = sizeToValue(c);
   const m={'cfg-di':c.di,'cfg-do':c.do_,'cfg-ai':c.ai,'cfg-ao':c.ao,'cfg-vfd':c.vfd,
@@ -1131,6 +1160,7 @@ function syncPlcFields(){
     const i=f.querySelector('input'); if(i) i.disabled=none;
   });
   document.getElementById('cfg-noplc-note').style.display=none?'block':'none';
+  updatePlcInfo();
 }
 function enterDesigner(){ fillCfgForm(activeProject().cfg); renderExtras(); generate(false); }
 /* Komponen dari library yang ditambahkan manual ke proyek ini */
@@ -1202,7 +1232,6 @@ function setDrawMode(m){
   drawMode=m;
   document.getElementById('tab-plate').classList.toggle('on',m==='plate');
   document.getElementById('tab-door').classList.toggle('on',m==='door');
-  document.getElementById('btn-door-reset').style.display=m==='door'?'':'none';
   draw(); zoomFit();
 }
 /* Chip menjelaskan gambar yang sedang tampil, jadi ikut berubah saat tab pindah
@@ -1334,20 +1363,21 @@ function drawPlate(){
       html+=`<div class="tstrip" style="left:${PAD-6}px;top:${row.y0}px;width:${W-PAD*2+12}px;height:${row.h}px;">${row.label} · ${R.termPoints} points</div>`;
     }
   }
-  const tagged=new Set();
   for(const it of items){
     /* R.specs, not COMPONENT_DB — the selected part sets the real footprint */
     const d=R.specs[it.type], l=it.x-d.w/2, t=it.y-d.h/2;
     const dash=it.doorMounted?'opacity:.75;':'';
-    html+=`<div class="comp" style="left:${l}px;top:${t}px;width:${d.w}px;height:${d.h}px;${dash}">
+    const drag=it.type==='fan'?'':' drag';       /* fan menempel di pintu/samping */
+    html+=`<div class="comp${drag}${it.manual?' manual':''}"
+        ${drag?`data-id="${esc(it.id)}"`:''}
+        title="${esc(it.tag+' — '+d.desc)}${it.manual?' (manual)':''}${drag?' · tarik kiri/kanan, naik/turun pindah rail':''}"
+        style="left:${l}px;top:${t}px;width:${d.w}px;height:${d.h}px;${dash}">
       <div class="ph" style="border-color:${d.color};background:${d.bg}CC;color:${d.color};">
         <b>${esc(d.desc.split(' ').slice(0,2).join(' '))}</b><i>${esc(d.pn)}</i><i>${d.w}×${d.h} mm</i>
         ${it.doorMounted?'<i>door / side</i>':''}</div>
       ${imgSrc(d,it.type)?`<img src="${esc(imgSrc(d,it.type))}" alt="${esc(d.desc)}" onload="this.parentNode.classList.add('has-img')">`:''}</div>`;
-    if(showTags && d.label && !tagged.has(it.type)){
-      tagged.add(it.type);
-      html+=`<div class="tag" style="left:${it.x}px;top:${t-4}px;">${esc(d.label)}</div>`;
-    }
+    if(showTags)
+      html+=`<div class="dtag" style="left:${it.x}px;top:${t-3}px;">${esc(it.tag)}</div>`;
   }
   html+=`</div>`;
   html+=`<div class="dim dim-h" style="left:${OX+FRAME}px;top:${OY-24}px;width:${W}px;">${W} mm</div>`;
@@ -1359,6 +1389,65 @@ function drawPlate(){
   const wrap=document.getElementById('stage-wrap');
   wrap.style.width=totW*zoom+'px'; wrap.style.height=totH*zoom+'px';
   set('zoom-pct',Math.round(zoom*100)+'%');
+  attachPlateDrag();
+}
+
+/* ── geser komponen di backplate ──────────────────────────────────────────
+   Horizontal bebas, dibulatkan ke langkah PLATE_STEP (2 mm) — jadi jarak antar
+   komponen boleh 0. Vertikal TIDAK bebas: selalu snap ke garis rail terdekat,
+   jadi naik/turun berarti pindah rail, bukan menggantung di antaranya. */
+const PLATE_STEP=2;
+function attachPlateDrag(){
+  const stage=document.getElementById('stage');
+  stage.querySelectorAll('.comp.drag').forEach(el=>{
+    el.addEventListener('mousedown',e=>{
+      e.preventDefault();
+      const id=el.dataset.id;
+      const it=R.items.find(x=>x.id===id); if(!it) return;
+      const d=R.specs[it.type];
+      /* garis rail yang tersedia, untuk snap vertikal */
+      const rails=R.railRows.map(i=>({row:i, y:R.rows[i].railY, name:R.rows[i].name}));
+      const startX=e.clientX, startY=e.clientY, ox=it.x, oy=it.y;
+      el.classList.add('dragging');
+      let nx=ox, nrow=it.row;
+      const move=ev=>{
+        const dx=(ev.clientX-startX)/zoom, dy=(ev.clientY-startY)/zoom;
+        nx=Math.round((ox+dx)/PLATE_STEP)*PLATE_STEP;
+        nx=Math.min(R.W-d.w/2, Math.max(d.w/2, nx));
+        /* rail terdekat dari posisi kursor */
+        const wantY=oy+dy;
+        let best=rails[0];
+        for(const r of rails) if(Math.abs(r.y-wantY)<Math.abs(best.y-wantY)) best=r;
+        nrow=best.row;
+        el.style.left=(nx-d.w/2)+'px';
+        el.style.top=(best.y-d.h/2)+'px';
+        set('toolbar-meta',`${it.tag} → X ${nx} mm · ${best.name}`);
+      };
+      const up=()=>{
+        document.removeEventListener('mousemove',move);
+        document.removeEventListener('mouseup',up);
+        el.classList.remove('dragging');
+        if(nx===ox && nrow===it.row){ draw(); return; }
+        const p=activeProject();
+        (p.cfg.platePos||(p.cfg.platePos={}))[id]={x:nx, row:nrow};
+        p.updated=Date.now(); persist();
+        generate(false); setDrawMode('plate');
+        toast(`${it.tag} → X ${nx} mm (langkah ${PLATE_STEP} mm)`);
+      };
+      document.addEventListener('mousemove',move);
+      document.addEventListener('mouseup',up);
+    });
+  });
+}
+async function resetPlateLayout(){
+  const p=activeProject();
+  const n=Object.keys(p.cfg.platePos||{}).length;
+  if(!n){ toast('Layout dalam panel sudah otomatis'); return; }
+  if(!await modalConfirm({title:'Reset posisi komponen',confirmLabel:'Reset',
+    message:`${n} komponen yang kamu geser manual akan kembali ke tata letak otomatis.`})) return;
+  p.cfg.platePos={}; p.updated=Date.now(); persist();
+  generate(false); setDrawMode('plate');
+  toast('Layout dalam panel kembali otomatis');
 }
 /* ══════════ GAMBAR STATIS (laporan & export) ══════════
    Koordinat langsung dikalikan skala — bukan CSS transform — supaya hasil
@@ -1472,13 +1561,16 @@ function renderLibrary(){
   const db=libDb(), patches=state.library.components;
   const all=Object.keys(db).map(k=>({key:k, d:db[k],
     isCustom:!COMPONENT_DB[k], isMod:!!patches[k] && !!COMPONENT_DB[k],
-    isDoor:db[k].mount==='door'}));
+    isDoor:db[k].mount==='door', isPlc:!!db[k].isPlc,
+    isTerm:db[k].cat==='Terminals'}));
   const counts={all:all.length, door:all.filter(x=>x.isDoor).length,
                 inside:all.filter(x=>!x.isDoor).length,
+                plc:all.filter(x=>x.isPlc).length, term:all.filter(x=>x.isTerm).length,
                 modified:all.filter(x=>x.isMod).length, custom:all.filter(x=>x.isCustom).length};
   const entries=all
     .filter(x=> libFilter==='all' || (libFilter==='door'&&x.isDoor) ||
-                (libFilter==='inside'&&!x.isDoor) ||
+                (libFilter==='inside'&&!x.isDoor) || (libFilter==='plc'&&x.isPlc) ||
+                (libFilter==='term'&&x.isTerm) ||
                 (libFilter==='modified'&&x.isMod) || (libFilter==='custom'&&x.isCustom))
     .filter(x=>{
       if(!q) return true;
@@ -1489,6 +1581,7 @@ function renderLibrary(){
 
   document.getElementById('lib-tabs').innerHTML=
     [['all','Semua'],['inside','Dalam panel'],['door','Front cover'],
+     ['plc','PLC / CPU'],['term','Terminal block'],
      ['modified','Diubah'],['custom','Custom']]
     .map(([f,lab])=>`<button class="${libFilter===f?'on':''}" onclick="setLibFilter('${f}')">${lab} ${counts[f]}</button>`).join('');
   set('lib-count',`${entries.length} tampil · ${counts.all} komponen (${counts.door} front cover, ${counts.custom} custom, ${counts.modified} diubah)`);
@@ -1496,6 +1589,7 @@ function renderLibrary(){
   document.getElementById('lib-grid').innerHTML=entries.length? entries.map(x=>{
     const d=x.d, src=imgSrc(d, x.key);
     const badges=[`<span class="badge b-blue">${esc(d.cat)}</span>`];
+    if(x.isPlc)     badges.push('<span class="badge b-blue">CPU · '+(d.builtinDi||0)+'DI/'+(d.builtinDo||0)+'DO</span>');
     if(x.isDoor)    badges.push('<span class="badge b-amber">front cover</span>');
     if(x.isCustom)  badges.push('<span class="badge b-green">custom</span>');
     if(x.isMod)     badges.push('<span class="badge b-amber">diubah</span>');
@@ -1596,6 +1690,25 @@ function componentEditor(key,isNew){
           style="width:auto;margin-right:6px;vertical-align:-1px;"> Dimensi sudah diverifikasi dari datasheet</label>
       </div>
       <div class="field" style="grid-column:1/-1;">
+        <label><input type="checkbox" id="ce-isplc" ${base.isPlc?'checked':''}
+          style="width:auto;margin-right:6px;vertical-align:-1px;"> Ini CPU / PLC — tampilkan di dropdown PLC</label>
+      </div>
+      <div id="ce-plcbox" style="grid-column:1/-1;display:${base.isPlc?'block':'none'};
+        background:var(--blue-50);border:1px solid var(--blue-100);border-radius:8px;padding:10px 12px;">
+        <div class="grid2" style="align-items:start;">
+          <div class="field" style="grid-column:1/-1;"><label for="ce-plcname">Nama di dropdown</label>
+            <input id="ce-plcname" value="${esc(base.plcName||'')}" placeholder="mis. Panasonic FP0H"></div>
+          ${f('builtinDi','DI bawaan',base.builtinDi??0,'type="number" min="0" max="256"')}
+          ${f('builtinDo','DO bawaan',base.builtinDo??0,'type="number" min="0" max="256"')}
+          ${f('maxExp','Maks modul ekspansi',base.maxExp??8,'type="number" min="0" max="64"')}
+        </div>
+        <small style="font-size:10.5px;color:var(--gray-500);line-height:1.6;display:block;">
+          I/O bawaan menentukan berapa modul ekspansi yang dibeli; batas ekspansi
+          dipakai untuk peringatan bus. Modul ekspansi memakai part number generik
+          (EXP-DI16 dst) — edit komponen itu untuk memasukkan kode vendor.
+        </small>
+      </div>
+      <div class="field" style="grid-column:1/-1;">
         <label>Gambar komponen</label>
         <div class="drop" id="ce-drop">
           <img id="ce-preview" style="${shown?'':'display:none;'}" src="${esc(shown)}" alt="">
@@ -1634,6 +1747,8 @@ function componentEditor(key,isNew){
       drop.addEventListener('dragleave',()=>drop.classList.remove('over'));
       drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('over');
         load(e.dataTransfer.files[0]);});
+      const plcBox=m.querySelector('#ce-plcbox'), isPlcCb=m.querySelector('#ce-isplc');
+      isPlcCb.onchange=()=>{ plcBox.style.display=isPlcCb.checked?'block':'none'; };
       const clr=m.querySelector('#ce-clear');
       if(clr) clr.onclick=()=>{ image=''; imageCleared=true; prev.style.display='none';
         msg.textContent='Klik atau jatuhkan gambar di sini'; clr.remove(); };
@@ -1656,6 +1771,20 @@ function componentEditor(key,isNew){
         const next={desc, pn:g('pn'), vendor:g('vendor'), cat:g('cat'), mount:g('mount'),
           w:n('w'), h:n('h'), d:n('d'), powerW:n('powerW')||0,
           dimsVerified:m.querySelector('#ce-verified').checked};
+        if(isPlcCb.checked){
+          next.isPlc=true;
+          next.plcName=g('plcname')||desc;
+          next.builtinDi=n('builtinDi')||0;
+          next.builtinDo=n('builtinDo')||0;
+          next.maxExp=n('maxExp')||8;
+          /* CPU baru tanpa modul vendor → pakai ekspansi generik */
+          if(!base.expDi){ next.expDi='exp_di16'; next.expDo='exp_do16';
+                           next.expAi='exp_ai4'; next.expAo='exp_ao4'; }
+          if(!(next.builtinDi>0||next.builtinDo>0))
+            return modalError('CPU harus punya minimal 1 DI atau DO bawaan.');
+        }else if(base.isPlc){
+          next.isPlc=false;                 /* dicabut dari daftar CPU */
+        }
         if(isNew){
           next.label=''; next.color='#6B7885'; next.bg='#EEF1F4'; next.custom=true; next.asset='';
           state.library.components[k]=next;
@@ -1701,19 +1830,21 @@ async function deleteComponent(key){
 /* Tambahkan komponen library ke layout proyek aktif */
 async function addToProject(key){
   const d=libDb()[key], p=activeProject();
-  /* Komponen yang memang perangkat pintu default-nya ke front cover. */
+  /* Default cerdas: perangkat pintu → front cover, terminal block → rail 4. */
   const isDoor=d.mount==='door';
+  const defDest=isDoor?'door':(d.cat==='Terminals'?'rail4':'rail2');
   const v=await modalForm({title:'Tambah ke panel', submitLabel:'Tambahkan',
     intro:`<b>${esc(d.desc)}</b> — ${d.w} × ${d.h} × ${d.d} mm${d.generic?' · part number masih generik ◇':''}.
       Komponen akan ikut ditempatkan di layout, masuk BOM, wiring, dan konsumsi
       24 V-nya (${d.powerW||0} W) ikut dihitung.`,
     fields:[
       {id:'qty', label:'Jumlah', type:'number', value:1, min:1, max:60, required:true},
-      {id:'dest',label:'Ditempatkan di', type:'select', value:isDoor?'door':'rail2', full:true,
+      {id:'dest',label:'Ditempatkan di', type:'select', value:defDest, full:true,
        options:[['door','Front cover — pintu panel'],
                 ['rail1','Dalam panel · Rail 1 — incoming / power'],
                 ['rail2','Dalam panel · Rail 2 — control'],
-                ['rail3','Dalam panel · Rail 3 — drives']]},
+                ['rail3','Dalam panel · Rail 3 — drives'],
+                ['rail4','Dalam panel · Rail 4 — terminal block']]},
     ],
     validate:v=>v.dest!=='door' && d.mount==='door'
       ? null   /* diizinkan: kadang perangkat pintu dipasang di plat samping */
@@ -1972,7 +2103,7 @@ document.getElementById('global-search').addEventListener('keydown',e=>{
 });
 
 /* ══════════ INIT ══════════ */
-buildNav(); buildSizeOptions(); updateTopbar();
+buildNav(); buildSizeOptions(); buildPlcOptions(); updateTopbar();
 window.addEventListener('resize',()=>{ if(document.getElementById('view-designer').classList.contains('active')) zoomFit(); });
 (async ()=>{
   hydrateImages();                               /* gambar dari IndexedDB, tidak menunggu jaringan */

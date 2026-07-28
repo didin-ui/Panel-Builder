@@ -839,6 +839,242 @@ describe('library — adding a component to the front cover', () => {
   });
 });
 
+describe('PLC catalogue — dropdown and library are one source', () => {
+  test('every isPlc component is offered as a model', () => {
+    const models = E.plcModels();
+    const dbPlc = Object.keys(E.COMPONENT_DB).filter((k) => E.COMPONENT_DB[k].isPlc);
+    assert.equal(models.length, dbPlc.length);
+    assert.ok(models.length >= 10, `only ${models.length} CPU models`);
+    for (const m of models) {
+      assert.ok(m.key && m.name && m.pn && m.vendor, 'incomplete model ' + m.key);
+      assert.ok(m.di > 0 && m.do_ > 0, m.key + ' has no built-in I/O');
+      assert.ok(m.maxExp > 0, m.key + ' has no expansion limit');
+    }
+    /* more than one vendor, so the dropdown is genuinely multi-brand */
+    assert.ok(new Set(models.map((m) => m.vendor)).size >= 5);
+  });
+
+  test('choosing a CPU changes the part number, footprint and 24 V load', () => {
+    const small = R({ plc: 'plc_s71212' });
+    const big = R({ plc: 'plc_fx5u80' });
+    assert.equal(small.cpu.pn, '6ES7212-1AE40-0XB0');
+    assert.equal(big.cpu.pn, 'FX5U-80MT/ES');
+    assert.ok(big.specs.plc_fx5u80.w > small.specs.plc_s71212.w);
+    assert.ok(r_bom(big, 'FX5U-80MT/ES'), 'CPU not in BOM');
+    assert.ok(!r_bom(big, '6ES7212-1AE40-0XB0'), 'wrong CPU in BOM');
+    assert.notEqual(small.dcLoad, big.dcLoad, 'CPU power draw not applied');
+  });
+
+  test('built-in I/O reduces the expansion modules bought', () => {
+    /* 24 DI: a 16 DI CPU needs one module, a 32 DI CPU needs none */
+    assert.equal(R({ plc: 'plc', di: 24, do_: 0, ai: 0, ao: 0 }).diExtra, 1);
+    assert.equal(R({ plc: 'plc_fx5u64', di: 24, do_: 0, ai: 0, ao: 0 }).diExtra, 0);
+    assert.equal(R({ plc: 'plc_fx5u80', di: 40, do_: 0, ai: 0, ao: 0 }).diExtra, 0);
+    assert.equal(R({ plc: 'plc_s71212', di: 24, do_: 0, ai: 0, ao: 0 }).diExtra, 1);
+  });
+
+  test('each CPU enforces its own expansion limit', () => {
+    const omron = R({ plc: 'plc_cp1e30', di: 128, do_: 128, ai: 16, ao: 16 });
+    const fx5u = R({ plc: 'plc', di: 128, do_: 128, ai: 16, ao: 16 });
+    const msg = omron.warnings.find((w) => w.code === 'BUS_LIMIT');
+    assert.ok(msg, 'Omron limit of 3 not enforced');
+    assert.match(msg.msg, /batas 3/);
+    assert.ok(fx5u.warnings.some((w) => w.code === 'BUS_LIMIT'));
+  });
+
+  test('non-Mitsubishi CPUs use generic expansion, and say so', () => {
+    const r = R({ plc: 'plc_s71214', di: 64 });
+    assert.equal(r.diExtra > 0, true);
+    assert.ok(r.items.some((i) => i.type === 'exp_di16'));
+    assert.ok(r.warnings.some((w) => w.code === 'EXP_GENERIC'),
+      'generic expansion modules must be disclosed');
+    /* a Mitsubishi CPU uses the real FX5 modules and does not warn */
+    const mit = R({ plc: 'plc', di: 64 });
+    assert.ok(mit.items.some((i) => i.type === 'di16'));
+    assert.ok(!mit.warnings.some((w) => w.code === 'EXP_GENERIC'));
+  });
+
+  test('a CPU added through the library shows up as a model', () => {
+    const patch = { my_plc: { isPlc: true, plcName: 'Panasonic FP0H',
+      pn: 'AFP0HC32T', vendor: 'Panasonic', desc: 'PLC FP0H 16 DI / 16 DO',
+      w: 100, h: 90, d: 70, powerW: 15, builtinDi: 16, builtinDo: 16, maxExp: 3,
+      cat: 'Control', mount: 'rail' } };
+    const models = E.plcModels(patch);
+    assert.ok(models.some((m) => m.key === 'my_plc' && m.vendor === 'Panasonic'),
+      'library CPU missing from the dropdown source');
+    const r = E.compute(cfg({ plc: 'my_plc', di: 24 }), { components: patch });
+    assert.equal(r.cpu.pn, 'AFP0HC32T');
+    assert.equal(r.diExtra, 1);
+    assert.ok(r_bom(r, 'AFP0HC32T'));
+    assert.ok(r.items.some((i) => i.type === 'my_plc'));
+  });
+
+  test('legacy cfg.plc display names are mapped to component keys', () => {
+    assert.equal(E.normalizeCfg({ plc: 'Mitsubishi FX5U' }).plc, 'plc');
+    assert.equal(E.normalizeCfg({ plc: 'Mitsubishi FX5UJ' }).plc, 'plc_fx5uj40');
+    assert.equal(E.normalizeCfg({ plc: 'none' }).hasPlc, false);
+    assert.doesNotThrow(() => E.compute({ plc: 'Mitsubishi FX5U', di: 24 }));
+  });
+
+  test('an unknown CPU is an error, and the panel still computes', () => {
+    const r = R({ plc: 'tidak_ada' });
+    assert.ok(r.warnings.some((w) => w.code === 'PLC_UNKNOWN' && w.level === 'error'));
+    assert.equal(r.hasPlc, false);
+    assert.ok(Number.isFinite(r.heat));
+  });
+
+  test('pointing cfg.plc at a non-PLC component is rejected', () => {
+    const r = R({ plc: 'mccb' });
+    assert.ok(r.warnings.some((w) => w.code === 'PLC_UNKNOWN'));
+    assert.equal(r.items.filter((i) => i.type === 'mccb').length, 1,
+      'the breaker must still be placed exactly once');
+  });
+});
+
+describe('terminal blocks — rail 4', () => {
+  const TB = [{ type: 'tb_6', qty: 28, place: 'plate', rail: 4 },
+              { type: 'tb_2_5', qty: 52, place: 'plate', rail: 4 },
+              { type: 'tb_pe', qty: 12, place: 'plate', rail: 4 }];
+
+  test('the library carries a real range of terminal types', () => {
+    const tb = Object.keys(E.COMPONENT_DB).filter((k) => E.COMPONENT_DB[k].cat === 'Terminals');
+    assert.ok(tb.length >= 10, `only ${tb.length} terminal types`);
+    const descs = tb.map((k) => E.COMPONENT_DB[k].desc.toLowerCase()).join(' | ');
+    for (const kind of ['2,5 mm²', '4 mm²', '6 mm²', '10 mm²', '16 mm²',
+                        'ground pe', 'netral', 'double-level', 'berfuse',
+                        'disconnect', 'end clamp', 'partition'])
+      assert.ok(descs.includes(kind), 'no terminal type for: ' + kind);
+    /* pitch per pole must be plausible, not a guessed 45 mm */
+    for (const k of tb) assert.ok(E.COMPONENT_DB[k].w <= 13, k + ' pitch looks wrong');
+  });
+
+  test('placed terminals get their own rail and appear in the drawing', () => {
+    const r = R({ extras: TB });
+    const row = r.rows.find((x) => x.list && /RAIL 4/.test(x.name));
+    assert.ok(row, 'no terminal rail emitted');
+    assert.equal(r.items.filter((i) => /^tb_/.test(i.type)).length, 92);
+  });
+
+  test('the decorative band is used only until terminals are chosen', () => {
+    assert.ok(R().rows.some((x) => x.kind === 'tstrip'), 'band missing by default');
+    assert.ok(!R({ extras: TB }).rows.some((x) => x.kind === 'tstrip'),
+      'band and rail 4 must not both appear');
+  });
+
+  test('itemised terminals replace the estimate — no double counting', () => {
+    const auto = R();
+    const itemised = R({ extras: TB });
+    const qty = (r, pn) => (r.bom.find((b) => b.pn === pn) || {}).qty || 0;
+    /* the estimate is present by default */
+    assert.ok(qty(auto, 'UT 6') > 0 && qty(auto, 'UT 2,5') > 0);
+    /* with rail 4 the counts come from what was placed, once */
+    assert.equal(itemised.bom.filter((b) => b.pn === 'UT 6').length, 1,
+      'UT 6 appears twice — estimate not suppressed');
+    assert.equal(qty(itemised, 'UT 6'), 28);
+    assert.equal(qty(itemised, 'UT 2,5 (spare)'), 0, 'spare estimate still added');
+  });
+
+  test('placing fewer terminals than the design needs is flagged', () => {
+    const short = R({ extras: [{ type: 'tb_2_5', qty: 10, place: 'plate', rail: 4 }] });
+    const w = short.warnings.find((x) => x.code === 'TERMINALS_SHORT');
+    assert.ok(w, 'shortage not reported');
+    assert.match(w.msg, /butuh \d+ titik/);
+    /* and no warning once enough are placed */
+    assert.ok(!R({ extras: TB }).warnings.some((x) => x.code === 'TERMINALS_SHORT'));
+  });
+
+  test('rail 4 keeps every invariant', () => {
+    const r = R({ extras: TB });
+    assert.equal(r.items.filter((i) => i.type === 'fan').length, r.thermal.fans);
+    for (const it of r.items) assert.ok(r.specs[it.type], 'unknown ' + it.type);
+    const ids = r.items.map((i) => i.id);
+    assert.equal(new Set(ids).size, ids.length, 'duplicate ids');
+    if (!r.overflow) for (const it of r.items) {
+      const d = r.specs[it.type];
+      assert.ok(it.x + d.w / 2 <= r.W + 0.01, it.type + ' past the right edge');
+    }
+  });
+});
+
+describe('backplate — manual horizontal placement', () => {
+  const rowsOf = (r) => r.railRows;
+
+  test('X is honoured and Y snaps to the chosen rail', () => {
+    const base = R();
+    const rows = rowsOf(base);
+    const r = R({ platePos: { 'psu#1': { x: 600, row: rows[1] } } });
+    const it = r.items.find((i) => i.id === 'psu#1');
+    assert.equal(it.x, 600, 'X not applied');
+    assert.equal(it.y, r.rows[rows[1]].railY,
+      'Y must snap to the rail centreline, never float between rails');
+    assert.equal(it.manual, true);
+  });
+
+  test('only the moved component is pinned', () => {
+    const base = R();
+    const r = R({ platePos: { 'mccb#1': { x: 400 } } });
+    assert.deepEqual(r.manualPlate, ['mccb#1']);
+    for (const it of r.items) {
+      if (it.id === 'mccb#1') continue;
+      const a = base.items.find((x) => x.id === it.id);
+      assert.equal(it.x, a.x, it.id + ' drifted');
+    }
+  });
+
+  test('zero gap between components is allowed', () => {
+    const base = R();
+    const mccb = base.items.find((i) => i.id === 'mccb#1');
+    const w = base.specs.mccb.w, w2 = base.specs.spd.w;
+    /* butt the SPD straight up against the breaker */
+    const x = mccb.x + w / 2 + w2 / 2;
+    const r = R({ platePos: { 'spd#1': { x } } });
+    assert.equal(r.items.find((i) => i.id === 'spd#1').x, x);
+    assert.ok(!r.warnings.some((wr) => wr.code === 'PLATE_OVERLAP'),
+      'touching is not overlapping — must not warn');
+  });
+
+  test('genuine overlap is reported with both tags', () => {
+    const r = R({ platePos: { 'psu#1': { x: 100, row: 0 } } });
+    assert.ok(r.overlaps.length > 0, 'overlap not detected');
+    const w = r.warnings.find((x) => x.code === 'PLATE_OVERLAP');
+    assert.ok(w && w.level === 'warn');
+    assert.match(w.msg, /G1/);
+  });
+
+  test('an overload follows the contactor it hangs under', () => {
+    const r = R({ motor: 6, vfd: 0, servo: 0,
+                  platePos: { 'contactor#1': { x: 500 } } });
+    const k = r.items.find((i) => i.id === 'contactor#1');
+    const f = r.items.find((i) => i.id === 'overload#1');
+    assert.equal(f.x, k.x, 'overload left behind when the contactor moved');
+    assert.ok(f.y > k.y, 'overload must sit below its contactor');
+  });
+
+  test('a stale row index falls back to automatic', () => {
+    const r = R({ platePos: { 'psu#1': { x: 300, row: 99 } } });
+    const auto = R();
+    assert.equal(r.items.find((i) => i.id === 'psu#1').x, 300);
+    assert.equal(r.items.find((i) => i.id === 'psu#1').y,
+      auto.items.find((i) => i.id === 'psu#1').y, 'Y should stay automatic');
+  });
+
+  test('malformed platePos entries are dropped', () => {
+    const n = E.normalizeCfg({ platePos: {
+      'a#1': { x: 'abc' }, 'b#1': { row: 1.5 }, 'c#1': { x: 120, row: 2 }, 'd#1': null } });
+    assert.deepEqual(Object.keys(n.platePos), ['c#1']);
+    assert.deepEqual(n.platePos['c#1'], { x: 120, row: 2 });
+  });
+
+  test('manual placement does not change the BOM', () => {
+    const auto = R(), moved = R({ platePos: { 'psu#1': { x: 600 } } });
+    assert.deepEqual(moved.bom.map((b) => b.pn + ':' + b.qty),
+                     auto.bom.map((b) => b.pn + ':' + b.qty));
+  });
+});
+
+/* helper: cari baris BOM berdasarkan part number */
+function r_bom(r, pn) { return r.bom.find((b) => b.pn === pn); }
+
 describe('front cover — manual positioning', () => {
   test('a manual position overrides the generated one', () => {
     const r = R({ doorPos: { 'estop#1': { x: 150, y: 520 } } });

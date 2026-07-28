@@ -178,7 +178,51 @@
     overload:  { asset:'thermal-overload.png', w:45,   h:70,  d:68,  cat:'Protection', label:'',                color:'#6B7885', bg:'#EEF1F4', pn:'LRD10',                 desc:'Thermal overload relay',               vendor:'Schneider Electric',  mount:'rail', powerW:0,  dimsVerified:false },
     safety:    { asset:'safety-relay.png',     w:22.5, h:99,  d:115, cat:'Safety',     label:'Safety Relay',    color:'#0F7A6C', bg:'#DDF1EE', pn:'PSR-SCP-24DC/ESD/4X1',  desc:'Safety relay dual channel 4 NO',       vendor:'Phoenix Contact',     mount:'rail', powerW:4,  dimsVerified:false },
     irelay:    { asset:'interface-relay.png',  w:15,   h:80,  d:90,  cat:'Switching',  label:'Relays',          color:'#6B7885', bg:'#EEF1F4', pn:'RIF-0-RPT-24DC',        desc:'Interface relay slim 24 VDC + socket', vendor:'Phoenix Contact',     mount:'rail', powerW:0.5,dimsVerified:false },
-    plc:       { asset:'plc-fx5u-32m.png',     w:150,  h:90,  d:83,  cat:'Control',    label:'PLC',             color:'#2478CE', bg:'#E3EEF9', pn:'FX5U-32MT/ES',          desc:'PLC CPU 16 DI / 16 DO, Ethernet',      vendor:'Mitsubishi Electric', mount:'rail', powerW:30, dimsVerified:false },
+    /* ── CPU. Semua entri ber-isPlc:true muncul di dropdown PLC, termasuk yang
+       kamu tambahkan sendiri dari Components library. `builtinDi/Do` menentukan
+       berapa modul ekspansi yang perlu dibeli, `maxExp` batas bus-nya, dan
+       `exp*` menunjuk komponen mana yang dipakai untuk ekspansi. Mengganti CPU
+       benar-benar mengubah layout, BOM, beban 24 V, dan jumlah modul. */
+    plc:       { asset:'plc-fx5u-32m.png',     w:150,  h:90,  d:83,  cat:'Control',    label:'PLC',             color:'#2478CE', bg:'#E3EEF9', pn:'FX5U-32MT/ES',          desc:'PLC CPU 16 DI / 16 DO, Ethernet',      vendor:'Mitsubishi Electric', mount:'rail', powerW:30, dimsVerified:false,
+                 isPlc:true, plcName:'Mitsubishi FX5U-32M', builtinDi:16, builtinDo:16, maxExp:16,
+                 expDi:'di16', expDo:'do16', expAi:'ad4', expAo:'da4' },
+    plc_fx5u64:{ asset:'plc-fx5u-64m.png',     w:220,  h:90,  d:83,  cat:'Control',    label:'PLC',             color:'#2478CE', bg:'#E3EEF9', pn:'FX5U-64MT/ES',          desc:'PLC CPU 32 DI / 32 DO, Ethernet',      vendor:'Mitsubishi Electric', mount:'rail', powerW:35, dimsVerified:false,
+                 isPlc:true, plcName:'Mitsubishi FX5U-64M', builtinDi:32, builtinDo:32, maxExp:16,
+                 expDi:'di16', expDo:'do16', expAi:'ad4', expAo:'da4' },
+    plc_fx5u80:{ asset:'plc-fx5u-80m.png',     w:285,  h:90,  d:83,  cat:'Control',    label:'PLC',             color:'#2478CE', bg:'#E3EEF9', pn:'FX5U-80MT/ES',          desc:'PLC CPU 40 DI / 40 DO, Ethernet',      vendor:'Mitsubishi Electric', mount:'rail', powerW:40, dimsVerified:false,
+                 isPlc:true, plcName:'Mitsubishi FX5U-80M', builtinDi:40, builtinDo:40, maxExp:16,
+                 expDi:'di16', expDo:'do16', expAi:'ad4', expAo:'da4' },
+    plc_fx5uj40:{asset:'plc-fx5uj-40m.png',    w:130,  h:90,  d:83,  cat:'Control',    label:'PLC',             color:'#2478CE', bg:'#E3EEF9', pn:'FX5UJ-40MT/ES',         desc:'PLC CPU 24 DI / 16 DO, Ethernet',      vendor:'Mitsubishi Electric', mount:'rail', powerW:25, dimsVerified:false,
+                 isPlc:true, plcName:'Mitsubishi FX5UJ-40M', builtinDi:24, builtinDo:16, maxExp:8,
+                 expDi:'di16', expDo:'do16', expAi:'ad4', expAo:'da4' },
+    plc_fx5uj60:{asset:'plc-fx5uj-60m.png',    w:150,  h:90,  d:83,  cat:'Control',    label:'PLC',             color:'#2478CE', bg:'#E3EEF9', pn:'FX5UJ-60MT/ES',         desc:'PLC CPU 36 DI / 24 DO, Ethernet',      vendor:'Mitsubishi Electric', mount:'rail', powerW:28, dimsVerified:false,
+                 isPlc:true, plcName:'Mitsubishi FX5UJ-60M', builtinDi:36, builtinDo:24, maxExp:8,
+                 expDi:'di16', expDo:'do16', expAi:'ad4', expAo:'da4' },
+    plc_s71212:{ asset:'plc-s7-1212c.png',     w:90,   h:100, d:75,  cat:'Control',    label:'PLC',             color:'#0F7A6C', bg:'#DDF1EE', pn:'6ES7212-1AE40-0XB0',    desc:'PLC CPU 1212C DC/DC/DC, 8 DI / 6 DO',  vendor:'Siemens',             mount:'rail', powerW:12, dimsVerified:false,
+                 isPlc:true, plcName:'Siemens S7-1200 CPU 1212C', builtinDi:8, builtinDo:6, maxExp:8,
+                 expDi:'exp_di16', expDo:'exp_do16', expAi:'exp_ai4', expAo:'exp_ao4' },
+    plc_s71214:{ asset:'plc-s7-1214c.png',     w:110,  h:100, d:75,  cat:'Control',    label:'PLC',             color:'#0F7A6C', bg:'#DDF1EE', pn:'6ES7214-1AG40-0XB0',    desc:'PLC CPU 1214C DC/DC/DC, 14 DI / 10 DO',vendor:'Siemens',             mount:'rail', powerW:14, dimsVerified:false,
+                 isPlc:true, plcName:'Siemens S7-1200 CPU 1214C', builtinDi:14, builtinDo:10, maxExp:8,
+                 expDi:'exp_di16', expDo:'exp_do16', expAi:'exp_ai4', expAo:'exp_ao4' },
+    plc_cp1e30:{ asset:'plc-cp1e-30.png',      w:130,  h:90,  d:85,  cat:'Control',    label:'PLC',             color:'#2478CE', bg:'#E3EEF9', pn:'CP1E-N30DR-A',          desc:'PLC CP1E 18 DI / 12 DO relay',         vendor:'Omron',               mount:'rail', powerW:20, dimsVerified:false,
+                 isPlc:true, plcName:'Omron CP1E-N30DR', builtinDi:18, builtinDo:12, maxExp:3,
+                 expDi:'exp_di16', expDo:'exp_do16', expAi:'exp_ai4', expAo:'exp_ao4' },
+    plc_dvp32: { asset:'plc-dvp32es.png',      w:150,  h:90,  d:60,  cat:'Control',    label:'PLC',             color:'#5B4BB5', bg:'#EAE7F8', pn:'DVP32ES200R',           desc:'PLC DVP-ES2 16 DI / 16 DO relay',      vendor:'Delta',               mount:'rail', powerW:18, dimsVerified:false,
+                 isPlc:true, plcName:'Delta DVP32ES2', builtinDi:16, builtinDo:16, maxExp:8,
+                 expDi:'exp_di16', expDo:'exp_do16', expAi:'exp_ai4', expAo:'exp_ao4' },
+    plc_m221:  { asset:'plc-m221.png',         w:110,  h:90,  d:70,  cat:'Control',    label:'PLC',             color:'#1E7B4D', bg:'#DFF2E7', pn:'TM221CE24R',            desc:'PLC Modicon M221 14 DI / 10 DO relay', vendor:'Schneider Electric',  mount:'rail', powerW:16, dimsVerified:false,
+                 isPlc:true, plcName:'Schneider M221 CE24R', builtinDi:14, builtinDo:10, maxExp:7,
+                 expDi:'exp_di16', expDo:'exp_do16', expAi:'exp_ai4', expAo:'exp_ao4' },
+    plc_micro850:{asset:'plc-micro850.png',    w:130,  h:90,  d:80,  cat:'Control',    label:'PLC',             color:'#B3372E', bg:'#FAE3E1', pn:'2080-LC50-24QWB',       desc:'PLC Micro850 14 DI / 10 DO relay',     vendor:'Rockwell Automation', mount:'rail', powerW:18, dimsVerified:false,
+                 isPlc:true, plcName:'Allen-Bradley Micro850', builtinDi:14, builtinDo:10, maxExp:4,
+                 expDi:'exp_di16', expDo:'exp_do16', expAi:'exp_ai4', expAo:'exp_ao4' },
+
+    /* Ekspansi generik untuk CPU non-Mitsubishi: ukuran & part number harus
+       diganti sesuai vendor, jadi ditandai generic. */
+    exp_di16:  { asset:'',                     w:45,   h:100, d:75,  cat:'Control',    label:'I/O Modules',     color:'#42505C', bg:'#EEF1F4', pn:'EXP-DI16',              desc:'Expansion module 16 DI (pilih sesuai vendor)', vendor:'to be specified', mount:'rail', powerW:5, dimsVerified:false, generic:true },
+    exp_do16:  { asset:'',                     w:45,   h:100, d:75,  cat:'Control',    label:'',                color:'#42505C', bg:'#EEF1F4', pn:'EXP-DO16',              desc:'Expansion module 16 DO (pilih sesuai vendor)', vendor:'to be specified', mount:'rail', powerW:5, dimsVerified:false, generic:true },
+    exp_ai4:   { asset:'',                     w:45,   h:100, d:75,  cat:'Control',    label:'',                color:'#42505C', bg:'#EEF1F4', pn:'EXP-AI4',               desc:'Analog input module 4 ch (pilih sesuai vendor)',vendor:'to be specified', mount:'rail', powerW:5, dimsVerified:false, generic:true },
+    exp_ao4:   { asset:'',                     w:45,   h:100, d:75,  cat:'Control',    label:'',                color:'#42505C', bg:'#EEF1F4', pn:'EXP-AO4',               desc:'Analog output module 4 ch (pilih sesuai vendor)',vendor:'to be specified', mount:'rail', powerW:5, dimsVerified:false, generic:true },
     di16:      { asset:'io-module-16di.png',   w:40,   h:90,  d:83,  cat:'Control',    label:'I/O Modules',     color:'#2478CE', bg:'#E3EEF9', pn:'FX5-16EX/ES',           desc:'Expansion module 16 DI',               vendor:'Mitsubishi Electric', mount:'rail', powerW:5,  dimsVerified:false },
     do16:      { asset:'io-module-16do.png',   w:40,   h:90,  d:83,  cat:'Control',    label:'',                color:'#2478CE', bg:'#E3EEF9', pn:'FX5-16EYT/ES',          desc:'Expansion module 16 DO transistor',    vendor:'Mitsubishi Electric', mount:'rail', powerW:5,  dimsVerified:false },
     ad4:       { asset:'analog-module-4ad.png',w:40,   h:90,  d:83,  cat:'Control',    label:'',                color:'#2478CE', bg:'#E3EEF9', pn:'FX5-4AD',               desc:'Analog input module 4 ch',             vendor:'Mitsubishi Electric', mount:'rail', powerW:5,  dimsVerified:false },
@@ -189,6 +233,23 @@
     vfd:       { asset:'vfd.png',              w:108,  h:128, d:145, cat:'Drives',     label:'VFD Drives',      color:'#5B4BB5', bg:'#EAE7F8', pn:'FR-D740-2.2K',          desc:'Inverter VFD',                         vendor:'Mitsubishi Electric', mount:'rail', powerW:0,  dimsVerified:false },
     servo:     { asset:'servo.png',            w:85,   h:168, d:195, cat:'Drives',     label:'Servo Drives',    color:'#B03A6C', bg:'#F8E4ED', pn:'MR-J4-100A4',           desc:'Servo amplifier',                      vendor:'Mitsubishi Electric', mount:'rail', powerW:0,  dimsVerified:false },
     fan:       { asset:'cooling-fan-150.png',  w:150,  h:150, d:100, cat:'Cooling',    label:'Filter Fan',      color:'#6B7885', bg:'#EEF1F4', pn:'SK-3239-100',           desc:'Filter fan 150 mm (door/side mounted)',vendor:'Rittal',              mount:'door', powerW:0,  dimsVerified:false },
+
+    /* ── Terminal blocks ─────────────────────────────────────────────────
+       Dipasang di RAIL 4 · TERMINAL BLOCKS. `w` adalah lebar per pole
+       (pitch di rail), jadi 20 buah UT 2,5 memakai 20 × 5,2 mm. Sebelumnya
+       terminal hanya dihitung sebagai angka di BOM tanpa pernah masuk layout. */
+    tb_2_5:    { asset:'tb-ut2.5.png',   w:5.2, h:47, d:47, cat:'Terminals', label:'Terminals', color:'#42505C', bg:'#EEF1F4', pn:'UT 2,5',        desc:'Terminal feed-through 2,5 mm² (24 A)',       vendor:'Phoenix Contact', mount:'rail', powerW:0, dimsVerified:false },
+    tb_4:      { asset:'tb-ut4.png',     w:6.2, h:47, d:47, cat:'Terminals', label:'',          color:'#42505C', bg:'#EEF1F4', pn:'UT 4',          desc:'Terminal feed-through 4 mm² (32 A)',         vendor:'Phoenix Contact', mount:'rail', powerW:0, dimsVerified:false },
+    tb_6:      { asset:'tb-ut6.png',     w:8.2, h:52, d:52, cat:'Terminals', label:'',          color:'#42505C', bg:'#EEF1F4', pn:'UT 6',          desc:'Terminal feed-through 6 mm² (41 A)',         vendor:'Phoenix Contact', mount:'rail', powerW:0, dimsVerified:false },
+    tb_10:     { asset:'tb-ut10.png',    w:10.2,h:57, d:57, cat:'Terminals', label:'',          color:'#42505C', bg:'#EEF1F4', pn:'UT 10',         desc:'Terminal feed-through 10 mm² (57 A)',        vendor:'Phoenix Contact', mount:'rail', powerW:0, dimsVerified:false },
+    tb_16:     { asset:'tb-ut16.png',    w:12.2,h:62, d:62, cat:'Terminals', label:'',          color:'#42505C', bg:'#EEF1F4', pn:'UT 16',         desc:'Terminal feed-through 16 mm² (76 A)',        vendor:'Phoenix Contact', mount:'rail', powerW:0, dimsVerified:false },
+    tb_pe:     { asset:'tb-pe.png',      w:6.2, h:47, d:47, cat:'Terminals', label:'PE',        color:'#8FBF3F', bg:'#EFF6E2', pn:'UT 4-PE',       desc:'Terminal ground PE 4 mm², hijau-kuning',     vendor:'Phoenix Contact', mount:'rail', powerW:0, dimsVerified:false },
+    tb_n:      { asset:'tb-n.png',       w:6.2, h:47, d:47, cat:'Terminals', label:'',          color:'#7FB6E0', bg:'#E8F2FA', pn:'UT 4-N',        desc:'Terminal netral 4 mm², biru muda',           vendor:'Phoenix Contact', mount:'rail', powerW:0, dimsVerified:false },
+    tb_2lvl:   { asset:'tb-2level.png',  w:5.2, h:62, d:52, cat:'Terminals', label:'',          color:'#42505C', bg:'#EEF1F4', pn:'UTTB 2,5',      desc:'Terminal double-level 2,5 mm² (hemat rail)', vendor:'Phoenix Contact', mount:'rail', powerW:0, dimsVerified:false },
+    tb_fuse:   { asset:'tb-fuse.png',    w:8.2, h:62, d:57, cat:'Terminals', label:'',          color:'#C08415', bg:'#FBEED3', pn:'UT 4-HESI',     desc:'Terminal berfuse 4 mm², 5×20 mm',            vendor:'Phoenix Contact', mount:'rail', powerW:0, dimsVerified:false },
+    tb_disc:   { asset:'tb-disconnect.png',w:6.2,h:57,d:52, cat:'Terminals', label:'',          color:'#B3372E', bg:'#FAE3E1', pn:'UT 4-MT',       desc:'Terminal disconnect knife 4 mm²',            vendor:'Phoenix Contact', mount:'rail', powerW:0, dimsVerified:false },
+    tb_endclamp:{asset:'tb-endclamp.png',w:9.5, h:40, d:40, cat:'Terminals', label:'',          color:'#6B7885', bg:'#EEF1F4', pn:'CLIPFIX 35',    desc:'End clamp penahan strip terminal',           vendor:'Phoenix Contact', mount:'rail', powerW:0, dimsVerified:false },
+    tb_partition:{asset:'tb-partition.png',w:2.2,h:52,d:47,cat:'Terminals', label:'',          color:'#6B7885', bg:'#F4F6F8', pn:'ATP-ST 2,5',    desc:'Partition plate pemisah grup terminal',      vendor:'Phoenix Contact', mount:'rail', powerW:0, dimsVerified:false },
 
     /* ── Front cover / door devices ──────────────────────────────────────
        w/h are the bezel footprint, not the panel cutout. Ø22 mm devices have
@@ -295,7 +356,7 @@
   };
 
   const DEFAULT_CFG = {
-    plc: 'Mitsubishi FX5U',
+    plc: 'plc',       /* key komponen ber-isPlc, atau 'none' */
     di: 24, do_: 16, ai: 4, ao: 2,
     vfd: 3, servo: 2, hmi: 2, motor: 6, valve: 5,
     supplyV: 400,     /* 3-phase line voltage at the incoming terminals */
@@ -306,8 +367,15 @@
        place 'plate' uses rail 1–3; place 'door' goes on the front cover. */
     extras: [],
     doorPos: {},      /* {'estop#1': {x,y}} — manual front-cover placement, mm */
+    platePos: {},     /* {'mccb#1': {x, row}} — manual backplate X + pilihan rail */
   };
   const NO_PLC = 'none';
+  /* Nama PLC versi lama (sebelum PLC jadi komponen library) → key komponen */
+  const LEGACY_PLC = {
+    'Mitsubishi FX5U': 'plc',
+    'Mitsubishi FX5UJ': 'plc_fx5uj40',
+  };
+  const isPlcKey = (db, k) => !!(db[k] && db[k].isPlc);
 
   /* Base used when the library defines a component the built-in DB never had.
      Deliberately unflattering defaults so an unfilled field is obvious. */
@@ -333,6 +401,9 @@
     c.ambientC = num(c.ambientC, 30);
     c.cabW = num(c.cabW, 800);
     c.cabH = Math.max(0, num(c.cabH, 0));
+    /* Proyek lama menyimpan nama tampilan ('Mitsubishi FX5U'); sekarang yang
+       disimpan adalah key komponen, supaya dropdown dan library satu sumber. */
+    if (LEGACY_PLC[c.plc]) c.plc = LEGACY_PLC[c.plc];
     c.hasPlc = c.plc !== NO_PLC && !!c.plc;
     /* Only 200 V and 400 V classes are in the drive tables */
     c.voltClass = c.supplyV <= 300 ? 200 : 400;
@@ -345,6 +416,18 @@
         dp[k] = { x: +p.x, y: +p.y };
     }
     c.doorPos = dp;
+    /* Posisi manual di backplate: X bebas (dibulatkan ke langkah 2 mm oleh UI),
+       `row` memilih rail ke berapa. Entri rusak dibuang. */
+    const pp = {};
+    for (const k of Object.keys(c.platePos || {})) {
+      const p = c.platePos[k];
+      if (!p) continue;
+      const e = {};
+      if (Number.isFinite(+p.x)) e.x = +p.x;
+      if (Number.isInteger(+p.row) && +p.row >= 0) e.row = +p.row;
+      if (Object.keys(e).length) pp[k] = e;
+    }
+    c.platePos = pp;
     c.extras = (Array.isArray(c.extras) ? c.extras : [])
       .filter((e) => e && e.type)
       .map((e) => ({
@@ -352,7 +435,8 @@
         qty: Math.max(1, clampInt(e.qty) || 1),
         /* entries saved before the front cover existed have no place */
         place: e.place === 'door' ? 'door' : 'plate',
-        rail: [1, 2, 3].indexOf(+e.rail) >= 0 ? +e.rail : 2,
+        /* rail 4 = strip terminal block */
+        rail: [1, 2, 3, 4].indexOf(+e.rail) >= 0 ? +e.rail : 2,
       }));
     return c;
   }
@@ -599,19 +683,41 @@
           DUCT = L.ductH, TSTRIP = L.tstripH;
     const W = c.cabW;
 
+    /* ── CPU terpilih ──────────────────────────────────────────────── */
+    let plcKey = c.hasPlc ? c.plc : null;
+    if (plcKey && !isPlcKey(db, plcKey)) {
+      warnings.push({ level: 'error', code: 'PLC_UNKNOWN',
+        msg: 'CPU "' + plcKey + '" tidak ada di library (atau bukan PLC). ' +
+             'Pilih ulang di Panel designer.' });
+      plcKey = null;
+    }
+    const cpu = plcKey ? db[plcKey] : null;
+
     /* ── module counts ─────────────────────────────────────────────── */
-    const hasPlc = c.hasPlc;
+    const hasPlc = !!cpu;
     /* Without a CPU there is no I/O rack at all — a relay-logic or purely
        motor-starter panel. The I/O figures are kept in the config (so nothing
        is destroyed if a PLC is chosen again) but they buy no hardware. */
-    const diExtra = hasPlc ? Math.ceil(Math.max(0, c.di - 16) / 16) : 0;
-    const doExtra = hasPlc ? Math.ceil(Math.max(0, c.do_ - 16) / 16) : 0;
-    const aiMods  = hasPlc ? Math.ceil(c.ai / 4) : 0;   /* FX5-4AD is 4 channels */
-    const aoMods  = hasPlc ? Math.ceil(c.ao / 4) : 0;   /* FX5-4DA is 4 channels */
+    /* I/O bawaan CPU dulu; sisanya baru dibelikan modul ekspansi. */
+    const bDi = cpu ? num(cpu.builtinDi, 0) : 0;
+    const bDo = cpu ? num(cpu.builtinDo, 0) : 0;
+    const expDiKey = (cpu && cpu.expDi) || 'di16';
+    const expDoKey = (cpu && cpu.expDo) || 'do16';
+    const expAiKey = (cpu && cpu.expAi) || 'ad4';
+    const expAoKey = (cpu && cpu.expAo) || 'da4';
+    const perDi = hasPlc ? Math.max(1, num(db[expDiKey] && db[expDiKey].channels, 16)) : 16;
+    const perDo = hasPlc ? Math.max(1, num(db[expDoKey] && db[expDoKey].channels, 16)) : 16;
+    const diExtra = hasPlc ? Math.ceil(Math.max(0, c.di - bDi) / perDi) : 0;
+    const doExtra = hasPlc ? Math.ceil(Math.max(0, c.do_ - bDo) / perDo) : 0;
+    const aiMods  = hasPlc ? Math.ceil(c.ai / 4) : 0;
+    const aoMods  = hasPlc ? Math.ceil(c.ao / 4) : 0;
     const relays  = c.valve;                  /* one per solenoid, no cap */
     const dol     = Math.max(0, c.motor - c.vfd - c.servo);
     const expansionModules = diExtra + doExtra + aiMods + aoMods;
-    const counts = { diExtra, doExtra, aiMods, aoMods, relays, dol, hasPlc };
+    const maxExp = cpu ? num(cpu.maxExp, A.maxExpansionModules) : A.maxExpansionModules;
+    const counts = { diExtra, doExtra, aiMods, aoMods, relays, dol, hasPlc,
+                     plcKey, expDiKey, expDoKey, expAiKey, expAoKey, builtinDi: bDi,
+                     builtinDo: bDo };
 
     if (!hasPlc && (c.di || c.do_ || c.ai || c.ao))
       warnings.push({ level: 'warn', code: 'IO_WITHOUT_PLC',
@@ -622,10 +728,17 @@
       warnings.push({ level: 'warn', code: 'HMI_WITHOUT_PLC',
         msg: c.hmi + ' HMI configured without a PLC — it has nothing to talk to. ' +
              'Remove it or select a PLC.' });
-    if (expansionModules > A.maxExpansionModules)
+    if (expansionModules > maxExp)
       warnings.push({ level: 'error', code: 'BUS_LIMIT',
-        msg: expansionModules + ' expansion modules exceed the FX5U limit of ' +
-             A.maxExpansionModules + '. Split across a second CPU or use remote I/O.' });
+        msg: expansionModules + ' modul ekspansi melebihi batas ' + maxExp +
+             ' pada ' + ((cpu && cpu.plcName) || 'CPU ini') +
+             '. Pakai CPU dengan I/O bawaan lebih banyak, atau remote I/O.' });
+    /* Modul ekspansi generik → part number harus dipilih sesuai vendor CPU */
+    if (hasPlc && expansionModules > 0 &&
+        [expDiKey, expDoKey, expAiKey, expAoKey].some((k) => db[k] && db[k].generic))
+      warnings.push({ level: 'warn', code: 'EXP_GENERIC',
+        msg: 'Modul ekspansi untuk ' + (cpu.plcName || cpu.pn) + ' masih generik — ' +
+             'pilih part number ' + cpu.vendor + ' yang sesuai di Components library.' });
     if (c.do_ < c.valve)
       warnings.push({ level: 'error', code: 'DO_SHORT',
         msg: c.valve + ' solenoids need ' + c.valve + ' outputs but only ' +
@@ -741,15 +854,19 @@
       .concat(fill(dol, 'contactor'), fill(dol, 'overload'));
     /* An Ethernet switch only earns its place if there is something to network */
     const needsEth = hasPlc || c.hmi > 0;
-    const rail2 = (hasPlc ? ['plc'] : [])
-      .concat(fill(diExtra, 'di16'), fill(doExtra, 'do16'),
-              fill(aiMods, 'ad4'), fill(aoMods, 'da4'),
+    const rail2 = (hasPlc ? [plcKey] : [])
+      .concat(fill(diExtra, expDiKey), fill(doExtra, expDoKey),
+              fill(aiMods, expAiKey), fill(aoMods, expAoKey),
               needsEth ? ['eth'] : [], ['safety', 'mcb3'],
               fill(2 + c.hmi, 'mcb1'), fill(relays, 'irelay'));
     const rail3 = fill(c.vfd, 'vfd').concat(fill(c.servo, 'servo'));
 
+    /* Rail 4: terminal block yang dipakai, ditempatkan seperti komponen lain.
+       Kosong secara default — isi dari Components library → “+ Panel → Rail 4”. */
+    const rail4 = [];
+
     /* Components the user added by hand from the library, split by destination */
-    const railOf = { 1: rail1, 2: rail2, 3: rail3 };
+    const railOf = { 1: rail1, 2: rail2, 3: rail3, 4: rail4 };
     const doorExtras = [];
     for (const e of c.extras) {
       if (!specs[e.type]) {
@@ -765,8 +882,8 @@
     /* Provisional fan count so the reserved column is right; refined below. */
     let fanCount = 1, layout = null, dims = null, th = null;
     for (let pass = 0; pass < 4; pass++) {
-      layout = buildLayout({ rail1, rail2, rail3 }, {
-        W, PAD, GAP, GAPV, DUCT, TSTRIP, fanCount, spec,
+      layout = buildLayout({ rail1, rail2, rail3, rail4 }, {
+        W, PAD, GAP, GAPV, DUCT, TSTRIP, fanCount, spec, platePos: c.platePos,
       });
       const maxDepth = Math.max.apply(null,
         layout.items.map((i) => spec(i.type).d).concat([100]));
@@ -813,6 +930,12 @@
         msg: 'The backplate needs ' + Math.round(layout.needH) + ' mm of height but the ' +
              'selected panel is ' + dims.W + '×' + dims.H + ' mm. Choose a taller size, ' +
              'a wider one so rails pack better, or switch the size back to Auto.' });
+    if (layout.overlaps.length)
+      warnings.push({ level: 'warn', code: 'PLATE_OVERLAP',
+        msg: 'Komponen bertumpuk setelah digeser manual: ' +
+             layout.overlaps.slice(0, 6).join(', ') +
+             (layout.overlaps.length > 6 ? ` (+${layout.overlaps.length - 6} lagi)` : '') +
+             '. Jarak 0 mm boleh, tapi tumpang tindih tidak bisa dirakit.' });
     if (door.draggedOutside.length)
       warnings.push({ level: 'error', code: 'DOOR_DEVICE_OUTSIDE',
         msg: 'Manually placed device(s) ' + door.draggedOutside.join(', ') +
@@ -845,9 +968,22 @@
                                  fans: th.fans });
 
     /* ── BOM ───────────────────────────────────────────────────────── */
+    /* Terminal yang benar-benar dipasang di rail 4 (bukan perkiraan) */
+    const placedTerminals = layout.items.filter((i) => {
+      const d = specs[i.type];
+      return d && d.cat === 'Terminals' && !/end clamp|partition/i.test(d.desc || '');
+    }).length;
+    const terminalsItemised = rail4.length > 0;
+    if (terminalsItemised && placedTerminals < termPoints)
+      warnings.push({ level: 'warn', code: 'TERMINALS_SHORT',
+        msg: 'Terminal terpasang ' + placedTerminals + ' buah, sedangkan desain ' +
+             'butuh ' + termPoints + ' titik (termasuk ' + spares + ' spare). ' +
+             'Tambahkan sisanya di RAIL 4 dari Components library.' });
+
     const bom = buildBom({
       layout, door, dims, specs, counts, cfg: c, termPoints, powerTerms,
       controlTerms, spares, wiring, thermal: th, assumptions: A,
+      terminalsItemised,
     });
 
     return {
@@ -859,8 +995,10 @@
       /* layout */
       items: layout.items, rows: layout.rows, W: dims.W, H: dims.H, D: dims.D,
       dims, needH: layout.needH, overflow: layout.overflow,
+      railRows: layout.railRows, manualPlate: layout.manualPlate,
+      overlaps: layout.overlaps,
       /* front cover */
-      door, hasPlc,
+      door, hasPlc, cpu, plcKey,
       railLengthMm: layout.railLengthMm, railFreeMm: layout.railFreeMm,
       ductLengthMm: layout.ductLengthMm,
       /* electrical */
@@ -924,7 +1062,12 @@
       emitRailGroup(rails.rail3, 'DIN RAIL 3 · DRIVES');
       emitBand('duct', DUCT, 'WIRE DUCT ' + DUCT + '×60');
     }
-    emitBand('tstrip', TSTRIP, 'TERMINAL BLOCKS X1–X4');
+    /* Kalau terminal block sudah dipilih dari library, gambarkan sebagai rail
+       sungguhan; kalau belum, tetap tampilkan band ringkas seperti sebelumnya. */
+    if (rails.rail4 && rails.rail4.length)
+      emitRailGroup(rails.rail4, 'DIN RAIL 4 · TERMINAL BLOCKS');
+    else
+      emitBand('tstrip', TSTRIP, 'TERMINAL BLOCKS X1–X4');
 
     /* The fan column is reserved space too — if it is taller than the rails,
        it sets the cabinet height, otherwise the fans would fall outside. */
@@ -968,7 +1111,53 @@
     /* tag every placed component so drawing, schedule and BOM agree */
     items = designate(items);
 
-    return { rows, items, needH, overflow, usableW,
+    /* ── penempatan manual di backplate ──────────────────────────────────
+       X bebas (UI membulatkan ke langkah 2 mm, jadi jarak antar komponen boleh
+       0), sedangkan vertikal SELALU snap ke garis rail: `row` memilih rail ke
+       berapa. Komponen tidak akan pernah menggantung di antara dua rail. */
+    const railRows = rows.map((r, i) => (r.list ? i : -1)).filter((i) => i >= 0);
+    const manualPlate = [];
+    if (o.platePos) {
+      items = items.map((it) => {
+        const p = o.platePos[it.id];
+        if (!p) return it;
+        const next = Object.assign({}, it, { manual: true });
+        if (Number.isFinite(p.x)) next.x = p.x;
+        if (Number.isInteger(p.row) && railRows.indexOf(p.row) >= 0) {
+          const row = rows[p.row];
+          next.y = it.type === 'contactor'
+            ? row.railY - (spec('overload').h + 4) / 2 : row.railY;
+          next.row = p.row;
+        }
+        manualPlate.push(it.id);
+        return next;
+      });
+      /* overload mengikuti kontaktornya, jangan tertinggal saat dipindah */
+      const byId = {};
+      for (const it of items) byId[it.id] = it;
+      items = items.map((it) => {
+        if (it.type !== 'overload') return it;
+        const host = byId['contactor#' + it.id.split('#')[1]];
+        if (!host || !host.manual) return it;
+        return Object.assign({}, it, { x: host.x,
+          y: host.y + (spec('contactor').h + spec('overload').h) / 2 + 4 });
+      });
+    }
+    /* Jarak 0 diizinkan, tapi tumpang tindih tetap dilaporkan. */
+    const overlaps = [];
+    for (let i = 0; i < items.length; i++) {
+      for (let j = i + 1; j < items.length; j++) {
+        const a = items[i], b = items[j];
+        if (a.type === 'fan' || b.type === 'fan') continue;
+        const da = spec(a.type), dbb = spec(b.type);
+        const gapX = Math.abs(a.x - b.x) - (da.w + dbb.w) / 2;
+        const gapY = Math.abs(a.y - b.y) - (da.h + dbb.h) / 2;
+        if (gapX < -0.51 && gapY < -0.51) overlaps.push(a.tag + '/' + b.tag);
+      }
+    }
+
+    return { rows, items, needH, overflow, usableW, railRows,
+             manualPlate, overlaps,
              railLengthMm, railFreeMm: Math.max(0, railLengthMm - railUsedMm),
              ductLengthMm };
   }
@@ -1268,18 +1457,24 @@
         ' m³/h class, select from vendor range', 1, 'pcs', 'to be specified',
         'Cooling', 'calculated', { generic: true });
 
-    /* ── consumables: absent from the prototype BOM entirely ── */
-    line('UT-6', 'Feed-through terminal 6 mm² (power)', powerTerms, 'pcs',
-      'Phoenix Contact', 'Terminals', 'calculated');
-    line('UT-2.5', 'Feed-through terminal 2.5 mm² (control)', controlTerms,
-      'pcs', 'Phoenix Contact', 'Terminals', 'calculated');
-    line('UT-2.5-SPARE', 'Terminal 2.5 mm², installed spare (' +
-      Math.round(o.assumptions.terminalSparePct * 100) + '%)', spares, 'pcs',
-      'Phoenix Contact', 'Terminals', 'calculated');
-    line('CLIPFIX-35', 'End clamp for terminal strips', 8, 'pcs',
-      'Phoenix Contact', 'Terminals', 'estimated');
-    line('D-UT-2.5', 'End cover for terminal strips', 4, 'pcs',
-      'Phoenix Contact', 'Terminals', 'estimated');
+    /* ── consumables: absent from the prototype BOM entirely ──
+       Kalau terminal block sudah dipilih sendiri di RAIL 4, jangan tambahkan
+       lagi perkiraan otomatis — nanti double-count untuk barang yang sama.
+       Part number diambil dari database supaya tidak ada dua ejaan. */
+    const D = specs;
+    if (!o.terminalsItemised) {
+      line(D.tb_6.pn, 'Feed-through terminal 6 mm² (power)', powerTerms, 'pcs',
+        D.tb_6.vendor, 'Terminals', 'calculated');
+      line(D.tb_2_5.pn, 'Feed-through terminal 2.5 mm² (control)', controlTerms,
+        'pcs', D.tb_2_5.vendor, 'Terminals', 'calculated');
+      line(D.tb_2_5.pn + ' (spare)', 'Terminal 2.5 mm², installed spare (' +
+        Math.round(o.assumptions.terminalSparePct * 100) + '%)', spares, 'pcs',
+        D.tb_2_5.vendor, 'Terminals', 'calculated');
+      line(D.tb_endclamp.pn, 'End clamp for terminal strips', 8, 'pcs',
+        D.tb_endclamp.vendor, 'Terminals', 'estimated');
+      line('D-UT 2,5', 'End cover for terminal strips', 4, 'pcs',
+        'Phoenix Contact', 'Terminals', 'estimated');
+    }
     line('PE-BAR-12', 'PE busbar, 12-way', 1, 'pcs', 'to be specified',
       'Terminals', 'calculated', { generic: true });
 
@@ -1370,7 +1565,16 @@
   return {
     compute, buildWiring, normalizeCfg, resolveDb,
     COMPONENT_DB, DEFAULT_CFG, ASSUMPTIONS, WIRE_COLOUR,
-    BLANK_COMPONENT, SELECTION_DRIVEN, DOOR_KEYS, NO_PLC,
+    BLANK_COMPONENT, SELECTION_DRIVEN, DOOR_KEYS, NO_PLC, LEGACY_PLC,
+    /* daftar CPU untuk dropdown — termasuk yang ditambahkan lewat library */
+    plcModels: (patch) => {
+      const db = resolveDb(patch);
+      return Object.keys(db).filter((k) => db[k].isPlc)
+        .map((k) => ({ key: k, name: db[k].plcName || db[k].desc, pn: db[k].pn,
+                       vendor: db[k].vendor, di: num(db[k].builtinDi, 0),
+                       do_: num(db[k].builtinDo, 0), maxExp: num(db[k].maxExp, 0) }))
+        .sort((a, b) => (a.vendor + a.name).localeCompare(b.vendor + b.name));
+    },
     STD_HEIGHTS, STD_WIDTHS, STD_DEPTHS, STD_SIZES,
     MCCB_FRAMES, MCB_TRIPS, CONTACTORS, OVERLOADS, PSU_LADDER, DRIVES,
     /* exposed for tests */

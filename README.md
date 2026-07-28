@@ -9,7 +9,8 @@ Node.js 18+ (cek: `node -v`)
 | `engine.js` | Semua kalkulasi & pemilihan komponen. Murni, tanpa DOM, tanpa dependency. |
 | `index.html` | UI + render. Tidak menghitung apa pun sendiri. |
 | `server.js` | API penyimpanan (Express + SQLite). |
-| `test/engine.test.js` | 125 assertion, jalankan `npm test`. |
+| `test/engine.test.js` | 213 assertion, jalankan `npm test`. |
+| `ASSET-LIST.md` | Ukuran piksel semua gambar & tekstur. |
 | `ENGINEERING.md` | Dasar perhitungan: rumus, konstanta, standar, dan batasannya. |
 
 `engine.js` bisa dipakai sendiri tanpa browser:
@@ -85,11 +86,11 @@ Menu **Components library** bisa dipakai untuk mengelola database komponen:
   maks 360 px dan disimpan di database, jadi ikut terbawa ke komputer lain
   (tidak perlu file di `assets/components/`).
 - **+ Panel** — tambahkan komponen ke proyek aktif. Pilih tujuannya:
-  **Front cover** (pintu panel) atau **Rail 1 / 2 / 3** (dalam panel).
-  Perangkat pintu otomatis default ke Front cover. Komponen yang ditambahkan
-  muncul di gambar, bisa ditarik posisinya (kalau di front cover), masuk BOM,
-  dan konsumsi 24 V-nya ikut dihitung. Satu komponen boleh dipakai di kedua
-  tujuan sekaligus — BOM menjumlahkan keduanya.
+  **Front cover** (pintu panel) atau **Rail 1 / 2 / 3 / 4** (dalam panel).
+  Default cerdas: perangkat pintu → Front cover, terminal block → Rail 4.
+  Komponen yang ditambahkan muncul di gambar, bisa ditarik posisinya, masuk BOM,
+  dan konsumsi 24 V-nya ikut dihitung. Satu komponen boleh dipakai di beberapa
+  tujuan sekaligus — BOM menjumlahkan semuanya.
 - **Tab Front cover** — 35 perangkat pintu tersedia: pushbutton (berbagai warna,
   ada yang lampu), mushroom, E-stop (putar / kunci), selector 2–3 posisi & kunci,
   pilot lamp 5 warna, potensiometer, buzzer, beacon, HMI 4"/7"/10", ampere &
@@ -146,3 +147,45 @@ Batas: 2 MB per gambar (`MAX_IMAGE_BYTES`), tipe PNG/JPEG/WebP/GIF/SVG.
 ## Backup
 Cukup salin file `panelbuilder.db`. (Mode WAL: salin saat server berhenti,
 atau gunakan `sqlite3 panelbuilder.db ".backup backup.db"`.)
+
+## Menambah jenis PLC
+Dropdown PLC dibangun dari library — tidak ada daftar terpisah lagi. Cara
+menambah CPU baru: **Components library → + Komponen baru**, isi dimensi & part
+number, centang **"Ini CPU / PLC"**, lalu isi DI/DO bawaan dan batas modul
+ekspansi. CPU itu langsung muncul di dropdown Panel designer.
+
+11 CPU sudah tersedia (Mitsubishi FX5U/FX5UJ, Siemens S7-1200, Omron CP1E,
+Delta DVP-ES2, Schneider M221, Allen-Bradley Micro850). Mengganti CPU benar-benar
+mengubah desain: part number di BOM, footprint di layout, beban 24 V, jumlah
+modul ekspansi (I/O bawaan dihitung lebih dulu), dan batas bus.
+
+CPU non-Mitsubishi memakai modul ekspansi generik (`EXP-DI16` dst) dan memunculkan
+peringatan `EXP_GENERIC` — edit komponen itu untuk memasukkan part number vendor.
+
+## Menggeser komponen
+- **Front cover** — tarik ke mana saja, snap 5 mm.
+- **Dalam panel** — tarik kiri/kanan dengan langkah **2 mm**, jadi jarak antar
+  komponen boleh sampai 0 mm. Naik/turun **selalu snap ke garis DIN rail**, jadi
+  menggeser vertikal berarti memindahkan komponen ke rail lain, bukan
+  menggantung di antaranya. Filter fan tidak bisa digeser (menempel di
+  pintu/samping).
+- Jarak 0 mm diizinkan, tapi kalau komponen benar-benar bertumpuk muncul
+  peringatan `PLATE_OVERLAP` dengan tag komponennya.
+- **Reset posisi** mengembalikan tab yang sedang aktif ke tata letak otomatis.
+
+## Terminal block
+Terminal yang dipakai disimpan sebagai komponen di **RAIL 4 · TERMINAL BLOCKS**
+(sebelumnya hanya ada rail incoming/power, control, dan drives). Tambahkan dari
+Components library → tab **Terminal block** → + Panel (default ke Rail 4).
+Tersedia 12 jenis: UT 2,5 / 4 / 6 / 10 / 16, PE, netral, double-level, berfuse,
+disconnect, end clamp, partition plate.
+
+Selama rail 4 masih kosong, BOM memakai perkiraan otomatis dari jumlah titik
+terminal. Begitu kamu memilih terminal sendiri, perkiraan itu **dimatikan** supaya
+tidak double-count, dan kalau jumlah terpasang kurang dari kebutuhan desain muncul
+peringatan `TERMINALS_SHORT`.
+
+## Ukuran gambar
+Lihat [ASSET-LIST.md](ASSET-LIST.md) — ukuran piksel untuk tekstur DIN rail
+(200 × 280 px), wire duct (96 × 360 px), terminal strip (42 × 320 px), backplate
+(400 × 400 px), dan tabel piksel per sprite komponen.
