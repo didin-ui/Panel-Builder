@@ -130,7 +130,9 @@
     white-space:nowrap;pointer-events:none;}
   .gridlayer{position:absolute;inset:0;background-image:linear-gradient(#2478CE1A 1px,transparent 1px),linear-gradient(90deg,#2478CE1A 1px,transparent 1px);background-size:20px 20px;pointer-events:none;}
   .rail{position:absolute;background:#AEB9C4 url('assets/textures/din-rail.png');background-size:auto 100%;border-top:1px solid #8A98A5;border-bottom:2px solid #7A8894;}
-  .duct{position:absolute;background:#D4DAE0 url('assets/textures/wire-duct-45.png');background-size:auto 100%;border:1px solid #B9C2CB;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#6B7885;letter-spacing:.5px;}
+  /* satu file untuk semua tinggi duct (setelan 30–80 mm) — tingginya
+     diskalakan, jadi namanya tidak boleh menyebut ukuran tertentu */
+  .duct{position:absolute;background:#D4DAE0 url('assets/textures/wire-duct.png');background-size:auto 100%;border:1px solid #B9C2CB;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#6B7885;letter-spacing:.5px;}
   .tstrip{position:absolute;background:#CDD5DC url('assets/textures/terminal-strip.png');background-size:auto 100%;border:1px solid #9AA6B1;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#57646F;}
   .rail-tag{position:absolute;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#6B7885;letter-spacing:.5px;}
   .comp{position:absolute;border-radius:3px;}
