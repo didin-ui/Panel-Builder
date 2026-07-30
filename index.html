@@ -1260,9 +1260,13 @@ async function newProject(){
       {id:'supplyV',  label:'Supply voltage', type:'select', value:400,
        options:[[200,'200 V 3P'],[230,'230 V 3P'],[380,'380 V 3P'],[400,'400 V 3P'],[415,'415 V 3P']]},
       {id:'ambientC', label:'Ambient (°C)', type:'number', value:30, min:-10, max:60},
-      {id:'plc',      label:'PLC', type:'select', value:'Mitsubishi FX5U',
-       options:[['none','— No PLC —'],['Mitsubishi FX5U','Mitsubishi FX5U'],
-                ['Mitsubishi FX5UJ','Mitsubishi FX5UJ']]},
+      /* Sumbernya sama dengan dropdown di Panel designer: setiap komponen
+         ber-isPlc di library, termasuk CPU yang kamu tambahkan sendiri.
+         Dulu daftar ini hardcode 2 model dengan nilai nama lama. */
+      {id:'plc',      label:'PLC', type:'select', value:'plc', full:true,
+       options:[['none','— No PLC (relay / starter panel) —']].concat(
+         PanelEngine.plcModels(state.library.components).map(m=>
+           [m.key, `${m.name} · ${m.di}DI/${m.do_}DO`]))},
       {id:'size',     label:'Panel size (T × L)', type:'select', value:'auto',
        options:[['auto','Auto — dari layout']].concat(
          PanelEngine.STD_SIZES.map(s=>[`${s.h}x${s.w}`, `${s.h} × ${s.w} mm`]))},
