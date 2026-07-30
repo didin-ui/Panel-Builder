@@ -40,9 +40,7 @@
   .topbar{display:flex;align-items:center;gap:18px;background:var(--paper);border-bottom:1px solid var(--gray-200);padding:0 20px;}
   .proj b{font-size:13.5px;font-weight:600;display:block;}
   .proj span{font-size:11.5px;color:var(--gray-500);}
-  .search{flex:1;max-width:340px;display:flex;align-items:center;gap:8px;background:var(--gray-100);border:1px solid var(--gray-200);border-radius:var(--radius);padding:7px 12px;color:var(--gray-500);}
-  .search svg{width:15px;height:15px;flex:0 0 auto;}
-  .search input{border:none;background:none;outline:none;font-family:inherit;font-size:12.5px;width:100%;color:var(--ink);}
+  /* (search global dihapus — filter ada di masing-masing halaman) */
   .top-right{margin-left:auto;display:flex;align-items:center;gap:16px;}
   .bell{position:relative;color:var(--gray-700);}
   .bell svg{width:19px;height:19px;}
@@ -357,15 +355,13 @@
          kosong — branding aplikasi sudah ada di sidebar, dan apa pun yang
          diletakkan di sini terbaca seolah nama proyek. -->
     <div class="proj" id="tb-proj-block" style="display:none;"><b id="tb-proj">—</b><span id="tb-cust">—</span></div>
-    <div class="search">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-      <input id="global-search" placeholder="Search components, projects, part numbers…">
-    </div>
     <div class="top-right">
       <div class="bell"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><i>3</i></div>
-      <div class="avatar">
-        <div class="disc">DW<img src="assets/ui/avatar.png" alt="" onload="this.parentNode.classList.add('has-img')"></div>
-        <span>Didin Wahyudin · Engineer</span>
+      <!-- Diisi dari "Disiapkan oleh" + jabatan di Settings, bukan hardcode. -->
+      <div class="avatar" id="tb-user" title="Ubah di Settings → Identitas perusahaan"
+        onclick="go('settings')" style="cursor:pointer;">
+        <div class="disc"><span id="tb-user-init">—</span><img src="assets/ui/avatar.png" alt="" onload="this.parentNode.classList.add('has-img')"></div>
+        <span id="tb-user-name">—</span>
       </div>
     </div>
   </header>
@@ -377,16 +373,13 @@
       <!-- Tidak ada tombol aksi di sini: membuat proyek tempatnya di menu
            Projects, supaya dashboard murni ringkasan. -->
       <div class="page-h"><h1>Dashboard</h1><span class="sub" id="dash-date"></span></div>
+      <div class="card" id="dash-company-card" style="margin-bottom:14px;">
+        <div class="card-b" id="dash-company"></div>
+      </div>
       <div class="stat-cards" id="dash-stats"></div>
-      <div class="dash-grid">
-        <div class="card">
-          <div class="card-h">Recent projects</div>
-          <table class="data" id="dash-projects"></table>
-        </div>
-        <div class="card">
-          <div class="card-h">Perusahaan</div>
-          <div class="card-b" id="dash-company"></div>
-        </div>
+      <div class="card">
+        <div class="card-h">Recent projects</div>
+        <table class="data" id="dash-projects"></table>
       </div>
     </section>
 
@@ -823,8 +816,6 @@ async function connectDb(){
 function activeProject(){ return state.projects.find(p=>p.id===state.activeId) || state.projects[0]; }
 
 /* ══════════ ROUTER ══════════ */
-/* Halaman yang tidak menampilkan search global di topbar. */
-const SEARCH_HIDDEN = ['dashboard','bom','calc'];
 const VIEWS = [
   ['dashboard','Dashboard','<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>'],
   ['projects','Projects','<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'],
@@ -853,11 +844,8 @@ function go(id){
      badge Active. */
   const proj=document.getElementById('tb-proj-block');
   if(proj) proj.style.display = id==='designer' ? '' : 'none';
-  /* Search global melompat ke proyek atau memfilter library, jadi tidak ada
-     gunanya di halaman yang punya isinya sendiri (Dashboard ringkasan; BOM dan
-     Electrical calculations sudah menampilkan proyek aktif). */
-  const sb=document.querySelector('.topbar .search');
-  if(sb) sb.style.display = SEARCH_HIDDEN.indexOf(id)>=0 ? 'none' : '';
+  /* Filter per-halaman (Projects, Components library) menggantikan search
+     global yang dulu ada di topbar. */
   const render = {dashboard:renderDashboard, projects:renderProjects, designer:enterDesigner,
                   library:renderLibrary, bom:renderBom, calc:renderCalc,
                   wiring:renderWiring, reports:renderReport, settings:enterSettings}[id];
@@ -1178,6 +1166,7 @@ function renderDashCompany(){
   const lines=[co.address, [co.city,co.country].filter(Boolean).join(', '),
     [co.phone&&('T '+co.phone), co.email].filter(Boolean).join(' · '),
     co.web].filter(Boolean);
+  /* "Disiapkan oleh" tidak di sini — itu identitas pemakai, tampil di topbar. */
   el.innerHTML=`
     <div class="dash-co">
       ${logo?`<img src="${esc(logo)}" alt="Logo ${esc(co.name||'')}" onerror="this.style.display='none'">`
@@ -1185,11 +1174,10 @@ function renderDashCompany(){
       <div>
         <b>${esc(co.name||'(nama belum diisi)')}</b>
         ${lines.map(l=>`<span>${esc(l)}</span>`).join('')}
-        ${co.engineer?`<span style="margin-top:5px;">Disiapkan oleh: <b style="font-weight:500;">${esc(co.engineer)}</b>${co.role?', '+esc(co.role):''}</span>`:''}
       </div>
-    </div>
-    <a onclick="go('settings')" style="color:var(--blue-600);cursor:pointer;font-size:11.5px;
-      display:inline-block;margin-top:10px;">Ubah identitas →</a>`;
+      <a onclick="go('settings')" style="color:var(--blue-600);cursor:pointer;font-size:11.5px;
+        margin-left:auto;white-space:nowrap;">Ubah identitas →</a>
+    </div>`;
 }
 
 /* ══════════ PROJECTS ══════════ */
@@ -2578,10 +2566,21 @@ async function clearCompanyLogo(){
   delete co.hasLogo; delete co.logoVersion;
   persist(); renderCompanyLogo(); toast('Logo dihapus');
 }
+/* Pemakai di topbar = "Disiapkan oleh" + jabatan dari Settings. Dulu hardcode
+   "Didin Wahyudin · Engineer" untuk siapa pun yang memakai aplikasi ini. */
+function updateUser(){
+  const co=company();
+  const name=co.engineer||'', role=co.role||'';
+  set('tb-user-name', name ? (role?name+' · '+role:name) : 'Atur pemakai →');
+  const init=name
+    ? name.trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase()
+    : '?';
+  set('tb-user-init', init);
+}
 function saveCompany(){
   const co=company();
   for(const f of CO_FIELDS) co[f]=document.getElementById('co-'+f).value.trim();
-  persist();
+  persist(); updateUser();
   toast(co.name?`Identitas "${co.name}" disimpan`:'Identitas disimpan','ok');
 }
 /* Kop dokumen: dipakai Report PDF dan Layout PDF supaya konsisten. */
@@ -2767,22 +2766,17 @@ function printReport(){
   } else window.print();
 }
 
-/* ══════════ GLOBAL SEARCH ══════════ */
-document.getElementById('global-search').addEventListener('keydown',e=>{
-  if(e.key!=='Enter') return;
-  const q=e.target.value.trim().toLowerCase(); if(!q) return;
-  const proj=state.projects.find(p=>p.name.toLowerCase().includes(q));
-  if(proj){ openProject(proj.id); return; }
-  document.getElementById('lib-search').value=q; go('library');
-});
+/* Search global dihapus: dia hanya melompat ke proyek atau memfilter library,
+   sementara Projects dan Components library sudah punya kotak filter sendiri
+   yang lebih jelas cakupannya. */
 
 /* ══════════ INIT ══════════ */
-buildNav(); buildSizeOptions(); buildPlcOptions(); updateTopbar();
+buildNav(); buildSizeOptions(); buildPlcOptions(); updateTopbar(); updateUser();
 window.addEventListener('resize',()=>{ if(document.getElementById('view-designer').classList.contains('active')) zoomFit(); });
 (async ()=>{
   hydrateImages();                               /* gambar dari IndexedDB, tidak menunggu jaringan */
   await connectDb();                             /* coba server; gagal = tetap jalan lokal */
-  updateTopbar();
+  updateTopbar(); updateUser();
   const h=(location.hash||'#dashboard').slice(1);
   /* #layoutgen sudah jadi bagian Settings — arahkan ke sana, jangan 404 senyap */
   const route = h==='layoutgen' ? 'settings' : h;
