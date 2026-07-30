@@ -324,6 +324,18 @@
       margin-top:0;padding-top:0;border-top:0;}
     .doc-head{break-inside:avoid;}
     .sd,.sd-center{break-inside:avoid;}
+
+    /* Browser membuang SEMUA background saat mencetak kecuali diminta eksplisit.
+       DIN rail, wire duct, dan terminal strip digambar murni dengan
+       background-color + background-image, jadi mereka hilang total di PDF —
+       begitu juga isi kotak komponen dan tag putih-di-atas-navy. */
+    #view-reports,#view-reports *,#print-area,#print-area *{
+      -webkit-print-color-adjust:exact;print-color-adjust:exact;}
+
+    /* Cadangan kalau driver cetak tetap membuang background: beri garis supaya
+       rail/duct/terminal tetap terbaca sebagai struktur, bukan area kosong. */
+    .sd .rail{border:1px solid #8A98A5;}
+    .sd .duct,.sd .tstrip{border:1px solid #9AA6B1;}
     /* Tabel: header terulang di tiap halaman, baris tidak terbelah */
     table.data{break-inside:auto;font-size:9px;}
     table.data thead{display:table-header-group;}
