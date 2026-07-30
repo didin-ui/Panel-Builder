@@ -353,8 +353,10 @@
   </aside>
 
   <header class="topbar">
+    <!-- Hanya tampil di Panel designer. Di halaman lain topbar kiri dibiarkan
+         kosong — branding aplikasi sudah ada di sidebar, dan apa pun yang
+         diletakkan di sini terbaca seolah nama proyek. -->
     <div class="proj" id="tb-proj-block" style="display:none;"><b id="tb-proj">—</b><span id="tb-cust">—</span></div>
-    <div class="proj" id="tb-app"><b>Panel Builder Assistant</b><span>AI design assistant</span></div>
     <div class="search">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       <input id="global-search" placeholder="Search components, projects, part numbers…">
@@ -821,6 +823,8 @@ async function connectDb(){
 function activeProject(){ return state.projects.find(p=>p.id===state.activeId) || state.projects[0]; }
 
 /* ══════════ ROUTER ══════════ */
+/* Halaman yang tidak menampilkan search global di topbar. */
+const SEARCH_HIDDEN = ['dashboard','bom','calc'];
 const VIEWS = [
   ['dashboard','Dashboard','<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>'],
   ['projects','Projects','<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'],
@@ -844,13 +848,16 @@ function go(id){
      di Panel designer — di halaman lain dia cuma menghalangi. */
   const ai=document.getElementById('ai-panel');
   if(ai) ai.style.display = id==='designer' ? '' : 'none';
-  /* Nama proyek aktif juga hanya bermakna di Panel designer. Di halaman lain
-     (Projects, BOM, Library, Reports, Dashboard) topbar-nya diganti judul
-     aplikasi supaya tidak menyesatkan — daftar proyek punya badge Active. */
+  /* Nama proyek aktif hanya bermakna di Panel designer. Di halaman lain blok itu
+     dikosongkan sama sekali — daftar proyek sudah menandai yang aktif dengan
+     badge Active. */
   const proj=document.getElementById('tb-proj-block');
-  const brand=document.getElementById('tb-app');
-  if(proj)  proj.style.display  = id==='designer' ? '' : 'none';
-  if(brand) brand.style.display = id==='designer' ? 'none' : '';
+  if(proj) proj.style.display = id==='designer' ? '' : 'none';
+  /* Search global melompat ke proyek atau memfilter library, jadi tidak ada
+     gunanya di halaman yang punya isinya sendiri (Dashboard ringkasan; BOM dan
+     Electrical calculations sudah menampilkan proyek aktif). */
+  const sb=document.querySelector('.topbar .search');
+  if(sb) sb.style.display = SEARCH_HIDDEN.indexOf(id)>=0 ? 'none' : '';
   const render = {dashboard:renderDashboard, projects:renderProjects, designer:enterDesigner,
                   library:renderLibrary, bom:renderBom, calc:renderCalc,
                   wiring:renderWiring, reports:renderReport, settings:enterSettings}[id];
