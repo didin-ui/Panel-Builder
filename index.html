@@ -81,6 +81,18 @@
   table.data tr:last-child td{border-bottom:none;}
   table.data tr.click{cursor:pointer;}
   table.data tr.click:hover td{background:var(--blue-50);}
+
+  /* Tabel Projects: aksi tetap satu baris, baris lebih padat.
+     Dulu kolom aksi 220px dan tombol Delete melipat ke baris kedua. */
+  table.data.proj td{padding:9px 12px;}
+  table.data.proj td.act,table.data.proj th.act{
+    width:1%;white-space:nowrap;text-align:right;padding-right:14px;}
+  table.data.proj td.act .btn{padding:5px 10px;font-size:11.5px;margin-left:5px;}
+  table.data.proj tr.on td{background:var(--blue-50);}
+  table.data.proj tr.on:hover td{background:var(--blue-100);}
+  table.data.proj tr.on td:first-child{box-shadow:inset 3px 0 0 var(--blue-500);}
+  .pc-meta{display:block;font-size:10.5px;color:var(--gray-500);margin-top:2px;
+    font-weight:400;line-height:1.4;}
   .pn{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--blue-600);}
 
   /* Dashboard */
@@ -368,9 +380,20 @@
 
     <!-- ═══ PROJECTS ═══ -->
     <section class="view" id="view-projects">
-      <div class="page-h"><h1>Projects</h1><span class="spacer"></span>
+      <div class="page-h"><h1>Projects</h1><span class="sub" id="proj-count"></span>
+        <span class="spacer"></span>
+        <input id="proj-search" placeholder="Cari nama / customer…" oninput="renderProjects()"
+          style="border:1px solid var(--gray-300);border-radius:6px;padding:7px 10px;
+                 font-family:inherit;font-size:12px;width:210px;">
+        <select id="proj-sort" onchange="renderProjects()"
+          style="border:1px solid var(--gray-300);border-radius:6px;padding:7px 9px;
+                 font-family:inherit;font-size:12px;background:#fff;color:var(--ink);">
+          <option value="updated">Terbaru diubah</option>
+          <option value="name">Nama A–Z</option>
+          <option value="customer">Customer A–Z</option>
+        </select>
         <button class="btn primary" onclick="newProject()">+ New project</button></div>
-      <div class="card"><table class="data" id="proj-table"></table></div>
+      <div class="card"><table class="data proj" id="proj-table"></table></div>
     </section>
 
     <!-- ═══ PANEL DESIGNER ═══ -->
@@ -1122,17 +1145,61 @@ function renderDashboard(){
 }
 
 /* ══════════ PROJECTS ══════════ */
+/* Nama CPU yang enak dibaca. cfg.plc menyimpan KEY komponen sejak katalog PLC
+   dibuat, jadi tabel dulu menampilkan "plc_s71214" mentah. */
+function plcLabel(cfg){
+  if(!cfg.plc || cfg.plc===PanelEngine.NO_PLC) return {text:'No PLC', muted:true};
+  const d=libDb()[cfg.plc];
+  if(!d) return {text:cfg.plc+' (tidak ada di library)', muted:true, bad:true};
+  return {text:d.plcName||d.desc, sub:d.pn};
+}
 function renderProjects(){
+  const q=(document.getElementById('proj-search').value||'').trim().toLowerCase();
+  const sort=document.getElementById('proj-sort').value;
+  let rows=state.projects.filter(p=>!q ||
+    p.name.toLowerCase().includes(q) || (p.customer||'').toLowerCase().includes(q));
+  rows.sort(sort==='name' ? (a,b)=>a.name.localeCompare(b.name)
+    : sort==='customer' ? (a,b)=>(a.customer||'').localeCompare(b.customer||'')||a.name.localeCompare(b.name)
+    : (a,b)=>b.updated-a.updated);
+
+  set('proj-count', q
+    ? `${rows.length} dari ${state.projects.length} proyek`
+    : `${state.projects.length} proyek`);
+
+  if(!rows.length){
+    document.getElementById('proj-table').innerHTML=
+      `<tr><td style="padding:34px 14px;text-align:center;color:var(--gray-500);">
+        ${q?`Tidak ada proyek yang cocok dengan "<b>${esc(q)}</b>".`
+           :'Belum ada proyek. Klik <b>+ New project</b> untuk mulai.'}
+      </td></tr>`;
+    return;
+  }
+
   document.getElementById('proj-table').innerHTML =
-    '<tr><th>Project</th><th>Customer</th><th>PLC</th><th>Updated</th><th style="width:220px;"></th></tr>' +
-    state.projects.map(p=>`<tr>
-      <td><b>${esc(p.name)}</b> ${p.id===state.activeId?'<span class="badge b-blue">Active</span>':''}</td>
-      <td>${esc(p.customer)}</td><td>${esc(p.cfg.plc)}</td><td>${fmtDate(p.updated)}</td>
-      <td style="text-align:right;">
-        <button class="btn" onclick="openProject(${p.id})">Open</button>
-        <button class="btn" onclick="dupProject(${p.id})">Duplicate</button>
-        <button class="btn danger" onclick="delProject(${p.id})">Delete</button>
-      </td></tr>`).join('');
+    `<thead><tr><th>Project</th><th>Customer</th><th>PLC / CPU</th><th>Panel</th>
+      <th>Rev</th><th>Updated</th><th class="act"></th></tr></thead><tbody>` +
+    rows.map(p=>{
+      const c=PanelEngine.normalizeCfg(p.cfg), L=plcLabel(c);
+      const size=c.cabH>0?`${c.cabH} × ${c.cabW} mm`:`auto · L ${c.cabW} mm`;
+      const active=p.id===state.activeId;
+      return `<tr class="click${active?' on':''}" onclick="openProject(${p.id})"
+          title="Buka ${esc(p.name)}">
+        <td><b>${esc(p.name)}</b>${active?' <span class="badge b-blue">Active</span>':''}
+          <span class="pc-meta">${c.supplyV} V · ${c.di} DI / ${c.do_} DO · ${c.vfd+c.servo} drive</span></td>
+        <td>${p.customer?esc(p.customer):'<span style="color:var(--gray-300);">—</span>'}</td>
+        <td><span${L.bad?' style="color:var(--red-600);"':L.muted?' style="color:var(--gray-500);"':''}>${esc(L.text)}</span>
+          ${L.sub?`<span class="pc-meta pn">${esc(L.sub)}</span>`:''}</td>
+        <td class="mono" style="font-size:11.5px;">${esc(size)}</td>
+        <td>${esc(p.rev||'A')}</td>
+        <td style="white-space:nowrap;">${fmtDate(p.updated)}</td>
+        <td class="act">
+          <button class="btn" onclick="event.stopPropagation();openProject(${p.id})">Open</button>
+          <button class="btn" title="Duplikat proyek"
+            onclick="event.stopPropagation();dupProject(${p.id})">Duplicate</button>
+          <button class="btn danger" title="Hapus proyek"
+            onclick="event.stopPropagation();delProject(${p.id})">Delete</button>
+        </td></tr>`;
+    }).join('')+`</tbody>`;
 }
 async function newProject(){
   const v = await modalForm({
