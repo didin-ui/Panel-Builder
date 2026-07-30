@@ -261,11 +261,13 @@
     font-size:9.5px;color:var(--gray-500);line-height:1.5;}
 
   /* Satu halaman per layout */
-  .pdf-page{position:relative;}
-  .pdf-page + .pdf-page{margin-top:26px;padding-top:20px;border-top:1px dashed var(--gray-300);}
+  .pdf-page,.pdf-flow{position:relative;}
+  .pdf-page + .pdf-page,.pdf-page + .pdf-flow,.pdf-flow + .pdf-page,.pdf-flow + .pdf-flow{
+    margin-top:26px;padding-top:20px;border-top:1px dashed var(--gray-300);}
   .pg-title{font-size:12.5px;font-weight:600;margin:0 0 8px;}
   .pg-note{font-size:10.5px;color:var(--gray-500);line-height:1.6;margin-top:8px;}
   .sd-center{display:flex;justify-content:center;}
+  .report h3,#print-area h3{font-size:11.5px;font-weight:600;margin:12px 0 5px;}
 
   /* Static drawings (report + layout export) */
   #print-area{display:none;}
@@ -287,14 +289,28 @@
     body.printing-layout #print-area,body.printing-layout #print-area *{visibility:visible;}
     .no-print{display:none!important;}
     .sd-row{break-inside:avoid;}
-    table.data{break-inside:auto;} table.data tr{break-inside:avoid;}
-    /* Satu gambar layout = satu halaman. Halaman terakhir tidak memaksa
-       halaman kosong di belakangnya. */
+    /* Satu gambar layout = SATU halaman: tidak boleh dipotong, dan berhenti di
+       situ. Dulu gambar portrait lebih tinggi dari halaman sehingga tetap
+       terpotong dan sisanya muncul sebagai kotak kosong di halaman berikutnya —
+       sekarang skalanya dibatasi tinggi juga (PG_DRAW_H). */
     .pdf-page{break-inside:avoid;break-after:page;page-break-after:always;}
-    .pdf-page:last-of-type{break-after:auto;page-break-after:auto;}
-    .pdf-page + .pdf-page{margin-top:0;padding-top:0;border-top:0;}
+    /* Bagian tabel BOLEH mengalir — 79 baris tidak mungkin satu halaman —
+       tapi selalu mulai di halaman baru. */
+    .pdf-flow{break-before:page;page-break-before:always;break-inside:auto;}
+    .pdf-flow:first-child{break-before:auto;page-break-before:auto;}
+    .pdf-page:last-child,.pdf-flow:last-child{break-after:auto;page-break-after:auto;}
+    .pdf-page + .pdf-page,.pdf-page + .pdf-flow,
+    .pdf-flow + .pdf-page,.pdf-flow + .pdf-flow{
+      margin-top:0;padding-top:0;border-top:0;}
     .doc-head{break-inside:avoid;}
-    @page{margin:14mm 12mm;}
+    .sd,.sd-center{break-inside:avoid;}
+    /* Tabel: header terulang di tiap halaman, baris tidak terbelah */
+    table.data{break-inside:auto;font-size:9px;}
+    table.data thead{display:table-header-group;}
+    table.data tr{break-inside:avoid;}
+    table.data th,table.data td{padding:3px 5px;}
+    .dh-meta{font-size:9.5px;}
+    @page{size:A4 portrait;margin:14mm 12mm;}
   }
   @media (max-width:1160px){
     .workspace,.dash-grid{grid-template-columns:1fr;}
@@ -530,29 +546,6 @@
     </section>
 
     <!-- ═══ LAYOUT GENERATOR ═══ -->
-    <section class="view" id="view-layoutgen">
-      <div class="page-h"><h1>Layout generator</h1><span class="sub">Parameter engine penempatan — berlaku ke semua proyek</span></div>
-      <div class="dash-grid">
-        <div class="card"><div class="card-h">Engine parameters</div>
-          <div class="card-b">
-            <div class="grid2">
-              <div class="field"><label>Jarak antar komponen (mm)</label><input id="set-gap" type="number" min="5" max="50"></div>
-              <div class="field"><label>Margin backplate (mm)</label><input id="set-pad" type="number" min="10" max="60"></div>
-              <div class="field"><label>Jarak antar rail (mm)</label><input id="set-gapv" type="number" min="5" max="60"></div>
-              <div class="field"><label>Tinggi duct (mm)</label><input id="set-duct" type="number" min="30" max="80"></div>
-            </div>
-            <p style="font-size:11px;color:var(--gray-500);margin:2px 0 8px;">
-              Lebar kabinet kini per-proyek (ada di Panel designer), karena ikut menentukan
-              ukuran &amp; suhu kabinet.</p>
-            <button class="btn primary" onclick="saveEngineSettings()">Apply &amp; regenerate</button>
-          </div>
-        </div>
-        <div class="card"><div class="card-h">Layout aktif (proyek ini)</div>
-          <div class="card-b" id="layout-rules" style="font-size:12px;color:var(--gray-700);line-height:1.9;">—</div>
-        </div>
-      </div>
-    </section>
-
     <!-- ═══ WIRING ═══ -->
     <section class="view" id="view-wiring">
       <div class="page-h"><h1>Wiring list</h1><span class="sub" id="wire-sub"></span>
@@ -607,6 +600,31 @@
                 terbawa ke komputer lain. Tampil di kop laporan.</small>
               <button class="btn" id="co-logo-clear" style="width:100%;margin-top:6px;display:none;"
                 onclick="clearCompanyLogo()">Hapus logo</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:14px;">
+        <div class="card-h">Layout generator
+          <span style="margin-left:auto;font-weight:400;font-size:11px;color:var(--gray-500);">
+            Parameter engine penempatan — berlaku ke semua proyek</span></div>
+        <div class="card-b">
+          <div class="dash-grid">
+            <div>
+              <div class="grid2">
+                <div class="field"><label>Jarak antar komponen (mm)</label><input id="set-gap" type="number" min="5" max="50"></div>
+                <div class="field"><label>Margin backplate (mm)</label><input id="set-pad" type="number" min="10" max="60"></div>
+                <div class="field"><label>Jarak antar rail (mm)</label><input id="set-gapv" type="number" min="5" max="60"></div>
+                <div class="field"><label>Tinggi duct (mm)</label><input id="set-duct" type="number" min="30" max="80"></div>
+              </div>
+              <p style="font-size:11px;color:var(--gray-500);margin:2px 0 8px;">
+                Ukuran kabinet per-proyek (ada di Panel designer), karena ikut menentukan
+                ukuran &amp; suhu kabinet.</p>
+              <button class="btn primary" onclick="saveEngineSettings()">Apply &amp; regenerate</button>
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;color:var(--gray-500);margin-bottom:4px;font-weight:500;">Layout aktif (proyek ini)</label>
+              <div id="layout-rules" style="font-size:11.5px;color:var(--gray-700);line-height:1.8;">—</div>
             </div>
           </div>
         </div>
@@ -777,7 +795,6 @@ const VIEWS = [
   ['library','Components library','<rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>'],
   ['bom','BOM','<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>'],
   ['calc','Electrical calculations','<path d="M13 2L4 14h6l-1 8 9-12h-6z"/>'],
-  ['layoutgen','Layout generator','<rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/>'],
   ['wiring','Wiring','<path d="M4 6h6a4 4 0 0 1 4 4v4a4 4 0 0 0 4 4h2"/><circle cx="4" cy="6" r="2"/><circle cx="20" cy="18" r="2"/>'],
   ['reports','Reports','<path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h6M9 17h6"/>'],
   ['settings','Settings','<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/>'],
@@ -790,8 +807,12 @@ function go(id){
   location.hash = id;
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active', v.id==='view-'+id));
   document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active', a.dataset.view===id));
+  /* AI design review membahas layout yang sedang digambar, jadi hanya relevan
+     di Panel designer — di halaman lain dia cuma menghalangi. */
+  const ai=document.getElementById('ai-panel');
+  if(ai) ai.style.display = id==='designer' ? '' : 'none';
   const render = {dashboard:renderDashboard, projects:renderProjects, designer:enterDesigner,
-                  library:renderLibrary, bom:renderBom, calc:renderCalc, layoutgen:enterLayoutGen,
+                  library:renderLibrary, bom:renderBom, calc:renderCalc,
                   wiring:renderWiring, reports:renderReport, settings:enterSettings}[id];
   if(render) render();
 }
@@ -1654,12 +1675,20 @@ async function resetPlateLayout(){
 /* ══════════ GAMBAR STATIS (laporan & export) ══════════
    Koordinat langsung dikalikan skala — bukan CSS transform — supaya hasil
    cetak/PDF akurat dan tidak tergantung dukungan transform di print engine. */
-function staticDrawing(mode, maxW){
+/* Kertas A4 tegak dikurangi margin @page 14/12 mm ≈ 703 × 1017 px @96dpi.
+   Kop + judul + catatan memakan ~185 px, sisanya untuk gambar. */
+const PG_W=700, PG_H=1017, PG_DRAW_H=820;
+function staticDrawing(mode, maxW, maxH){
   if(!R) return '';
   const side=mode==='left'||mode==='right';
   const {H}=R, FRAME=14, PAD=R.assumptions.layout.pad;
   const W=side?R.D:R.W;                                 /* panel sisi: lebar = kedalaman */
-  const k=Math.min(1,(maxW-70)/(W+FRAME*2));            /* sisakan ruang dimensi */
+  /* Skala harus muat DUA arah. Dulu hanya lebar yang dibatasi, jadi panel
+     portrait (mis. 600 × 1000 mm) tetap ~1080 px dan pecah antar halaman. */
+  const kW=(maxW-70)/(W+FRAME*2);                       /* sisakan ruang dimensi */
+  /* 58 = offset atas (OY 22) + baris keterangan bawah (~30) + sedikit sisa */
+  const kH=((maxH||PG_DRAW_H)-58)/(H+FRAME*2);
+  const k=Math.min(1,kW,kH);
   const p=v=>Math.round(v*k*100)/100;
   const OX=34, OY=22;
   const boxW=p(W+FRAME*2), boxH=p(H+FRAME*2);
@@ -1724,8 +1753,9 @@ function staticDrawing(mode, maxW){
 }
 /* Tabel koordinat: titik tengah lubang / komponen dari sudut kiri-atas */
 function coordTable(items){
-  return `<table class="data"><tr><th>Tag</th><th>Component</th><th>Part number</th>
-      <th>X (mm)</th><th>Y (mm)</th><th>W × H (mm)</th><th>Note</th></tr>`+
+  /* <thead> supaya baris judul terulang di setiap halaman saat dicetak */
+  return `<table class="data"><thead><tr><th>Tag</th><th>Component</th><th>Part number</th>
+      <th>X (mm)</th><th>Y (mm)</th><th>W × H (mm)</th><th>Note</th></tr></thead><tbody>`+
     items.map(it=>{
       const d=R.specs[it.type];
       return `<tr><td class="pn"><b>${esc(it.tag)}</b></td><td>${esc(d.desc)}</td>
@@ -1734,38 +1764,41 @@ function coordTable(items){
         <td>${d.w} × ${d.h}</td>
         <td style="color:var(--gray-500);">${it.manual?'manual'
           :it.side?it.side+' side':(d.mount==='door'?'door':'rail')}</td></tr>`;
-    }).join('')+`</table>`;
+    }).join('')+`</tbody></table>`;
 }
 /* Export hanya gambar layout — terpisah dari Report PDF. */
 /* Layout PDF: hanya gambar, SATU HALAMAN PER LAYOUT, kop formal per halaman. */
 function printLayout(){
   recompute();
   const p=activeProject();
-  const pg=(title, mode, items, note)=>`<section class="pdf-page">
+  /* Satu gambar per halaman (skala dibatasi tinggi juga, jadi tidak terpotong);
+     tabel koordinat dikumpulkan di bagian yang boleh mengalir. */
+  const pg=(title, mode, note)=>`<section class="pdf-page">
     ${docHeader(title,p)}
-    <h2 class="pg-title">${esc(title)}</h2>
-    <div class="sd-center">${staticDrawing(mode,700)}</div>
-    <h3>Posisi komponen</h3>${coordTable(items)}
+    <div class="sd-center">${staticDrawing(mode,PG_W,PG_DRAW_H)}</div>
     <p class="pg-note">${note}</p>${docFooter()}</section>`;
 
-  const pages=[
-    pg('Layout — Inside Panel (Backplate)','plate',R.items,
-      `Backplate ${R.W} × ${R.H} mm · kabinet ${R.W} × ${R.H} × ${R.D} mm.
-       X / Y ke titik tengah komponen dari sudut kiri-atas.`),
-    pg('Layout — Front Cover (Pintu Panel)','door',R.door.items,
-      `Pintu ${R.W} × ${R.H} mm · zona bebas bor ${R.door.margin} mm.
-       X / Y ke <b>titik tengah lubang</b> dari sudut kiri-atas.`),
+  const layouts=[
+    ['Layout — Inside Panel (Backplate)','plate',R.items,
+     `Backplate ${R.W} × ${R.H} mm · kabinet ${R.W} × ${R.H} × ${R.D} mm.`],
+    ['Layout — Front Cover (Pintu Panel)','door',R.door.items,
+     `Pintu ${R.W} × ${R.H} mm · zona bebas bor ${R.door.margin} mm.`],
   ];
-  if(R.side.right.length)
-    pages.push(pg('Layout — Right Side (Exhaust)','right',R.side.right,
-      `Dilihat dari luar; lebar gambar = kedalaman ${R.D} mm. Exhaust di atas.`));
-  if(R.side.left.length)
-    pages.push(pg('Layout — Left Side (Intake)','left',R.side.left,
-      `Dilihat dari luar; lebar gambar = kedalaman ${R.D} mm. Intake di bawah.`));
+  if(R.side.right.length) layouts.push(['Layout — Right Side (Exhaust)','right',
+    R.side.right,`Dilihat dari luar; lebar gambar = kedalaman ${R.D} mm. Exhaust di atas.`]);
+  if(R.side.left.length) layouts.push(['Layout — Left Side (Intake)','left',
+    R.side.left,`Dilihat dari luar; lebar gambar = kedalaman ${R.D} mm. Intake di bawah.`]);
 
-  document.getElementById('print-area').innerHTML=pages.join('')+
-    `<p class="pg-note">Dimensi komponen adalah estimasi engineering —
-      verifikasi datasheet sebelum pengeboran.</p>`;
+  const pages=layouts.map(([t,mode,,note])=>pg(t,mode,note));
+  pages.push(`<section class="pdf-flow">${docHeader('Component Position Schedule',p)}
+    ${layouts.map(([t,,items])=>
+      `<h3>${esc(t.replace('Layout — ',''))}</h3>${coordTable(items)}`).join('')}
+    <p class="pg-note">X / Y ke titik tengah komponen (front cover &amp; panel sisi:
+      titik tengah lubang), dari sudut kiri-atas masing-masing bidang.
+      Dimensi komponen adalah estimasi engineering — verifikasi datasheet
+      sebelum pengeboran.</p>${docFooter()}</section>`);
+
+  document.getElementById('print-area').innerHTML=pages.join('');
   document.body.classList.add('printing-layout');
   setTimeout(()=>{ window.print();
     setTimeout(()=>document.body.classList.remove('printing-layout'),300); },150);
@@ -2384,6 +2417,7 @@ const CO_FIELDS=['name','address','city','country','phone','email','web','tax',
 function company(){ return (state.settings.company||(state.settings.company={})); }
 function enterSettings(){
   const p=activeProject();
+  enterLayoutGen();          /* Layout generator kini kartu di halaman ini */
   document.getElementById('set-pname').value=p.name;
   document.getElementById('set-pcust').value=p.customer;
   const co=company();
@@ -2511,8 +2545,14 @@ function renderReport(){
 function reportHtml(){
   recompute();
   const p=activeProject(), c=R.cfg, A=R.assumptions;
+  /* Halaman gambar: WAJIB muat satu halaman, jadi tidak boleh dipotong.
+     Judulnya sudah ada di kop (dh-doc), tidak perlu diulang sebagai h2. */
   const pg=(title, inner)=>`<section class="pdf-page">${docHeader(title,p)}
-    <h2 class="pg-title">${esc(title)}</h2>${inner}${docFooter()}</section>`;
+    ${inner}${docFooter()}</section>`;
+  /* Halaman tabel: boleh mengalir ke halaman berikutnya, tapi mulai di halaman
+     baru. Tabel panjang (79 baris) tidak mungkin dipaksa satu halaman. */
+  const flow=(title, inner)=>`<section class="pdf-flow">${docHeader(title,p)}
+    ${inner}${docFooter()}</section>`;
 
   /* ── Halaman 1: ringkasan engineering ── */
   const summary=`
@@ -2536,51 +2576,53 @@ function reportHtml(){
         <td class="pn">${esc(w.code)}</td><td>${esc(w.msg)}</td></tr>`).join('')}</table>`
       :'<p class="pg-note">Tidak ada temuan review.</p>'}`;
 
-  /* ── Halaman gambar: satu layout per halaman, gambar + tabel koordinatnya ── */
-  const drawPage=(title, mode, items, note)=>pg(title,
-    `<div class="sd-center">${staticDrawing(mode,700)}</div>
-     <h3>Posisi komponen</h3>${coordTable(items)}
+  /* ── Satu halaman = satu gambar. Tabel koordinat dipisah ke halaman sendiri,
+     karena 79 baris tidak mungkin dipaksa ikut di halaman gambar. ── */
+  const drawPage=(title, mode, note)=>pg(title,
+    `<div class="sd-center">${staticDrawing(mode,PG_W,PG_DRAW_H)}</div>
      <p class="pg-note">${note}</p>`);
 
-  const pages=[pg('Panel Design Report', summary)];
+  const pages=[flow('Panel Design Report', summary)];
+  const layouts=[
+    ['Layout — Inside Panel (Backplate)','plate',R.items,
+     `Backplate ${R.W} × ${R.H} mm, margin ${A.layout.pad} mm, rail spare
+      ${Math.round(R.railFreeMm)} mm dari ${Math.round(R.railLengthMm)} mm.
+      ${R.manualPlate.length?`${R.manualPlate.length} komponen digeser manual.`:'Semua posisi otomatis.'}`],
+    ['Layout — Front Cover (Pintu Panel)','door',R.door.items,
+     `Pintu ${R.W} × ${R.H} mm · zona bebas bor ${R.door.margin} mm (gasket + flange).
+      ${R.door.manual.length?`${R.door.manual.length} perangkat diposisikan manual.`:'Semua posisi otomatis.'}
+      ${R.door.fits?'':'<b style="color:var(--red-600);">Perangkat pintu tidak muat pada ukuran panel ini.</b>'}`],
+  ];
+  if(R.side.right.length) layouts.push(['Layout — Right Side (Exhaust)','right',R.side.right,
+    `Dilihat dari luar; lebar gambar = <b>kedalaman</b> enclosure (${R.D} mm).
+     Exhaust fan di atas — udara keluar di sini. Intake ada di sisi kiri.`]);
+  if(R.side.left.length) layouts.push(['Layout — Left Side (Intake)','left',R.side.left,
+    `Dilihat dari luar; lebar gambar = <b>kedalaman</b> enclosure (${R.D} mm).
+     Intake berfilter di bawah — udara masuk di sini lalu keluar di sisi kanan.`]);
 
-  pages.push(drawPage('Layout — Inside Panel (Backplate)', 'plate', R.items,
-    `X / Y ke titik tengah komponen, dari sudut kiri-atas backplate. Backplate
-     ${R.W} × ${R.H} mm, margin ${A.layout.pad} mm, rail spare
-     ${Math.round(R.railFreeMm)} mm dari ${Math.round(R.railLengthMm)} mm.
-     ${R.manualPlate.length?`${R.manualPlate.length} komponen digeser manual.`:'Semua posisi otomatis.'}`));
+  for(const [title,mode,,note] of layouts) pages.push(drawPage(title,mode,note));
 
-  pages.push(drawPage('Layout — Front Cover (Pintu Panel)', 'door', R.door.items,
-    `X / Y diukur dari sudut kiri-atas pintu ke <b>titik tengah lubang</b>.
-     Zona bebas bor ${R.door.margin} mm di semua sisi (gasket + flange pintu).
-     ${R.door.manual.length?`${R.door.manual.length} perangkat diposisikan manual.`:'Semua posisi otomatis.'}
-     ${R.door.fits?'':'<b style="color:var(--red-600);">Perangkat pintu tidak muat pada ukuran panel ini.</b>'}`));
-
-  if(R.side.right.length)
-    pages.push(drawPage('Layout — Right Side (Exhaust)', 'right', R.side.right,
-      `Dilihat dari luar; lebar gambar = <b>kedalaman</b> enclosure (${R.D} mm).
-       Exhaust fan di atas — udara keluar di sini. Intake ada di sisi kiri.
-       Zona bebas bor ${R.side.margin} mm.`));
-  if(R.side.left.length)
-    pages.push(drawPage('Layout — Left Side (Intake)', 'left', R.side.left,
-      `Dilihat dari luar; lebar gambar = <b>kedalaman</b> enclosure (${R.D} mm).
-       Intake berfilter di bawah — udara masuk di sini, menyapu drive, lalu
-       keluar lewat exhaust di sisi kanan. Zona bebas bor ${R.side.margin} mm.`));
+  /* ── Skedul koordinat, satu bagian yang boleh mengalir ── */
+  pages.push(flow('Component Position Schedule',
+    layouts.map(([title,,items])=>
+      `<h3>${esc(title.replace('Layout — ',''))}</h3>${coordTable(items)}`).join('')+
+    `<p class="pg-note">X / Y ke titik tengah komponen (front cover &amp; panel sisi:
+      titik tengah lubang), diukur dari sudut kiri-atas masing-masing bidang.</p>`));
 
   /* ── Halaman BOM ── */
   const est=R.bom.filter(b=>b.source==='estimated').length;
-  pages.push(pg('Bill of Materials',
+  pages.push(flow('Bill of Materials',
     `<p class="pg-note">${R.bom.length} baris · ${R.bom.length-est} calculated,
        ${est} estimated. Tanda ◇ = part number masih generik.</p>
-     <table class="data"><tr><th>#</th><th>Category</th><th>Part number</th><th>Description</th>
-       <th>Qty</th><th>Unit</th><th>Vendor</th><th>Basis</th></tr>
+     <table class="data"><thead><tr><th>#</th><th>Category</th><th>Part number</th><th>Description</th>
+       <th>Qty</th><th>Unit</th><th>Vendor</th><th>Basis</th></tr></thead><tbody>
        ${R.bom.map((b,i)=>`<tr><td>${i+1}</td><td>${esc(b.cat)}</td>
          <td class="pn">${esc(b.pn)}${b.generic?' ◇':''}</td><td>${esc(b.desc)}</td>
          <td><b>${b.qty}</b></td><td>${esc(b.unit)}</td><td>${esc(b.vendor)}</td>
-         <td>${esc(b.source)}</td></tr>`).join('')}</table>`));
+         <td>${esc(b.source)}</td></tr>`).join('')}</tbody></table>`));
 
   /* ── Halaman asumsi ── */
-  pages.push(pg('Catatan &amp; Asumsi Perhitungan',
+  pages.push(flow('Catatan &amp; Asumsi Perhitungan',
     `<p style="font-size:11.5px;color:var(--gray-700);line-height:1.8;">
       Perhitungan memakai PF dan efisiensi per jenis beban (VFD ${A.pf.vfd}/${(A.eff.vfdDrive*A.eff.vfdMotor).toFixed(2)},
       servo ${A.pf.servo}, DOL ${A.pf.dol}/${A.eff.dolMotor}, PSU ${A.eff.psu}); power factor sistem
@@ -2627,7 +2669,9 @@ window.addEventListener('resize',()=>{ if(document.getElementById('view-designer
   await connectDb();                             /* coba server; gagal = tetap jalan lokal */
   updateTopbar();
   const h=(location.hash||'#dashboard').slice(1);
-  go(h in {dashboard:1,projects:1,designer:1,library:1,bom:1,calc:1,layoutgen:1,wiring:1,reports:1,settings:1} ? h : 'dashboard');
+  /* #layoutgen sudah jadi bagian Settings — arahkan ke sana, jangan 404 senyap */
+  const route = h==='layoutgen' ? 'settings' : h;
+  go(route in {dashboard:1,projects:1,designer:1,library:1,bom:1,calc:1,wiring:1,reports:1,settings:1} ? route : 'dashboard');
 })();
 </script>
 </body>

@@ -206,11 +206,24 @@ di database (key `__company_logo`) seperti gambar komponen, jadi ikut terbawa ke
 komputer lain. Catatan kaki dokumen juga bisa diatur.
 
 ## Format PDF: satu halaman per layout
-Report PDF sekarang berhalaman, dan **tiap gambar layout dapat halamannya
-sendiri**: ringkasan engineering → backplate → front cover → right side →
-left side → BOM → catatan & asumsi. Setiap halaman membawa kop sendiri supaya
-lembar yang tercetak berdiri sendiri kalau dipisah. Layout PDF mengikuti pola
-yang sama, hanya tanpa halaman kalkulasi.
+Tiap gambar layout dapat **satu halaman penuh** dan tidak pernah terpotong:
+skalanya dibatasi lebar **dan tinggi** halaman. Dulu hanya lebar yang dibatasi,
+jadi panel portrait (mis. 600 × 1000 mm) jadi ~1080 px, pecah di tengah, dan
+sisanya muncul sebagai kotak kosong di halaman berikutnya.
+
+Urutan: ringkasan engineering → backplate → front cover → right side → left
+side → skedul koordinat → BOM → catatan & asumsi. Setiap halaman membawa kop
+sendiri supaya lembar yang dipisah tetap bisa dibaca.
+
+Dua jenis halaman:
+- `.pdf-page` — gambar layout. Wajib muat satu halaman (`break-inside:avoid`).
+- `.pdf-flow` — tabel panjang (skedul, BOM). Mulai di halaman baru tapi boleh
+  mengalir; header tabel terulang tiap halaman lewat `<thead>`.
+
+Layout PDF mengikuti pola yang sama, tanpa halaman kalkulasi.
+
+> Header/footer bawaan browser (URL + judul halaman) bukan bagian dokumen ini.
+> Matikan di dialog print: **More settings → Headers and footers**.
 
 ## Tukar-menukar library antar pengguna
 **Components library → Export** membuka dialog untuk memilih komponen mana yang
@@ -232,3 +245,10 @@ field yang tidak ada di daftar putih (jadi file dari luar tidak bisa menyuntikka
 apa pun), memaksa tipe angka/boolean, dan melewati komponen yang dimensinya tidak
 valid. CPU tanpa I/O bawaan diturunkan dari status PLC supaya tidak merusak
 hitungan modul ekspansi.
+
+## Catatan navigasi
+- **AI design review** hanya tampil di Panel designer — isinya membahas layout
+  yang sedang digambar, jadi di halaman lain hanya menghalangi.
+- **Layout generator** kini bagian dari **Settings** (bukan menu sidebar
+  sendiri), karena isinya parameter global yang jarang diubah. Tautan lama
+  `#layoutgen` otomatis diarahkan ke Settings.
