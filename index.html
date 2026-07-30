@@ -149,6 +149,8 @@
   .comp.drag.manual .ph{border-style:solid;box-shadow:0 0 0 1.5px var(--blue-500);}
   .comp.drag.dragging{cursor:grabbing;opacity:.85;z-index:5;
     outline:2px dashed var(--blue-600);outline-offset:2px;}
+  /* rail tujuan penuh — komponen tidak ikut kursor */
+  .comp.drag.blocked{cursor:not-allowed;outline:2px dashed var(--red-600);}
   .dtag{position:absolute;transform:translate(-50%,-100%);background:var(--navy);color:#fff;
     font-family:'IBM Plex Mono',monospace;font-size:9px;border-radius:3px;padding:1px 4px;
     white-space:nowrap;pointer-events:none;}
@@ -1721,6 +1723,46 @@ function drawPlate(){
    komponen boleh 0. Vertikal TIDAK bebas: selalu snap ke garis rail terdekat,
    jadi naik/turun berarti pindah rail, bukan menggantung di antaranya. */
 const PLATE_STEP=2;
+
+/* Cari X terdekat dari `want` yang TIDAK menumpuk komponen lain.
+   `occupied` = daftar {a,b} rentang X yang sudah terpakai di jalur vertikal
+   yang sama. Menempel (jarak 0) boleh; masuk ke dalam tidak.
+   Mengembalikan null kalau tidak ada celah yang cukup lebar. */
+function freeSlotX(want, w, occupied, minX, maxX){
+  const half=w/2;
+  const lo=minX+half, hi=maxX-half;
+  if(hi<lo) return null;
+  const blocks=occupied.slice().sort((p,q)=>p.a-q.a);
+  /* susun celah kosong di antara blok */
+  const gaps=[]; let cursor=minX;
+  for(const b of blocks){
+    if(b.a-cursor>=w) gaps.push({a:cursor, b:b.a});
+    cursor=Math.max(cursor,b.b);
+  }
+  if(maxX-cursor>=w) gaps.push({a:cursor, b:maxX});
+  if(!gaps.length) return null;
+  /* dari tiap celah ambil posisi terdekat ke `want`, lalu pilih yang paling dekat */
+  let best=null, bestD=Infinity;
+  for(const g of gaps){
+    const x=Math.min(g.b-half, Math.max(g.a+half, want));
+    const d=Math.abs(x-want);
+    if(d<bestD){ bestD=d; best=x; }
+  }
+  return best===null?null:Math.round(best/PLATE_STEP)*PLATE_STEP;
+}
+/* Komponen lain yang berbagi jalur vertikal dengan kotak [y0,y1]. Memakai
+   geometri, bukan nomor rail, supaya tumpukan kontaktor+overload ikut terhitung. */
+function occupiedAt(y0, y1, skipIds){
+  const out=[];
+  for(const it of R.items){
+    if(skipIds.indexOf(it.id)>=0 || it.type==='fan') continue;
+    const d=R.specs[it.type];
+    const t=it.y-d.h/2, bm=it.y+d.h/2;
+    if(bm<=y0+0.01 || t>=y1-0.01) continue;      /* tidak berbagi jalur */
+    out.push({a:it.x-d.w/2, b:it.x+d.w/2});
+  }
+  return out;
+}
 function attachPlateDrag(){
   const stage=document.getElementById('stage');
   stage.querySelectorAll('.comp.drag').forEach(el=>{
@@ -1733,24 +1775,39 @@ function attachPlateDrag(){
       const rails=R.railRows.map(i=>({row:i, y:R.rows[i].railY, name:R.rows[i].name}));
       const startX=e.clientX, startY=e.clientY, ox=it.x, oy=it.y;
       el.classList.add('dragging');
-      let nx=ox, nrow=it.row;
+      /* Overload menempel pada kontaktornya, jadi jangan dianggap penghalang. */
+      const skip=[it.id];
+      if(it.type==='contactor') skip.push('overload#'+it.id.split('#')[1]);
+      const PAD=R.assumptions.layout.pad;
+      let nx=ox, nrow=it.row, blocked=false;
       const move=ev=>{
         const dx=(ev.clientX-startX)/zoom, dy=(ev.clientY-startY)/zoom;
-        nx=Math.round((ox+dx)/PLATE_STEP)*PLATE_STEP;
-        nx=Math.min(R.W-d.w/2, Math.max(d.w/2, nx));
         /* rail terdekat dari posisi kursor */
         const wantY=oy+dy;
         let best=rails[0];
         for(const r of rails) if(Math.abs(r.y-wantY)<Math.abs(best.y-wantY)) best=r;
-        nrow=best.row;
+        const cy=it.type==='contactor'
+          ? best.y-(R.specs.overload.h+4)/2 : best.y;
+        /* posisi bebas terdekat di jalur vertikal rail tujuan */
+        const slot=freeSlotX(ox+dx, d.w,
+          occupiedAt(cy-d.h/2, cy+d.h/2, skip), PAD, R.W-PAD);
+        blocked = slot===null;
+        if(blocked){
+          set('toolbar-meta',`${it.tag} — tidak ada ruang kosong di ${best.name}`);
+          el.classList.add('blocked');
+          return;                                  /* jangan pindahkan sama sekali */
+        }
+        el.classList.remove('blocked');
+        nx=slot; nrow=best.row;
         el.style.left=(nx-d.w/2)+'px';
-        el.style.top=(best.y-d.h/2)+'px';
+        el.style.top=(cy-d.h/2)+'px';
         set('toolbar-meta',`${it.tag} → X ${nx} mm · ${best.name}`);
       };
       const up=()=>{
         document.removeEventListener('mousemove',move);
         document.removeEventListener('mouseup',up);
-        el.classList.remove('dragging');
+        el.classList.remove('dragging'); el.classList.remove('blocked');
+        if(blocked){ draw(); toast('Tidak ada ruang kosong di rail itu','err'); return; }
         if(nx===ox && nrow===it.row){ draw(); return; }
         const p=activeProject();
         (p.cfg.platePos||(p.cfg.platePos={}))[id]={x:nx, row:nrow};
