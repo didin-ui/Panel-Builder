@@ -252,3 +252,17 @@ hitungan modul ekspansi.
 - **Layout generator** kini bagian dari **Settings** (bukan menu sidebar
   sendiri), karena isinya parameter global yang jarang diubah. Tautan lama
   `#layoutgen` otomatis diarahkan ke Settings.
+
+## Dashboard
+Tiga kartu: **Projects**, **Customers** (unik, mengabaikan yang kosong), dan
+**Library aktif** — jumlah komponen yang benar-benar terpakai di seluruh proyek
+(hasil layout otomatis + yang ditambahkan lewat + Panel), dibanding total
+komponen di library. Kartu Terminal points dan Asset readiness dihapus.
+
+Kartu **Perusahaan** menampilkan logo dan identitas dari Settings; kalau belum
+diisi, dia menunjuk ke Settings.
+
+Nama proyek aktif di topbar hanya tampil di **Panel designer** — di halaman lain
+diganti judul aplikasi, karena di sana nama itu menyesatkan (yang ditampilkan
+bukan konteks halamannya). Daftar proyek tetap menandai yang aktif dengan badge
+**Active** dan garis biru di tepi baris.

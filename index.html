@@ -99,7 +99,15 @@
   .stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px;}
   .scard{background:var(--paper);border:1px solid var(--gray-200);border-radius:12px;padding:14px;}
   .scard b{display:block;font-size:22px;font-weight:600;margin-top:4px;}
-  .scard span{font-size:11.5px;color:var(--gray-500);}
+  .scard span{font-size:11.5px;color:var(--gray-500);display:block;}
+  /* Identitas perusahaan di dashboard */
+  .dash-co{display:flex;align-items:flex-start;gap:12px;}
+  .dash-co img{max-width:76px;max-height:56px;object-fit:contain;flex:0 0 auto;}
+  .dash-co-mark{width:44px;height:44px;border-radius:8px;background:var(--blue-500);
+    color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;
+    font-size:15px;flex:0 0 auto;}
+  .dash-co b{font-size:13.5px;font-weight:600;display:block;line-height:1.35;margin-bottom:3px;}
+  .dash-co span{font-size:11.5px;color:var(--gray-500);display:block;line-height:1.6;}
   .dash-grid{display:grid;grid-template-columns:2fr 1fr;gap:14px;align-items:start;}
 
   /* Designer */
@@ -345,7 +353,8 @@
   </aside>
 
   <header class="topbar">
-    <div class="proj"><b id="tb-proj">—</b><span id="tb-cust">—</span></div>
+    <div class="proj" id="tb-proj-block" style="display:none;"><b id="tb-proj">—</b><span id="tb-cust">—</span></div>
+    <div class="proj" id="tb-app"><b>Panel Builder Assistant</b><span>AI design assistant</span></div>
     <div class="search">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       <input id="global-search" placeholder="Search components, projects, part numbers…">
@@ -372,8 +381,8 @@
           <table class="data" id="dash-projects"></table>
         </div>
         <div class="card">
-          <div class="card-h">Asset readiness</div>
-          <div class="card-b" id="dash-assets" style="font-size:12px;color:var(--gray-500);line-height:1.8;"></div>
+          <div class="card-h">Perusahaan</div>
+          <div class="card-b" id="dash-company"></div>
         </div>
       </div>
     </section>
@@ -815,10 +824,10 @@ const VIEWS = [
   ['dashboard','Dashboard','<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>'],
   ['projects','Projects','<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'],
   ['designer','Panel designer','<path d="M4 20l4-1 12-12-3-3L5 16z"/><path d="M14 6l3 3"/>'],
-  ['library','Components library','<rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>'],
   ['bom','BOM','<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>'],
   ['calc','Electrical calculations','<path d="M13 2L4 14h6l-1 8 9-12h-6z"/>'],
   ['wiring','Wiring','<path d="M4 6h6a4 4 0 0 1 4 4v4a4 4 0 0 0 4 4h2"/><circle cx="4" cy="6" r="2"/><circle cx="20" cy="18" r="2"/>'],
+  ['library','Components library','<rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>'],
   ['reports','Reports','<path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h6M9 17h6"/>'],
   ['settings','Settings','<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/>'],
 ];
@@ -834,6 +843,13 @@ function go(id){
      di Panel designer — di halaman lain dia cuma menghalangi. */
   const ai=document.getElementById('ai-panel');
   if(ai) ai.style.display = id==='designer' ? '' : 'none';
+  /* Nama proyek aktif juga hanya bermakna di Panel designer. Di halaman lain
+     (Projects, BOM, Library, Reports, Dashboard) topbar-nya diganti judul
+     aplikasi supaya tidak menyesatkan — daftar proyek punya badge Active. */
+  const proj=document.getElementById('tb-proj-block');
+  const brand=document.getElementById('tb-app');
+  if(proj)  proj.style.display  = id==='designer' ? '' : 'none';
+  if(brand) brand.style.display = id==='designer' ? 'none' : '';
   const render = {dashboard:renderDashboard, projects:renderProjects, designer:enterDesigner,
                   library:renderLibrary, bom:renderBom, calc:renderCalc,
                   wiring:renderWiring, reports:renderReport, settings:enterSettings}[id];
@@ -1110,38 +1126,62 @@ function toast(msg, level){
 function renderDashboard(){
   recompute();
   set('dash-date', new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'}));
+  /* Customer unik (abaikan yang kosong / placeholder) */
+  const customers=new Set(state.projects
+    .map(p=>(p.customer||'').trim())
+    .filter(c=>c && c!=='—'));
+  /* "Library aktif" = komponen yang benar-benar dipakai di proyek mana pun:
+     hasil layout otomatis + yang ditambahkan manual lewat + Panel. */
+  const used=new Set();
+  for(const p of state.projects){
+    try{
+      const r=PanelEngine.compute(p.cfg, {...state.settings, components:state.library.components});
+      for(const it of r.items) used.add(it.type);
+      for(const it of r.door.items) used.add(it.type);
+      for(const it of r.side.items) used.add(it.type);
+    }catch(e){ /* proyek rusak tidak boleh mematikan dashboard */ }
+  }
+  const libTotal=Object.keys(libDb()).length;
   document.getElementById('dash-stats').innerHTML = `
     <div class="scard"><span>Projects</span><b>${state.projects.length}</b></div>
-    <div class="scard"><span>Components (active project)</span><b>${R.totalQty}</b></div>
-    <div class="scard"><span>Terminal points</span><b>${R.termPoints}</b></div>
-    <div class="scard"><span>Library items</span><b>${Object.keys(COMPONENT_DB).length}</b></div>`;
+    <div class="scard"><span>Customers</span><b>${customers.size}</b></div>
+    <div class="scard"><span>Library aktif</span><b>${used.size}</b>
+      <span style="font-size:10.5px;">dari ${libTotal} komponen di library</span></div>`;
   document.getElementById('dash-projects').innerHTML =
     '<tr><th>Project</th><th>Customer</th><th>Updated</th><th></th></tr>' +
     [...state.projects].sort((a,b)=>b.updated-a.updated).slice(0,6).map(p=>
       `<tr class="click" onclick="openProject(${p.id})"><td><b>${esc(p.name)}</b></td><td>${esc(p.customer)}</td><td>${fmtDate(p.updated)}</td>
        <td>${p.id===state.activeId?'<span class="badge b-blue">Active</span>':''}</td></tr>`).join('');
-  /* asset readiness: gambar upload (data URI) + file di assets/components/ */
-  const db=libDb(), types=Object.keys(db).map(k=>({key:k, d:db[k]}));
-  const uploaded=types.filter(t=>t.d.image).length;
-  let done=0, total=types.length, pending=[], checked=0;
-  if(!total) return fin();
-  types.forEach(t=>{
-    const src=imgSrc(t.d, t.type);
-    if(!src){ pending.push(t.d.pn||t.key); if(++checked===total) fin(); return; }
-    const img=new Image();
-    img.onload=()=>{done++; if(++checked===total) fin();};
-    img.onerror=()=>{pending.push(t.d.asset||t.d.pn||t.key); if(++checked===total) fin();};
-    img.src=src;
-  });
-  function fin(){
-    document.getElementById('dash-assets').innerHTML =
-      `<b style="color:var(--ink);font-size:16px;">${done} / ${total}</b> gambar komponen tersedia`+
-      (uploaded?` <span class="badge b-green">${uploaded} upload</span>`:'')+`.<br>`+
-      (pending.length? 'Belum ada: '+pending.slice(0,5).map(a=>`<code style="font-size:10px;">${esc(a)}</code>`).join(', ')+
-          (pending.length>5?` +${pending.length-5} lagi`:'')+
-          `<br><a onclick="go('library')" style="color:var(--blue-600);cursor:pointer;">Upload di Components library →</a>`
-        : 'Semua komponen punya gambar.');
+  renderDashCompany();
+}
+/* Identitas perusahaan di dashboard: logo + nama + kontak. Diisi di Settings. */
+function renderDashCompany(){
+  const el=document.getElementById('dash-company');
+  if(!el) return;
+  const co=company();
+  const logo=imgSrc({hasImage:co.hasLogo, imgVersion:co.logoVersion, asset:''}, CO_LOGO_KEY);
+  if(!co.name && !logo){
+    el.innerHTML=`<p style="font-size:12px;color:var(--gray-500);line-height:1.7;">
+      Identitas perusahaan belum diisi. Nama dan logo dipakai di kop
+      <b>Report PDF</b> dan <b>Layout PDF</b>.<br>
+      <a onclick="go('settings')" style="color:var(--blue-600);cursor:pointer;">Isi di Settings →</a></p>`;
+    return;
   }
+  const lines=[co.address, [co.city,co.country].filter(Boolean).join(', '),
+    [co.phone&&('T '+co.phone), co.email].filter(Boolean).join(' · '),
+    co.web].filter(Boolean);
+  el.innerHTML=`
+    <div class="dash-co">
+      ${logo?`<img src="${esc(logo)}" alt="Logo ${esc(co.name||'')}" onerror="this.style.display='none'">`
+            :`<div class="dash-co-mark">${esc((co.name||'?').slice(0,2).toUpperCase())}</div>`}
+      <div>
+        <b>${esc(co.name||'(nama belum diisi)')}</b>
+        ${lines.map(l=>`<span>${esc(l)}</span>`).join('')}
+        ${co.engineer?`<span style="margin-top:5px;">Disiapkan oleh: <b style="font-weight:500;">${esc(co.engineer)}</b>${co.role?', '+esc(co.role):''}</span>`:''}
+      </div>
+    </div>
+    <a onclick="go('settings')" style="color:var(--blue-600);cursor:pointer;font-size:11.5px;
+      display:inline-block;margin-top:10px;">Ubah identitas →</a>`;
 }
 
 /* ══════════ PROJECTS ══════════ */
