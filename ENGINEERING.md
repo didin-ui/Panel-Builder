@@ -356,6 +356,52 @@ are there, cutout diameters are not), door interlocks, ergonomic height checks,
 and collision detection between manually placed devices — you can overlap two
 devices if you drag them on top of each other.
 
+## 9b. Side panels — where the cooling actually lives
+
+Exhaust fans never belonged on the backplate. The prototype drew them there and
+reserved a 150 mm column on rail 1 to fake it; the review flagged that as wrong
+because a filter fan is cut into the enclosure skin, not bolted to the mounting
+plate. Cooling now has two dedicated views.
+
+**Airflow crosses the enclosure.** Intake with filter sits **low on the left**,
+exhaust fans sit **high on the right**, so air enters at the bottom-left, sweeps
+past the drives (the biggest heat source, on rail 3) and leaves at the top-right.
+One intake per exhaust — a fan with no inlet path just stalls against its own
+back pressure.
+
+Both views are drawn **from outside**, so the drawing width is the enclosure
+**depth** (D), not its width. A 40 mm margin clears the folded edge where you
+cannot cut. Devices stack downward from the top on the right and upward from the
+bottom on the left, 20 mm apart.
+
+Tags follow the same scheme as everywhere else: **E1, E2…** for exhaust fans,
+**V1, V2…** for intake louvres. They match the drawing, the wiring list and the
+BOM.
+
+Consequences of moving the fan off the plate:
+
+- Rail 1 got its full width back — 150 mm plus a gap that used to be reserved.
+- The layout → size → thermal calculation is now a single pass. It used to
+  iterate up to four times because fan count changed the reserved column, which
+  changed the height, which changed the temperature, which changed the fan count.
+- The BOM counts fans and filters once, from the side layout. The separate
+  hand-written outlet-filter line is gone, so they can no longer disagree.
+
+Checks: `SIDE_TOO_SHALLOW` when a device is wider than the panel depth allows
+(quoting the real width, not a hardcoded 150 mm — reachable if you edit the fan
+dimensions in the library), `SIDE_DEVICE_OUTSIDE` when a manually dragged device
+leaves the panel outline, `SIDE_TOO_SMALL` when the stack is taller than the
+enclosure.
+
+Manual placement works like the front cover: drag with 5 mm snap, and a device
+may be dragged **across** sides. Library components can be sent to either side
+from **+ Panel → Left/Right side** — useful for inspection windows, extra
+louvres, or a second fan bank.
+
+**Not modelled:** cut-out dimensions (positions are given, hole sizes are not),
+filter pressure drop, and IP degradation from adding vents — a louvred panel is
+not IP55 any more, and the engine still reports IP55 from the enclosure line.
+
 ## 10. Panels without a PLC
 
 Selecting **No PLC** treats the panel as relay-logic or pure motor-starter gear:

@@ -106,14 +106,14 @@ describe('invariant — PSU keeps its design headroom', () => {
 
 describe('invariant — fan count agrees everywhere', () => {
   forEachCase((r) => {
-    const inLayout = r.items.filter((i) => i.type === 'fan').length;
+    const inLayout = r.side.items.filter((i) => i.type === 'fan').length;
     const fanLine = r.bom.find((b) => b.pn === 'SK-3239-100');
     const filterLine = r.bom.find((b) => b.pn === 'SK-3239-200');
     assert.equal(inLayout, r.thermal.fans, 'layout vs thermal');
     assert.equal(fanLine ? fanLine.qty : 0, r.thermal.fans, 'BOM vs thermal');
     assert.equal(filterLine ? filterLine.qty : 0, r.thermal.fans,
       'every fan needs a matching outlet filter');
-    const fanWires = r.wiring.filter((w) => /Filter fan/.test(w.to)).length;
+    const fanWires = r.wiring.filter((w) => /Exhaust fan/.test(w.to)).length;
     assert.equal(fanWires, r.thermal.fans, 'wiring vs thermal');
   });
 });
@@ -264,7 +264,7 @@ describe('invariant — layout bookkeeping', () => {
       assert.ok(E.COMPONENT_DB[it.type], `unknown component type "${it.type}"`);
     const railRows = r.rows.filter((x) => x.list);
     const placedOnRails = railRows.reduce((t, x) => t + x.list.length, 0);
-    const fanCount = r.items.filter((i) => i.type === 'fan').length;
+    const fanCount = 0;   /* fan tidak lagi di backplate */
     assert.equal(placedOnRails, r.items.length - fanCount,
       'every rail entry must produce exactly one placed item');
   });
@@ -499,7 +499,7 @@ describe('library — custom components added to a project', () => {
     })(r, 'R');
     assert.deepEqual(bad, []);
     assert.ok(r.util <= E.ASSUMPTIONS.psuMaxUtil * 100 + 1e-9);
-    assert.equal(r.items.filter((i) => i.type === 'fan').length, r.thermal.fans);
+    assert.equal(r.side.items.filter((i) => i.type === 'fan').length, r.thermal.fans);
     for (const it of r.items) assert.ok(r.specs[it.type], 'unknown type ' + it.type);
   });
 });
@@ -985,7 +985,7 @@ describe('terminal blocks — rail 4', () => {
 
   test('rail 4 keeps every invariant', () => {
     const r = R({ extras: TB });
-    assert.equal(r.items.filter((i) => i.type === 'fan').length, r.thermal.fans);
+    assert.equal(r.side.items.filter((i) => i.type === 'fan').length, r.thermal.fans);
     for (const it of r.items) assert.ok(r.specs[it.type], 'unknown ' + it.type);
     const ids = r.items.map((i) => i.id);
     assert.equal(new Set(ids).size, ids.length, 'duplicate ids');
@@ -1074,6 +1074,317 @@ describe('backplate — manual horizontal placement', () => {
 
 /* helper: cari baris BOM berdasarkan part number */
 function r_bom(r, pn) { return r.bom.find((b) => b.pn === pn); }
+
+describe('library exchange — export', () => {
+  const patch = { my_relay: { desc: 'Relay khusus', pn: 'XR-9', w: 20, h: 80, d: 70,
+    powerW: 2, vendor: 'Acme', cat: 'Switching', mount: 'rail' } };
+
+  test('produces a versioned, self-describing file', () => {
+    const pkg = E.exportLibrary(patch, ['my_relay'], { now: '2026-07-28T00:00:00Z' });
+    assert.equal(pkg.format, 'panel-builder-library');
+    assert.equal(pkg.version, E.LIB_VERSION);
+    assert.equal(pkg.exported, '2026-07-28T00:00:00Z');
+    assert.equal(pkg.count, 1);
+    assert.ok(JSON.parse(JSON.stringify(pkg)), 'must survive JSON round trip');
+  });
+
+  test('exports a complete snapshot, not just the override', () => {
+    /* the receiving app may have different built-ins, so a diff would be useless */
+    const pkg = E.exportLibrary({ mccb: { pn: 'CUSTOM-99' } }, ['mccb']);
+    const m = pkg.components.mccb;
+    assert.equal(m.pn, 'CUSTOM-99', 'override must win');
+    assert.equal(m.w, E.COMPONENT_DB.mccb.w, 'unchanged fields must still be present');
+    assert.equal(m.cat, E.COMPONENT_DB.mccb.cat);
+    assert.ok(m.desc && m.mount);
+  });
+
+  test('only the requested components are included', () => {
+    const pkg = E.exportLibrary(patch, ['my_relay', 'mccb', 'tidak_ada']);
+    assert.deepEqual(Object.keys(pkg.components).sort(), ['mccb', 'my_relay']);
+  });
+
+  test('images are opt-in', () => {
+    const withImg = E.exportLibrary(patch, ['my_relay'],
+      { images: true, imageMap: { my_relay: 'data:image/png;base64,AAA' } });
+    assert.deepEqual(Object.keys(withImg.images), ['my_relay']);
+    const without = E.exportLibrary({ my_relay: Object.assign({ hasImage: true,
+      imgVersion: 7 }, patch.my_relay) }, ['my_relay'], { images: false });
+    assert.deepEqual(without.images, {});
+    assert.equal(without.components.my_relay.hasImage, undefined,
+      'the image flag must not survive an image-less export');
+  });
+});
+
+describe('library exchange — import', () => {
+  const good = (over) => Object.assign({
+    format: 'panel-builder-library', version: 1,
+    components: { imported: { desc: 'Imported thing', pn: 'IMP-1',
+      w: 30, h: 60, d: 50, cat: 'Switching', mount: 'rail' } } }, over || {});
+
+  test('a well-formed file is accepted and counted', () => {
+    const v = E.validateLibraryFile(good(), {});
+    assert.equal(v.ok, true);
+    assert.equal(v.total, 1);
+    assert.equal(v.isNew, 1);
+    assert.equal(v.overwrite, 0);
+  });
+
+  test('overwrites are counted against built-ins and existing overrides', () => {
+    const f = good({ components: {
+      mccb: { desc: 'x', w: 1, h: 1, d: 1 },          // built-in
+      mine: { desc: 'y', w: 1, h: 1, d: 1 },          // existing override
+      brand_new: { desc: 'z', w: 1, h: 1, d: 1 } } });
+    const v = E.validateLibraryFile(f, { mine: { desc: 'y' } });
+    assert.equal(v.overwrite, 2);
+    assert.equal(v.isNew, 1);
+  });
+
+  test('every malformed file is refused with a reason, never thrown', () => {
+    const cases = [
+      [undefined, /objek JSON/], [null, /objek JSON/], ['teks', /objek JSON/],
+      [42, /objek JSON/],
+      [{ format: 'lain', version: 1, components: {} }, /Bukan file library/],
+      [good({ version: 0 }), /versi tidak valid/i],
+      [good({ version: 1.5 }), /versi tidak valid/i],
+      [good({ version: 99 }), /lebih baru/],
+      [{ format: 'panel-builder-library', version: 1 }, /tidak memuat komponen/],
+      [good({ components: {} }), /tidak memuat komponen|bisa dipakai/],
+    ];
+    for (const [input, re] of cases) {
+      let v;
+      assert.doesNotThrow(() => { v = E.validateLibraryFile(input, {}); },
+        'validator threw on ' + String(JSON.stringify(input)).slice(0, 40));
+      assert.equal(v.ok, false, 'accepted ' + String(JSON.stringify(input)).slice(0, 40));
+      assert.match(v.error, re);
+    }
+  });
+
+  test('unknown fields from a foreign file are stripped', () => {
+    const v = E.validateLibraryFile(good({ components: { x: {
+      desc: 'X', w: 10, h: 10, d: 10,
+      evil: '<script>alert(1)</script>', __proto__x: 1, onclick: 'boom' } } }), {});
+    assert.equal(v.ok, true);
+    const keys = Object.keys(v.components.x);
+    for (const bad of ['evil', '__proto__x', 'onclick'])
+      assert.ok(!keys.includes(bad), 'field "' + bad + '" leaked through');
+    assert.deepEqual(keys.sort(), ['d', 'desc', 'h', 'w']);
+  });
+
+  test('numbers and booleans are coerced, strings are capped', () => {
+    const v = E.validateLibraryFile(good({ components: { x: { desc: 'X',
+      w: '30', h: '60', d: '50', powerW: '2.5', dimsVerified: 'yes',
+      vendor: 'V'.repeat(900) } } }), {});
+    const x = v.components.x;
+    assert.equal(typeof x.w, 'number');
+    assert.equal(x.w, 30);
+    assert.equal(x.powerW, 2.5);
+    assert.equal(x.dimsVerified, true);
+    assert.ok(x.vendor.length <= 400, 'long strings must be capped');
+  });
+
+  test('components that cannot be built are skipped, not imported broken', () => {
+    const v = E.validateLibraryFile(good({ components: {
+      ok: { desc: 'Fine', w: 10, h: 10, d: 10 },
+      nodesc: { w: 10, h: 10, d: 10 },
+      zerodim: { desc: 'Zero', w: 0, h: 10, d: 10 },
+      negdim: { desc: 'Neg', w: -5, h: 10, d: 10 },
+      'bad key!': { desc: 'Bad', w: 1, h: 1, d: 1 } } }), {});
+    assert.deepEqual(Object.keys(v.components), ['ok']);
+    assert.equal(v.skipped.length, 4);
+    assert.ok(v.skipped.some((s) => /kode tidak valid/.test(s)));
+  });
+
+  test('a CPU without built-in I/O is demoted, not allowed to break module maths', () => {
+    const v = E.validateLibraryFile(good({ components: { cpu: { desc: 'Bad CPU',
+      w: 10, h: 10, d: 10, isPlc: true, builtinDi: 0, builtinDo: 0 } } }), {});
+    assert.equal(v.components.cpu.isPlc, undefined);
+    assert.equal(v.components.cpu.plcName, undefined);
+    /* and it therefore cannot appear as a selectable model */
+    assert.ok(!E.plcModels(v.components).some((m) => m.key === 'cpu'));
+  });
+
+  test('a valid CPU survives import and becomes selectable', () => {
+    const v = E.validateLibraryFile(good({ components: { cpu: { desc: 'Good CPU',
+      pn: 'GC-1', w: 100, h: 90, d: 70, cat: 'Control', mount: 'rail',
+      isPlc: true, plcName: 'Good CPU', builtinDi: 16, builtinDo: 16, maxExp: 4,
+      expDi: 'exp_di16', expDo: 'exp_do16', expAi: 'exp_ai4', expAo: 'exp_ao4' } } }), {});
+    assert.equal(v.components.cpu.isPlc, true);
+    assert.ok(E.plcModels(v.components).some((m) => m.key === 'cpu'));
+    const r = E.compute(cfg({ plc: 'cpu', di: 24 }), { components: v.components });
+    assert.equal(r.cpu.pn, 'GC-1');
+    assert.equal(r.diExtra, 1);
+  });
+
+  test('only real image data URIs are carried across', () => {
+    const v = E.validateLibraryFile(good({
+      components: { a: { desc: 'A', w: 1, h: 1, d: 1, hasImage: true, imgVersion: 5 },
+                    b: { desc: 'B', w: 1, h: 1, d: 1, hasImage: true } },
+      images: { a: 'data:image/png;base64,AAA', b: 'http://evil.test/x.png' } }), {});
+    assert.deepEqual(Object.keys(v.images), ['a']);
+    assert.equal(v.components.a.hasImage, true);
+    assert.equal(v.components.b.hasImage, undefined,
+      'a component whose image was rejected must not claim to have one');
+  });
+
+  test('export → import is a faithful round trip', () => {
+    const patch = { rt: { desc: 'Round trip', pn: 'RT-1', w: 33, h: 66, d: 44,
+      powerW: 1.5, vendor: 'V', cat: 'Control', mount: 'door', dimsVerified: true } };
+    const pkg = JSON.parse(JSON.stringify(E.exportLibrary(patch, ['rt'])));
+    const v = E.validateLibraryFile(pkg, {});
+    assert.equal(v.ok, true);
+    for (const f of ['desc', 'pn', 'w', 'h', 'd', 'powerW', 'vendor', 'cat',
+                     'mount', 'dimsVerified'])
+      assert.deepEqual(v.components.rt[f], patch.rt[f], 'field ' + f + ' changed');
+    /* and the imported component actually computes */
+    const r = E.compute(cfg({ extras: [{ type: 'rt', qty: 1, place: 'door' }] }),
+      { components: v.components });
+    assert.ok(r.door.items.some((i) => i.type === 'rt'));
+    assert.ok(r.bom.some((b) => b.pn === 'RT-1'));
+  });
+
+  test('validating does not mutate the file or the existing library', () => {
+    const pkg = good();
+    const snapshot = JSON.stringify(pkg);
+    const existing = { mine: { desc: 'untouched' } };
+    E.validateLibraryFile(pkg, existing);
+    assert.equal(JSON.stringify(pkg), snapshot, 'input file was mutated');
+    assert.deepEqual(existing, { mine: { desc: 'untouched' } });
+    assert.equal(E.COMPONENT_DB.imported, undefined,
+      'validation must not touch the built-in database');
+  });
+});
+
+describe('side panels — where the exhaust fan actually lives', () => {
+  test('fans left the backplate entirely', () => {
+    const r = R();
+    assert.ok(r.thermal.fans > 0, 'fixture needs fans');
+    assert.equal(r.items.filter((i) => i.type === 'fan').length, 0,
+      'a side-mounted fan must not occupy backplate space');
+    assert.equal(r.side.right.filter((i) => i.type === 'fan').length, r.thermal.fans);
+  });
+
+  test('airflow crosses: intake low on the left, exhaust high on the right', () => {
+    const r = R();
+    const fan = r.side.right.find((i) => i.type === 'fan');
+    const flt = r.side.left.find((i) => i.type === 'filter_out');
+    assert.ok(fan && flt, 'both halves of the airflow path must exist');
+    assert.ok(fan.y < r.H / 2, 'exhaust belongs high up');
+    assert.ok(flt.y > r.H / 2, 'intake belongs low down');
+    assert.equal(r.side.left.filter((i) => i.type === 'filter_out').length,
+      r.thermal.fans, 'one intake per exhaust');
+  });
+
+  test('the side view is drawn depth × height, not width × height', () => {
+    const r = R();
+    for (const it of r.side.items) {
+      const d = r.specs[it.type];
+      assert.ok(it.x + d.w / 2 <= r.D + 0.01,
+        `${it.tag} is wider than the ${r.D} mm depth`);
+      assert.ok(it.y + d.h / 2 <= r.H + 0.01, `${it.tag} past the bottom`);
+      assert.ok(it.x - d.w / 2 >= -0.01 && it.y - d.h / 2 >= -0.01);
+    }
+    assert.equal(r.side.fits, true);
+  });
+
+  test('fan and intake are tagged, and the tags reach the BOM and wiring', () => {
+    const r = R();
+    assert.ok(r.side.right.every((i) => /^E\d/.test(i.tag)), 'exhaust tags should be E*');
+    assert.ok(r.side.left.every((i) => /^V\d/.test(i.tag)), 'intake tags should be V*');
+    const ids = r.side.items.map((i) => i.id);
+    assert.equal(new Set(ids).size, ids.length, 'duplicate side ids');
+    /* counted once, from the side layout — not added a second time by hand */
+    assert.equal(r.bom.filter((b) => b.pn === 'SK-3239-100').length, 1);
+    assert.equal(r.bom.find((b) => b.pn === 'SK-3239-100').qty, r.thermal.fans);
+    assert.equal(r.bom.find((b) => b.pn === 'SK-3239-200').qty, r.thermal.fans);
+    assert.equal(r.wiring.filter((w) => /Exhaust fan E/.test(w.to)).length, r.thermal.fans);
+  });
+
+  test('no cooling means no side devices and no cooling BOM lines', () => {
+    const r = R({ vfd: 0, servo: 0, motor: 0, di: 2, do_: 2, ai: 0, ao: 0, hmi: 0, valve: 0 });
+    assert.equal(r.thermal.method, 'natural');
+    assert.equal(r.side.items.length, 0);
+    assert.equal(r.bom.filter((b) => b.cat === 'Cooling').length, 0);
+    assert.equal(r.side.fits, true, 'an empty side panel trivially fits');
+  });
+
+  test('a manual position moves a device, optionally to the other side', () => {
+    const r = R({ sidePos: { 'fan#1': { x: 150, y: 600, side: 'left' } } });
+    const f = r.side.items.find((i) => i.id === 'fan#1');
+    assert.equal(f.y, 600);
+    assert.equal(f.side, 'left', 'must be able to move a fan across sides');
+    assert.equal(f.manual, true);
+    assert.deepEqual(r.side.manual, ['fan#1']);
+    assert.ok(r.side.left.some((i) => i.id === 'fan#1'));
+    assert.ok(!r.side.right.some((i) => i.id === 'fan#1'));
+  });
+
+  test('only the moved device is pinned', () => {
+    const auto = R();
+    const r = R({ sidePos: { 'fan#1': { x: 150, y: 600 } } });
+    for (const it of r.side.items) {
+      if (it.id === 'fan#1') continue;
+      const a = auto.side.items.find((x) => x.id === it.id);
+      assert.equal(it.y, a.y, it.id + ' drifted');
+    }
+  });
+
+  test('dragging a side device out of the panel is reported', () => {
+    const r = R({ sidePos: { 'fan#1': { x: 150, y: 5000 } } });
+    assert.deepEqual(r.side.draggedOutside, ['E1']);
+    const w = r.warnings.find((x) => x.code === 'SIDE_DEVICE_OUTSIDE');
+    assert.ok(w && w.level === 'error');
+    assert.equal(r.side.fits, false);
+  });
+
+  test('a device wider than the panel depth is an error naming the real width', () => {
+    const r = E.compute(cfg(), { components: { fan: { w: 280 } } });
+    assert.equal(r.side.tooShallow, true);
+    const w = r.warnings.find((x) => x.code === 'SIDE_TOO_SHALLOW');
+    assert.ok(w && w.level === 'error');
+    assert.match(w.msg, /280 mm/, 'must quote the actual width, not a hardcoded 150');
+    assert.match(w.msg, new RegExp(String(r.D) + ' mm'));
+  });
+
+  test('library components can be sent to either side', () => {
+    const l = R({ extras: [{ type: 'window', qty: 1, place: 'left' }] });
+    const rt = R({ extras: [{ type: 'window', qty: 2, place: 'right' }] });
+    assert.equal(l.side.left.filter((i) => i.type === 'window').length, 1);
+    assert.equal(l.side.right.filter((i) => i.type === 'window').length, 0);
+    assert.equal(rt.side.right.filter((i) => i.type === 'window').length, 2);
+    /* and they must not land on the backplate or the door */
+    assert.equal(l.items.filter((i) => i.type === 'window').length, 0);
+    assert.equal(l.door.items.filter((i) => i.type === 'window').length, 0);
+    assert.equal(rt.bom.find((b) => b.pn === 'WINDOW-200x150').qty, 2);
+  });
+
+  test('malformed sidePos entries are dropped', () => {
+    const n = E.normalizeCfg({ sidePos: {
+      'a#1': { x: 1 },                       // no y
+      'b#1': { x: 1, y: 2, side: 'atas' },   // bad side is ignored, entry kept
+      'c#1': { x: 3, y: 4, side: 'left' },
+      'd#1': null } });
+    assert.deepEqual(Object.keys(n.sidePos), ['b#1', 'c#1']);
+    assert.deepEqual(n.sidePos['b#1'], { x: 1, y: 2 }, 'bad side must be stripped');
+    assert.deepEqual(n.sidePos['c#1'], { x: 3, y: 4, side: 'left' });
+  });
+
+  test('the side layout does not disturb sizing or the BOM total', () => {
+    const auto = R();
+    const moved = R({ sidePos: { 'fan#1': { x: 150, y: 600, side: 'left' } } });
+    assert.deepEqual([moved.W, moved.H, moved.D], [auto.W, auto.H, auto.D]);
+    assert.deepEqual(moved.bom.map((b) => b.pn + ':' + b.qty),
+                     auto.bom.map((b) => b.pn + ':' + b.qty));
+  });
+
+  test('removing the fan column freed real backplate width', () => {
+    /* the old engine reserved 150 mm + gap on rail 1 for the fan */
+    const r = R();
+    const rail1 = r.rows.find((x) => x.list && /RAIL 1/.test(x.name));
+    const used = rail1.list.reduce((t, k) => t + r.specs[k].w, 0);
+    assert.ok(used <= r.W - r.assumptions.layout.pad * 2,
+      'rail 1 should now be able to use the full backplate width');
+  });
+});
 
 describe('front cover — manual positioning', () => {
   test('a manual position overrides the generated one', () => {
@@ -1215,7 +1526,7 @@ describe('no PLC', () => {
     })(r, 'R');
     assert.deepEqual(bad, []);
     assert.ok(r.util <= E.ASSUMPTIONS.psuMaxUtil * 100 + 1e-9);
-    assert.equal(r.items.filter((i) => i.type === 'fan').length, r.thermal.fans);
+    assert.equal(r.side.items.filter((i) => i.type === 'fan').length, r.thermal.fans);
     const nos = r.wiring.map((w) => w.no);
     assert.equal(new Set(nos).size, nos.length, 'duplicate wire numbers');
   });

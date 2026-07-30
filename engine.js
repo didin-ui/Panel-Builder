@@ -232,7 +232,11 @@
     mcb1:      { asset:'mcb-1p.png',           w:18,   h:90,  d:70,  cat:'Protection', label:'',                color:'#6B7885', bg:'#EEF1F4', pn:'MCB-1P-C6',             desc:'MCB 1P curve C, control',              vendor:'Schneider Electric',  mount:'rail', powerW:0,  dimsVerified:false },
     vfd:       { asset:'vfd.png',              w:108,  h:128, d:145, cat:'Drives',     label:'VFD Drives',      color:'#5B4BB5', bg:'#EAE7F8', pn:'FR-D740-2.2K',          desc:'Inverter VFD',                         vendor:'Mitsubishi Electric', mount:'rail', powerW:0,  dimsVerified:false },
     servo:     { asset:'servo.png',            w:85,   h:168, d:195, cat:'Drives',     label:'Servo Drives',    color:'#B03A6C', bg:'#F8E4ED', pn:'MR-J4-100A4',           desc:'Servo amplifier',                      vendor:'Mitsubishi Electric', mount:'rail', powerW:0,  dimsVerified:false },
-    fan:       { asset:'cooling-fan-150.png',  w:150,  h:150, d:100, cat:'Cooling',    label:'Filter Fan',      color:'#6B7885', bg:'#EEF1F4', pn:'SK-3239-100',           desc:'Filter fan 150 mm (door/side mounted)',vendor:'Rittal',              mount:'door', powerW:0,  dimsVerified:false },
+    /* Pendinginan hidup di panel SISI: exhaust fan tinggi di sisi kanan,
+       intake berfilter rendah di sisi kiri — udara masuk bawah-kiri, menyapu
+       drive, keluar atas-kanan. */
+    fan:       { asset:'cooling-fan-150.png',  w:150,  h:150, d:100, cat:'Cooling',    label:'Exhaust Fan',     color:'#6B7885', bg:'#EEF1F4', pn:'SK-3239-100',           desc:'Exhaust filter fan 150 mm (side mounted)', vendor:'Rittal',          mount:'side', powerW:0,  dimsVerified:false },
+    filter_out:{ asset:'outlet-filter-150.png',w:150,  h:150, d:30,  cat:'Cooling',    label:'Intake Filter',   color:'#6B7885', bg:'#EEF1F4', pn:'SK-3239-200',           desc:'Intake louvre + filter 150 mm (side mounted)', vendor:'Rittal',      mount:'side', powerW:0,  dimsVerified:false },
 
     /* ── Terminal blocks ─────────────────────────────────────────────────
        Dipasang di RAIL 4 · TERMINAL BLOCKS. `w` adalah lebar per pole
@@ -317,7 +321,7 @@
     estop: 'S', sel_auto: 'S', pb_start: 'S', pb_stop: 'S', pb_reset: 'S',
     lamp_pwr: 'H', lamp_run: 'H', lamp_flt: 'H',
     vfd: 'T', servo: 'T',
-    fan: 'E',
+    fan: 'E', filter_out: 'V',
   };
   /* Fixed numbers for the door devices, so START is always S3 on every drawing */
   const DOOR_TAG = { disconnect: 'Q1', estop: 'S1', sel_auto: 'S2',
@@ -368,6 +372,7 @@
     extras: [],
     doorPos: {},      /* {'estop#1': {x,y}} — manual front-cover placement, mm */
     platePos: {},     /* {'mccb#1': {x, row}} — manual backplate X + pilihan rail */
+    sidePos: {},      /* {'fan#1': {x,y,side}} — manual placement di panel sisi */
   };
   const NO_PLC = 'none';
   /* Nama PLC versi lama (sebelum PLC jadi komponen library) → key komponen */
@@ -428,13 +433,22 @@
       if (Object.keys(e).length) pp[k] = e;
     }
     c.platePos = pp;
+    /* Posisi manual di panel sisi. `side` opsional — kalau ada harus valid. */
+    const sp = {};
+    for (const k of Object.keys(c.sidePos || {})) {
+      const p = c.sidePos[k];
+      if (p && Number.isFinite(+p.x) && Number.isFinite(+p.y))
+        sp[k] = Object.assign({ x: +p.x, y: +p.y },
+          (p.side === 'left' || p.side === 'right') ? { side: p.side } : {});
+    }
+    c.sidePos = sp;
     c.extras = (Array.isArray(c.extras) ? c.extras : [])
       .filter((e) => e && e.type)
       .map((e) => ({
         type: String(e.type),
         qty: Math.max(1, clampInt(e.qty) || 1),
         /* entries saved before the front cover existed have no place */
-        place: e.place === 'door' ? 'door' : 'plate',
+        place: ['door', 'left', 'right'].indexOf(e.place) >= 0 ? e.place : 'plate',
         /* rail 4 = strip terminal block */
         rail: [1, 2, 3, 4].indexOf(+e.rail) >= 0 ? +e.rail : 2,
       }));
@@ -867,7 +881,7 @@
 
     /* Components the user added by hand from the library, split by destination */
     const railOf = { 1: rail1, 2: rail2, 3: rail3, 4: rail4 };
-    const doorExtras = [];
+    const doorExtras = [], sideExtrasL = [], sideExtrasR = [];
     for (const e of c.extras) {
       if (!specs[e.type]) {
         warnings.push({ level: 'error', code: 'UNKNOWN_COMPONENT',
@@ -875,50 +889,50 @@
                'it was skipped. Re-add it or remove it from this project.' });
         continue;
       }
-      const target = e.place === 'door' ? doorExtras : railOf[e.rail];
+      const target = e.place === 'door' ? doorExtras
+        : e.place === 'left' ? sideExtrasL
+        : e.place === 'right' ? sideExtrasR
+        : railOf[e.rail];
       for (let i = 0; i < e.qty; i++) target.push(e.type);
     }
 
-    /* Provisional fan count so the reserved column is right; refined below. */
-    let fanCount = 1, layout = null, dims = null, th = null;
-    for (let pass = 0; pass < 4; pass++) {
-      layout = buildLayout({ rail1, rail2, rail3, rail4 }, {
-        W, PAD, GAP, GAPV, DUCT, TSTRIP, fanCount, spec, platePos: c.platePos,
-      });
-      const maxDepth = Math.max.apply(null,
-        layout.items.map((i) => spec(i.type).d).concat([100]));
-      dims = {
-        W,
-        /* A chosen catalogue height is honoured as given; only automatic sizing
-           rounds up to the next standard size. */
-        H: c.cabH > 0 ? c.cabH
-                      : pickAtLeast(STD_HEIGHTS.map((h) => ({ h })), layout.needH, 'h').h,
-        D: pickAtLeast(STD_DEPTHS.map((d) => ({ d })), maxDepth + DEPTH_CLEARANCE, 'd').d,
-        fixedH: c.cabH > 0,
-      };
-      if (!dims.fixedH && layout.needH > STD_HEIGHTS[STD_HEIGHTS.length - 1]) {
-        dims.H = Math.ceil(layout.needH / 100) * 100;
-        dims.nonStandardH = true;
-      }
-      /* Wall-mount enclosures are portrait by convention, so automatic sizing
-         never returns a panel wider than it is tall — it grows the height to at
-         least the width instead. Catalogue sizes are already portrait. */
-      if (!dims.fixedH && dims.H < W) {
-        dims.H = pickAtLeast(STD_HEIGHTS.map((h) => ({ h })), W, 'h').h;
-        dims.portraitEnforced = true;
-      }
-      dims.freeStanding = dims.H > 800;
-
-      const heat = heatLoad(layout, sched, dc, counts, A, spec);
-      th = thermal(heat.totalW, dims, c.ambientC, A);
-      if (th.fans === fanCount) { th.heat = heat; break; }
-      fanCount = th.fans;
-      th.heat = heat;
+    /* Fan tidak lagi menyisihkan ruang di backplate, jadi layout → dims →
+       thermal cukup satu lintasan; dulu perlu iterasi sampai jumlah fan
+       konvergen dengan kolom cadangannya. */
+    const layout = buildLayout({ rail1, rail2, rail3, rail4 }, {
+      W, PAD, GAP, GAPV, DUCT, TSTRIP, spec, platePos: c.platePos,
+    });
+    const maxDepth = Math.max.apply(null,
+      layout.items.map((i) => spec(i.type).d).concat([100]));
+    const dims = {
+      W,
+      /* A chosen catalogue height is honoured as given; only automatic sizing
+         rounds up to the next standard size. */
+      H: c.cabH > 0 ? c.cabH
+                    : pickAtLeast(STD_HEIGHTS.map((h) => ({ h })), layout.needH, 'h').h,
+      D: pickAtLeast(STD_DEPTHS.map((d) => ({ d })), maxDepth + DEPTH_CLEARANCE, 'd').d,
+      fixedH: c.cabH > 0,
+    };
+    if (!dims.fixedH && layout.needH > STD_HEIGHTS[STD_HEIGHTS.length - 1]) {
+      dims.H = Math.ceil(layout.needH / 100) * 100;
+      dims.nonStandardH = true;
     }
-    const heat = th.heat;
+    /* Wall-mount enclosures are portrait by convention, so automatic sizing
+       never returns a panel wider than it is tall — it grows the height to at
+       least the width instead. Catalogue sizes are already portrait. */
+    if (!dims.fixedH && dims.H < W) {
+      dims.H = pickAtLeast(STD_HEIGHTS.map((h) => ({ h })), W, 'h').h;
+      dims.portraitEnforced = true;
+    }
+    dims.freeStanding = dims.H > 800;
 
-    /* ── door layout (needs the final enclosure size) ───────────────── */
+    const heat = heatLoad(layout, sched, dc, counts, A, spec);
+    const th = thermal(heat.totalW, dims, c.ambientC, A);
+    th.heat = heat;
+
+    /* ── door & side layouts (need the final enclosure size) ─────────── */
     const door = buildDoorLayout(c, counts, spec, dims.W, dims.H, A, doorExtras);
+    const side = buildSideLayout(c, th.fans, spec, dims, A, sideExtrasL, sideExtrasR);
 
     if (dims.nonStandardH)
       warnings.push({ level: 'warn', code: 'HEIGHT_NONSTD',
@@ -936,6 +950,20 @@
              layout.overlaps.slice(0, 6).join(', ') +
              (layout.overlaps.length > 6 ? ` (+${layout.overlaps.length - 6} lagi)` : '') +
              '. Jarak 0 mm boleh, tapi tumpang tindih tidak bisa dirakit.' });
+    if (side.tooShallow)
+      warnings.push({ level: 'error', code: 'SIDE_TOO_SHALLOW',
+        msg: 'Perangkat sisi selebar ' + side.widest + ' mm tidak muat di panel sedalam ' +
+             dims.D + ' mm (butuh ≥ ' + (side.widest + side.margin * 2) +
+             ' mm dengan margin). ' +
+             'Pilih enclosure lebih dalam, atau pindahkan fan ke pintu secara manual.' });
+    if (side.draggedOutside.length)
+      warnings.push({ level: 'error', code: 'SIDE_DEVICE_OUTSIDE',
+        msg: 'Perangkat sisi ' + side.draggedOutside.join(', ') + ' berada di luar ' +
+             'panel. Tarik kembali ke dalam, atau reset posisi tab sisi.' });
+    else if (!side.fits && side.items.length && !side.tooShallow)
+      warnings.push({ level: 'error', code: 'SIDE_TOO_SMALL',
+        msg: 'Perangkat sisi butuh tinggi ' + Math.round(side.neededH) + ' mm tapi ' +
+             'panel hanya ' + dims.H + ' mm.' });
     if (door.draggedOutside.length)
       warnings.push({ level: 'error', code: 'DOOR_DEVICE_OUTSIDE',
         msg: 'Manually placed device(s) ' + door.draggedOutside.join(', ') +
@@ -981,7 +1009,7 @@
              'Tambahkan sisanya di RAIL 4 dari Components library.' });
 
     const bom = buildBom({
-      layout, door, dims, specs, counts, cfg: c, termPoints, powerTerms,
+      layout, door, side, dims, specs, counts, cfg: c, termPoints, powerTerms,
       controlTerms, spares, wiring, thermal: th, assumptions: A,
       terminalsItemised,
     });
@@ -997,8 +1025,8 @@
       dims, needH: layout.needH, overflow: layout.overflow,
       railRows: layout.railRows, manualPlate: layout.manualPlate,
       overlaps: layout.overlaps,
-      /* front cover */
-      door, hasPlc, cpu, plcKey,
+      /* front cover & panel sisi */
+      door, side, hasPlc, cpu, plcKey,
       railLengthMm: layout.railLengthMm, railFreeMm: layout.railFreeMm,
       ductLengthMm: layout.ductLengthMm,
       /* electrical */
@@ -1021,12 +1049,10 @@
 
   /* ══════════ LAYOUT BUILDER ══════════ */
   function buildLayout(rails, o) {
-    const { W, PAD, GAP, GAPV, DUCT, TSTRIP, fanCount, spec } = o;
-    /* Reserve a right-hand column for door/side-mounted fans. They do not sit
-       on the backplate, but keeping the column clear guarantees the airflow
-       path and wiring space stays free. */
-    const fanW = fanCount > 0 ? spec('fan').w + GAP : 0;
-    const usableW = W - PAD * 2 - fanW;
+    const { W, PAD, GAP, GAPV, DUCT, TSTRIP, spec } = o;
+    /* Exhaust fan dan intake filter kini digambar di panel SISI (left/right
+       side view), jadi backplate tidak lagi menyisihkan kolom untuk fan. */
+    const usableW = W - PAD * 2;
 
     const rows = [];
     let y = PAD, overflow = false, railLengthMm = 0, railUsedMm = 0;
@@ -1069,11 +1095,7 @@
     else
       emitBand('tstrip', TSTRIP, 'TERMINAL BLOCKS X1–X4');
 
-    /* The fan column is reserved space too — if it is taller than the rails,
-       it sets the cabinet height, otherwise the fans would fall outside. */
-    const fanColH = fanCount > 0
-      ? PAD + fanCount * (spec('fan').h + GAP) - GAP + PAD : 0;
-    const needH = Math.max(y - GAPV + PAD, fanColH);
+    const needH = y - GAPV + PAD;
 
     /* place components */
     let items = [];
@@ -1098,13 +1120,6 @@
         x += d.w + GAP;
       }
     }
-    /* fans stacked down the reserved column */
-    for (let i = 0; i < fanCount; i++) {
-      const f = spec('fan');
-      items.push({ type: 'fan', x: W - PAD - f.w / 2,
-                   y: PAD + f.h / 2 + i * (f.h + GAP), doorMounted: true });
-    }
-
     const ductLengthMm = rows.filter((r) => r.kind === 'duct')
       .reduce((t) => t + (W - PAD * 2), 0);
 
@@ -1240,6 +1255,68 @@
              neededH: Math.max(ext.h + M, M + est.h + M),
              neededW: ext.w + M,
              fits: ext.h <= H && ext.w <= W && !outside.length };
+  }
+
+  /* ══════════ SIDE PANELS (kiri / kanan) ══════════
+     Jalur udara menyilang: intake berfilter RENDAH di sisi kiri, exhaust fan
+     TINGGI di sisi kanan — udara masuk bawah-kiri, menyapu drive, keluar
+     atas-kanan. Panel sisi dilihat dari luar: lebar gambar = kedalaman
+     enclosure (D), tinggi = tinggi enclosure (H). */
+  function buildSideLayout(c, fans, spec, dims, A, extrasL, extrasR) {
+    const M = 40, GAPV = 20, D = dims.D, H = dims.H;
+    const rightList = fill(fans, 'fan').concat(extrasR || []);
+    const leftList = fill(fans, 'filter_out').concat(extrasL || []);
+
+    const raw = [];
+    let y = M;                                   /* kanan: susun dari atas */
+    for (const t of rightList) {
+      const d = spec(t);
+      raw.push({ type: t, side: 'right', x: D / 2, y: y + d.h / 2 });
+      y += d.h + GAPV;
+    }
+    y = H - M;                                   /* kiri: susun dari bawah */
+    for (const t of leftList) {
+      const d = spec(t);
+      raw.push({ type: t, side: 'left', x: D / 2, y: y - d.h / 2 });
+      y -= d.h + GAPV;
+    }
+
+    /* satu designate untuk kedua sisi supaya tag unik: E1.. fan, V1.. filter */
+    let items = designate(raw);
+    const manual = [];
+    items = items.map((it) => {
+      const p = c.sidePos && c.sidePos[it.id];
+      if (!p) return it;
+      manual.push(it.id);
+      const next = Object.assign({}, it, { manual: true, x: p.x, y: p.y });
+      if (p.side) next.side = p.side;            /* boleh dipindah antar sisi */
+      return next;
+    });
+
+    const isOutside = (it) => {
+      const d = spec(it.type);
+      return it.x - d.w / 2 < 0 || it.x + d.w / 2 > D ||
+             it.y - d.h / 2 < 0 || it.y + d.h / 2 > H;
+    };
+    const outside = items.filter(isOutside).map((it) => it.tag);
+    const draggedOutside = items.filter((it) => it.manual && isOutside(it))
+      .map((it) => it.tag);
+
+    const stackNeed = (list) => list.length
+      ? M * 2 + list.reduce((t, x) => t + spec(x).h, 0) + GAPV * (list.length - 1)
+      : 0;
+    const widest = items.reduce((mx, it) => Math.max(mx, spec(it.type).w), 0);
+    const neededH = Math.max(stackNeed(rightList), stackNeed(leftList));
+
+    return {
+      items,
+      left: items.filter((i) => i.side === 'left'),
+      right: items.filter((i) => i.side === 'right'),
+      margin: M, manual, outside, draggedOutside, neededH, widest,
+      /* fan lebih lebar dari kedalaman panel = tidak bisa dipasang di sisi */
+      tooShallow: widest > D - M * 2 && items.length > 0,
+      fits: neededH <= H && !outside.length && widest <= D - M * 2,
+    };
   }
 
   /* ══════════ HEAT LOAD ══════════ */
@@ -1394,8 +1471,10 @@
       add('X0:1 / X0:2', 'HMI' + i + ' 24 V / 0 V', '0.75 mm²', C.dcControl, 'HMI supply');
     add('Enclosure door', 'PE bar', '4 mm² G/Y flexible', C.pe, 'Door bonding, IEC 60204-1');
     add('Backplate', 'PE bar', '6 mm² G/Y', C.pe, 'Backplate bonding');
+    /* tag E1.. sama dengan yang tertera di gambar panel sisi kanan */
     for (let i = 1; i <= (o.fans || 0); i++)
-      add('X0:1 / X0:2', 'Filter fan FAN' + i, '0.75 mm²', C.dcControl, 'Cooling');
+      add('X0:1 / X0:2', 'Exhaust fan E' + i + ' (right side)', '0.75 mm²',
+          C.dcControl, 'Cooling');
 
     return rows;
   }
@@ -1433,7 +1512,8 @@
     /* active components, from what the layout actually placed — backplate and
        front cover both, so door devices can no longer be missed */
     const agg = {};
-    for (const it of layout.items.concat(o.door ? o.door.items : []))
+    for (const it of layout.items.concat(o.door ? o.door.items : [],
+                                         o.side ? o.side.items : []))
       agg[it.type] = (agg[it.type] || 0) + 1;
     for (const t of Object.keys(agg)) {
       const d = specs[t];
@@ -1447,10 +1527,8 @@
       line('LEGEND-PLATE', 'Legend plate / engraved label for door device',
         doorCount, 'pcs', 'to be specified', 'Consumables', 'estimated',
         { generic: true });
-    /* outlet filter always pairs with a fan */
-    if (th.fans > 0)
-      line('SK-3239-200', 'Outlet filter 150 mm (matches filter fan)',
-        th.fans, 'pcs', 'Rittal', 'Cooling', 'calculated');
+    /* Exhaust fan dan intake filter sudah masuk lewat agregasi panel sisi
+       di atas (`side.items`) — jangan tambahkan lagi di sini. */
     if (th.method === 'cooling-unit')
       line('COOLING-UNIT-TBD',
         'Cooling unit / air-air heat exchanger — ' + Math.round(th.requiredM3h) +
@@ -1545,6 +1623,112 @@
     return out;
   }
 
+  /* ══════════ TUKAR-MENUKAR LIBRARY ══════════
+     Format file supaya pengguna bisa saling bertukar library. Sengaja versi
+     bernomor: importer menolak apa pun yang tidak dikenalinya, daripada
+     menerima setengah-setengah lalu merusak library yang sudah ada. */
+  const LIB_FORMAT = 'panel-builder-library';
+  const LIB_VERSION = 1;
+  /* Field yang boleh ada di satu komponen. Apa pun di luar daftar ini dibuang
+     saat import — file dari luar tidak boleh menyuntikkan field sembarangan. */
+  const LIB_FIELDS = [
+    'asset', 'w', 'h', 'd', 'cat', 'label', 'color', 'bg', 'pn', 'desc', 'vendor',
+    'mount', 'powerW', 'dimsVerified', 'custom', 'generic', 'round',
+    'isPlc', 'plcName', 'builtinDi', 'builtinDo', 'maxExp',
+    'expDi', 'expDo', 'expAi', 'expAo', 'channels',
+    'hasImage', 'imgVersion',
+  ];
+  const NUM_FIELDS = ['w', 'h', 'd', 'powerW', 'builtinDi', 'builtinDo', 'maxExp',
+                      'imgVersion', 'channels'];
+  const BOOL_FIELDS = ['dimsVerified', 'custom', 'generic', 'round', 'isPlc', 'hasImage'];
+
+  /* Bangun objek yang siap di-JSON.stringify. `keys` = komponen yang dipilih. */
+  function exportLibrary(patch, keys, opts) {
+    const o = opts || {};
+    const src = patch || {};
+    const db = resolveDb(src);
+    const components = {};
+    for (const k of keys || []) {
+      if (!db[k]) continue;
+      /* Ekspor snapshot LENGKAP (bukan hanya override), supaya komponen tetap
+         utuh di aplikasi penerima yang mungkin punya bawaan berbeda. */
+      const out = {};
+      for (const f of LIB_FIELDS) if (db[k][f] !== undefined) out[f] = db[k][f];
+      if (!o.images) { delete out.hasImage; delete out.imgVersion; }
+      components[k] = out;
+    }
+    return {
+      format: LIB_FORMAT,
+      version: LIB_VERSION,
+      exported: o.now || new Date().toISOString(),
+      app: o.app || 'Panel Builder Assistant',
+      by: o.by || '',
+      count: Object.keys(components).length,
+      components,
+      /* {key: dataUrl} — hanya kalau diminta */
+      images: o.images ? (o.imageMap || {}) : {},
+    };
+  }
+
+  /* Periksa & bersihkan file impor. Tidak pernah melempar exception: selalu
+     mengembalikan {ok, error, ...} supaya UI bisa menampilkan alasannya. */
+  function validateLibraryFile(raw, existingPatch) {
+    if (!raw || typeof raw !== 'object')
+      return { ok: false, error: 'File bukan objek JSON.' };
+    if (raw.format !== LIB_FORMAT)
+      return { ok: false, error: 'Bukan file library Panel Builder (format: ' +
+               JSON.stringify(raw.format) + ').' };
+    if (!Number.isInteger(raw.version) || raw.version < 1)
+      return { ok: false, error: 'Nomor versi tidak valid.' };
+    if (raw.version > LIB_VERSION)
+      return { ok: false, error: 'File dibuat versi aplikasi yang lebih baru (v' +
+               raw.version + ', aplikasi ini mendukung v' + LIB_VERSION + ').' };
+    if (!raw.components || typeof raw.components !== 'object')
+      return { ok: false, error: 'File tidak memuat komponen.' };
+
+    const existing = existingPatch || {};
+    const clean = {}, images = {}, skipped = [];
+    let isNew = 0, overwrite = 0;
+
+    for (const key of Object.keys(raw.components)) {
+      if (!/^[A-Za-z0-9_-]{1,64}$/.test(key)) { skipped.push(key + ' (kode tidak valid)'); continue; }
+      const src = raw.components[key];
+      if (!src || typeof src !== 'object') { skipped.push(key + ' (bukan objek)'); continue; }
+      const out = {};
+      for (const f of LIB_FIELDS) {
+        if (src[f] === undefined) continue;
+        if (NUM_FIELDS.indexOf(f) >= 0) { const n = num(src[f], NaN);
+                                          if (Number.isFinite(n)) out[f] = n; continue; }
+        if (BOOL_FIELDS.indexOf(f) >= 0) { out[f] = !!src[f]; continue; }
+        out[f] = String(src[f]).slice(0, 400);
+      }
+      if (!out.desc) { skipped.push(key + ' (tanpa deskripsi)'); continue; }
+      if (!(out.w > 0 && out.h > 0 && out.d > 0)) {
+        skipped.push(key + ' (dimensi tidak valid)'); continue;
+      }
+      if (out.isPlc && !(num(out.builtinDi, 0) > 0 || num(out.builtinDo, 0) > 0)) {
+        /* CPU tanpa I/O bawaan akan merusak hitungan modul — turunkan saja */
+        delete out.isPlc; delete out.plcName;
+      }
+      const img = raw.images && raw.images[key];
+      if (typeof img === 'string' && /^data:image\/[a-z+]+;base64,/.test(img))
+        images[key] = img;
+      else { delete out.hasImage; delete out.imgVersion; }
+
+      clean[key] = out;
+      if (existing[key] || COMPONENT_DB[key]) overwrite++; else isNew++;
+    }
+
+    if (!Object.keys(clean).length)
+      return { ok: false, error: 'Tidak ada komponen yang bisa dipakai. ' +
+               (skipped.length ? 'Dilewati: ' + skipped.slice(0, 5).join(', ') : '') };
+
+    return { ok: true, components: clean, images, skipped, isNew, overwrite,
+             total: Object.keys(clean).length,
+             exported: typeof raw.exported === 'string' ? raw.exported : '',
+             by: typeof raw.by === 'string' ? raw.by.slice(0, 120) : '' };
+  }
+
   /* ══════════ small utils ══════════ */
   /* Components whose footprint normally comes from a selection table, so a
      library dimension override pins them rather than tracking the variant. */
@@ -1564,6 +1748,7 @@
 
   return {
     compute, buildWiring, normalizeCfg, resolveDb,
+    exportLibrary, validateLibraryFile, LIB_FORMAT, LIB_VERSION, LIB_FIELDS,
     COMPONENT_DB, DEFAULT_CFG, ASSUMPTIONS, WIRE_COLOUR,
     BLANK_COMPONENT, SELECTION_DRIVEN, DOOR_KEYS, NO_PLC, LEGACY_PLC,
     /* daftar CPU untuk dropdown — termasuk yang ditambahkan lewat library */

@@ -9,7 +9,7 @@ Node.js 18+ (cek: `node -v`)
 | `engine.js` | Semua kalkulasi & pemilihan komponen. Murni, tanpa DOM, tanpa dependency. |
 | `index.html` | UI + render. Tidak menghitung apa pun sendiri. |
 | `server.js` | API penyimpanan (Express + SQLite). |
-| `test/engine.test.js` | 213 assertion, jalankan `npm test`. |
+| `test/engine.test.js` | 241 assertion, jalankan `npm test`. |
 | `ASSET-LIST.md` | Ukuran piksel semua gambar & tekstur. |
 | `ENGINEERING.md` | Dasar perhitungan: rumus, konstanta, standar, dan batasannya. |
 
@@ -57,9 +57,17 @@ pada penyimpanan berikutnya.
   dipilih dipakai apa adanya; kalau isinya tidak muat, muncul error
   `PANEL_TOO_SMALL` yang menyebutkan tinggi yang dibutuhkan. Panel lebih sempit
   biasanya butuh lebih tinggi karena rail terpaksa wrap.
-- **Tab 2D panel layout / Front cover layout** — backplate (rail, duct, terminal)
-  dan pintu (E-stop, HMI, tombol ON/OFF, selector, pilot lamp). Perangkat pintu
-  ikut masuk BOM, wiring list, dan laporan.
+- **4 tab gambar** — **2D panel layout** (backplate: rail, duct, terminal),
+  **Front cover** (E-stop, HMI, tombol ON/OFF, selector, pilot lamp),
+  **Left side** dan **Right side** (ventilasi). Semua perangkat masuk BOM,
+  wiring list, dan laporan.
+- **Panel sisi = tempat exhaust fan.** Dulu fan digambar di backplate dan
+  memakan kolom 150 mm di rail 1 — padahal fan dilubangi di kulit enclosure,
+  bukan dibaut ke plat. Sekarang: **intake berfilter di bawah sisi kiri**,
+  **exhaust fan di atas sisi kanan**, jadi udara masuk bawah-kiri, menyapu drive,
+  keluar atas-kanan. Satu intake per exhaust. Gambar dilihat dari luar, jadi
+  lebar gambar = **kedalaman** panel. Tag `E1..` fan, `V1..` intake.
+  Efek sampingnya: rail 1 dapat kembali lebar penuhnya.
 - **Atur posisi front cover manual** — tarik komponen di tab Front cover.
   Posisi dibulatkan ke 5 mm, ditahan di dalam pintu, dan disimpan per proyek.
   Hanya komponen yang kamu pindah yang dipatok; sisanya tetap otomatis.
@@ -86,7 +94,7 @@ Menu **Components library** bisa dipakai untuk mengelola database komponen:
   maks 360 px dan disimpan di database, jadi ikut terbawa ke komputer lain
   (tidak perlu file di `assets/components/`).
 - **+ Panel** — tambahkan komponen ke proyek aktif. Pilih tujuannya:
-  **Front cover** (pintu panel) atau **Rail 1 / 2 / 3 / 4** (dalam panel).
+  **Front cover** (pintu panel) atau **Rail 1 / 2 / 3 / 4** (dalam panel), atau **Left / Right side** (ventilasi).
   Default cerdas: perangkat pintu → Front cover, terminal block → Rail 4.
   Komponen yang ditambahkan muncul di gambar, bisa ditarik posisinya, masuk BOM,
   dan konsumsi 24 V-nya ikut dihitung. Satu komponen boleh dipakai di beberapa
@@ -189,3 +197,38 @@ peringatan `TERMINALS_SHORT`.
 Lihat [ASSET-LIST.md](ASSET-LIST.md) — ukuran piksel untuk tekstur DIN rail
 (200 × 280 px), wire duct (96 × 360 px), terminal strip (42 × 320 px), backplate
 (400 × 400 px), dan tabel piksel per sprite komponen.
+
+## Identitas perusahaan (Settings)
+Isi nama, alamat, kontak, NPWP, nama engineer, dan logo di **Settings →
+Identitas perusahaan**. Semua itu masuk kop **Report PDF** dan **Layout PDF**,
+jadi dokumen yang keluar formal dan bukan lagi ber-brand aplikasi. Logo disimpan
+di database (key `__company_logo`) seperti gambar komponen, jadi ikut terbawa ke
+komputer lain. Catatan kaki dokumen juga bisa diatur.
+
+## Format PDF: satu halaman per layout
+Report PDF sekarang berhalaman, dan **tiap gambar layout dapat halamannya
+sendiri**: ringkasan engineering → backplate → front cover → right side →
+left side → BOM → catatan & asumsi. Setiap halaman membawa kop sendiri supaya
+lembar yang tercetak berdiri sendiri kalau dipisah. Layout PDF mengikuti pola
+yang sama, hanya tanpa halaman kalkulasi.
+
+## Tukar-menukar library antar pengguna
+**Components library → Export** membuka dialog untuk memilih komponen mana yang
+mau dibagikan. Yang tercentang awal adalah komponen **custom** dan yang **kamu
+ubah** — biasanya itu yang berguna untuk orang lain. Ada opsi menyertakan gambar
+(file jadi lebih besar, tapi penerima langsung dapat gambarnya). Hasilnya file
+JSON `panel-builder-library-<tanggal>.json`.
+
+**Import** membaca file itu, memvalidasinya, lalu menampilkan pratinjau: berapa
+komponen baru, berapa yang akan ditimpa, berapa gambar, dan apa yang dilewati —
+sebelum ada yang berubah. Kalau ada yang bertabrakan, bisa pilih *lewati yang
+sudah ada*. Komponen bawaan yang tertimpa tetap bisa dikembalikan lewat tombol
+**Reset** di kartunya.
+
+Yang diekspor adalah **snapshot lengkap**, bukan hanya selisih dari bawaan —
+supaya komponen tetap utuh di aplikasi penerima yang mungkin punya nilai bawaan
+berbeda. Importer menolak file dengan format/versi yang tidak dikenal, membuang
+field yang tidak ada di daftar putih (jadi file dari luar tidak bisa menyuntikkan
+apa pun), memaksa tipe angka/boolean, dan melewati komponen yang dimensinya tidak
+valid. CPU tanpa I/O bawaan diturunkan dari status PLC supaya tidak merusak
+hitungan modul ekspansi.

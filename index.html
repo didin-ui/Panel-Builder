@@ -115,6 +115,12 @@
   .doorplate{position:absolute;background:#EDF0F2;border:1px solid var(--gray-300);
     box-shadow:inset 0 0 0 2px #fff, inset 0 0 14px rgba(18,56,94,.06);}
   .door-margin{position:absolute;border:1px dashed #C7D0D9;pointer-events:none;}
+  .sideplate{position:absolute;background:#EBEEF1;border:1px solid var(--gray-300);
+    box-shadow:inset 0 0 0 2px #fff, inset 0 0 14px rgba(18,56,94,.06);}
+  .side-face{position:absolute;top:0;bottom:0;width:16px;background:repeating-linear-gradient(
+    45deg,#DDE3E9,#DDE3E9 4px,#EEF1F4 4px,#EEF1F4 8px);
+    writing-mode:vertical-rl;text-align:center;font-family:'IBM Plex Mono',monospace;
+    font-size:8px;color:var(--gray-500);letter-spacing:.5px;pointer-events:none;}
   .hinge{position:absolute;width:8px;height:44px;background:#8A98A5;border-radius:2px;}
   .handle{position:absolute;width:12px;height:52px;background:#9AA6B1;border-radius:3px;
     box-shadow:inset 0 0 0 1px #fff;}
@@ -237,6 +243,30 @@
   .rep-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--navy);padding-bottom:12px;margin-bottom:6px;}
   .rep-head img{height:40px;display:none;}
   .rep-head.has-logo img{display:block;} .rep-head.has-logo .rep-mark{display:none;}
+  /* Kop dokumen formal */
+  .doc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;
+    border-bottom:2px solid var(--navy);padding-bottom:10px;margin-bottom:14px;}
+  .dh-co{display:flex;align-items:flex-start;gap:11px;}
+  .dh-logo{max-height:44px;max-width:150px;object-fit:contain;}
+  .dh-co b{font-size:14px;font-weight:600;display:block;line-height:1.3;}
+  .dh-co span{font-size:10.5px;color:var(--gray-500);display:block;line-height:1.55;}
+  .dh-doc{text-align:right;flex:0 0 auto;}
+  .dh-doc>b{font-size:13px;font-weight:600;display:block;margin-bottom:5px;
+    text-transform:uppercase;letter-spacing:.4px;}
+  .dh-meta{border-collapse:collapse;margin-left:auto;font-size:10.5px;}
+  .dh-meta td{padding:1px 0 1px 10px;text-align:left;}
+  .dh-meta td:first-child{color:var(--gray-500);padding-left:0;}
+  .dh-meta td:last-child{font-weight:500;}
+  .doc-foot{border-top:1px solid var(--gray-200);margin-top:14px;padding-top:6px;
+    font-size:9.5px;color:var(--gray-500);line-height:1.5;}
+
+  /* Satu halaman per layout */
+  .pdf-page{position:relative;}
+  .pdf-page + .pdf-page{margin-top:26px;padding-top:20px;border-top:1px dashed var(--gray-300);}
+  .pg-title{font-size:12.5px;font-weight:600;margin:0 0 8px;}
+  .pg-note{font-size:10.5px;color:var(--gray-500);line-height:1.6;margin-top:8px;}
+  .sd-center{display:flex;justify-content:center;}
+
   /* Static drawings (report + layout export) */
   #print-area{display:none;}
   .sd{position:relative;}
@@ -258,6 +288,13 @@
     .no-print{display:none!important;}
     .sd-row{break-inside:avoid;}
     table.data{break-inside:auto;} table.data tr{break-inside:avoid;}
+    /* Satu gambar layout = satu halaman. Halaman terakhir tidak memaksa
+       halaman kosong di belakangnya. */
+    .pdf-page{break-inside:avoid;break-after:page;page-break-after:always;}
+    .pdf-page:last-of-type{break-after:auto;page-break-after:auto;}
+    .pdf-page + .pdf-page{margin-top:0;padding-top:0;border-top:0;}
+    .doc-head{break-inside:avoid;}
+    @page{margin:14mm 12mm;}
   }
   @media (max-width:1160px){
     .workspace,.dash-grid{grid-template-columns:1fr;}
@@ -376,7 +413,9 @@
           <div class="card-h cab-head">
             <div class="lib-tabs">
               <button id="tab-plate" class="on" onclick="setDrawMode('plate')">2D panel layout</button>
-              <button id="tab-door" onclick="setDrawMode('door')">Front cover layout</button>
+              <button id="tab-door" onclick="setDrawMode('door')">Front cover</button>
+              <button id="tab-left" onclick="setDrawMode('left')">Left side</button>
+              <button id="tab-right" onclick="setDrawMode('right')">Right side</button>
             </div>
             <span class="chip" id="cab-chip">—</span></div>
           <div class="cab-tools">
@@ -389,7 +428,7 @@
             <div class="sep"></div>
             <button class="btn" style="padding:5px 10px;" onclick="printLayout()">Export drawing (PDF)</button>
             <button class="btn" style="padding:5px 10px;" id="btn-reset-pos"
-              onclick="drawMode==='door'?resetDoorLayout():resetPlateLayout()">Reset posisi</button>
+              onclick="resetActiveLayout()">Reset posisi</button>
             <span style="margin-left:auto;font-size:11px;color:var(--gray-500);" id="zoom-pct">100%</span>
           </div>
           <div class="cab-scroll" id="scroll">
@@ -436,6 +475,7 @@
               <span class="mono" style="color:var(--ink);font-weight:500;" id="r-size">—</span><br>
               Control: <span id="r-plc">—</span><br>
               Front cover: <span id="r-door">—</span><br>
+              Side panels: <span id="r-side">—</span><br>
               Mild steel, RAL 7035, bottom gland plate<br>
               <span style="font-size:11px;color:var(--gray-500);">Depth from deepest component + <span id="r-clear">80</span> mm wiring clearance.
               Rail <span id="r-railfree">—</span> spare.</span>
@@ -462,6 +502,9 @@
         <span class="sub" id="lib-count"></span><span class="spacer"></span>
         <div class="lib-tabs" id="lib-tabs"></div>
         <input id="lib-search" placeholder="Filter nama / part number…" style="border:1px solid var(--gray-300);border-radius:6px;padding:7px 10px;font-family:inherit;font-size:12px;width:200px;" oninput="renderLibrary()">
+        <button class="btn" onclick="exportLibraryDialog()" title="Pilih komponen dan simpan sebagai file JSON">Export</button>
+        <button class="btn" onclick="document.getElementById('lib-import-file').click()" title="Muat library dari file JSON">Import</button>
+        <input type="file" id="lib-import-file" accept="application/json,.json" style="display:none;">
         <button class="btn primary" onclick="addComponent()">+ Tambah komponen</button>
       </div>
       <div class="lib-grid" id="lib-grid"></div>
@@ -527,6 +570,47 @@
     <!-- ═══ SETTINGS ═══ -->
     <section class="view" id="view-settings">
       <div class="page-h"><h1>Settings</h1></div>
+      <div class="card" style="margin-bottom:14px;">
+        <div class="card-h">Identitas perusahaan
+          <span style="margin-left:auto;font-weight:400;font-size:11px;color:var(--gray-500);">
+            Dipakai di kop Report PDF dan Layout PDF</span></div>
+        <div class="card-b">
+          <div class="workspace" style="grid-template-columns:1fr 220px;gap:18px;">
+            <div>
+              <div class="grid2">
+                <div class="field" style="grid-column:1/-1;"><label>Nama perusahaan</label>
+                  <input id="co-name" placeholder="PT Contoh Otomasi"></div>
+                <div class="field" style="grid-column:1/-1;"><label>Alamat</label>
+                  <input id="co-address" placeholder="Jl. Industri No. 1, Kawasan XYZ"></div>
+                <div class="field"><label>Kota / kode pos</label><input id="co-city" placeholder="Bekasi 17530"></div>
+                <div class="field"><label>Negara</label><input id="co-country" placeholder="Indonesia"></div>
+                <div class="field"><label>Telepon</label><input id="co-phone" placeholder="+62 21 1234567"></div>
+                <div class="field"><label>Email</label><input id="co-email" type="email" placeholder="engineering@contoh.co.id"></div>
+                <div class="field"><label>Website</label><input id="co-web" placeholder="www.contoh.co.id"></div>
+                <div class="field"><label>NPWP / Tax ID</label><input id="co-tax" placeholder="00.000.000.0-000.000"></div>
+                <div class="field"><label>Disiapkan oleh</label><input id="co-engineer" placeholder="Nama engineer"></div>
+                <div class="field"><label>Jabatan</label><input id="co-role" placeholder="Electrical Engineer"></div>
+                <div class="field" style="grid-column:1/-1;"><label>Catatan kaki dokumen</label>
+                  <input id="co-footer" placeholder="Dokumen ini milik PT Contoh — dilarang menggandakan tanpa izin"></div>
+              </div>
+              <button class="btn primary" onclick="saveCompany()">Simpan identitas</button>
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;color:var(--gray-500);margin-bottom:4px;font-weight:500;">Logo perusahaan</label>
+              <div class="drop" id="co-drop">
+                <img id="co-logo-prev" style="display:none;" alt="">
+                <small id="co-logo-msg">Klik atau jatuhkan logo (PNG/JPG/SVG)</small>
+              </div>
+              <input type="file" id="co-logo-file" accept="image/*" style="display:none;">
+              <small style="font-size:10.5px;color:var(--gray-500);line-height:1.6;display:block;margin-top:6px;">
+                Disusutkan ke maks 360 px dan disimpan di database, jadi ikut
+                terbawa ke komputer lain. Tampil di kop laporan.</small>
+              <button class="btn" id="co-logo-clear" style="width:100%;margin-top:6px;display:none;"
+                onclick="clearCompanyLogo()">Hapus logo</button>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="dash-grid">
         <div class="card"><div class="card-h">Active project</div>
           <div class="card-b">
@@ -537,7 +621,8 @@
         </div>
         <div class="card"><div class="card-h">Application</div>
           <div class="card-b" style="font-size:12px;line-height:2;">
-            Data tersimpan di browser (localStorage).<br>
+            Proyek &amp; library tersimpan di <code>panelbuilder.db</code> bila server aktif,
+            dengan cache di browser.<br>
             <button class="btn danger" onclick="resetAll()">Reset semua data</button>
           </div>
         </div>
@@ -1175,7 +1260,7 @@ function renderExtras(){
         return `<div style="display:flex;align-items:center;gap:6px;font-size:11.5px;
                   padding:5px 8px;background:var(--gray-100);border-radius:6px;margin-bottom:4px;">
           <span style="flex:1;${d?'':'color:var(--red-600);'}">${e.qty} × ${esc(d?d.desc:e.type+' (hilang)')}
-            <span style="color:var(--gray-500);">· ${e.place==='door'?'front cover':'rail '+e.rail}</span></span>
+            <span style="color:var(--gray-500);">· ${esc({door:'front cover',left:'left side',right:'right side'}[e.place]||('rail '+e.rail))}</span></span>
           <button class="tbtn" style="width:22px;height:22px;font-size:12px;"
             onclick="removeExtra(${i})" title="Hapus dari proyek">×</button></div>`;
       }).join('')}
@@ -1210,6 +1295,9 @@ function generate(save){
   set('r-railfree',Math.round(R.railFreeMm)+' mm of '+Math.round(R.railLengthMm)+' mm');
   set('r-plc',R.hasPlc?R.cfg.plc:'No PLC — relay / starter panel');
   set('r-door',`${R.door.items.length} devices · needs ${Math.round(R.door.neededW)} × ${Math.round(R.door.neededH)} mm`);
+  set('r-side', R.side.items.length
+    ? `${R.side.right.length} kanan (exhaust) · ${R.side.left.length} kiri (intake)`
+    : 'kosong — ventilasi alami');
 
   /* Warnings come from the engine now — no hardcoded advice. */
   const warn=document.getElementById('r-warn');
@@ -1230,21 +1318,133 @@ function generate(save){
   draw(); zoomFit();
 }
 let drawMode='plate';
+const DRAW_TABS=['plate','door','left','right'];
 function setDrawMode(m){
-  drawMode=m;
-  document.getElementById('tab-plate').classList.toggle('on',m==='plate');
-  document.getElementById('tab-door').classList.toggle('on',m==='door');
+  drawMode=DRAW_TABS.indexOf(m)>=0?m:'plate';
+  for(const t of DRAW_TABS)
+    document.getElementById('tab-'+t).classList.toggle('on',t===drawMode);
   draw(); zoomFit();
 }
+const isSideMode=()=>drawMode==='left'||drawMode==='right';
 /* Chip menjelaskan gambar yang sedang tampil, jadi ikut berubah saat tab pindah
    — bukan hanya saat generate(). */
 function updateChip(){
   if(!R) return;
-  set('cab-chip', drawMode==='door'
+  if(isSideMode()){
+    const list=drawMode==='left'?R.side.left:R.side.right;
+    set('cab-chip',`${drawMode==='left'?'Left':'Right'} side ${R.D} × ${R.H} mm · `+
+      `${list.length} device${list.length===1?'':'s'}`);
+  } else set('cab-chip', drawMode==='door'
     ? `Front cover ${R.W} × ${R.H} mm · ${R.door.items.length} devices`
     : `Cabinet ${R.W} × ${R.H} × ${R.D} mm · IP55`);
 }
-function draw(){ if(!R) return; updateChip(); drawMode==='door'?drawDoor():drawPlate(); }
+function draw(){
+  if(!R) return;
+  updateChip();
+  if(isSideMode()) drawSide(drawMode);
+  else if(drawMode==='door') drawDoor();
+  else drawPlate();
+}
+
+/* ── Panel sisi: dilihat dari luar, lebar gambar = KEDALAMAN enclosure ────
+   Exhaust fan tinggi di kanan, intake filter rendah di kiri. Panah aliran
+   udara digambar supaya arah crossflow-nya jelas. */
+function drawSide(which){
+  const {H}=R, D=R.D, FRAME=22, M=R.side.margin;
+  const stage=document.getElementById('stage');
+  const showTags=document.getElementById('chk-tags').checked;
+  const showGrid=document.getElementById('chk-grid').checked;
+  const items=which==='left'?R.side.left:R.side.right;
+  const OX=46, OY=30, totW=OX+D+FRAME*2+150, totH=OY+H+FRAME*2+26;
+  let html='';
+  html+=`<div class="enclosure" style="left:${OX}px;top:${OY}px;width:${D+FRAME*2}px;height:${H+FRAME*2}px;"></div>`;
+  html+=`<div class="sideplate" style="left:${OX+FRAME}px;top:${OY+FRAME}px;width:${D}px;height:${H}px;">`;
+  if(showGrid) html+=`<div class="gridlayer"></div>`;
+  html+=`<div class="door-margin" style="inset:${M}px;"></div>`;
+  /* penanda orientasi: sisi mana yang menghadap pintu */
+  html+=`<div class="side-face" style="${which==='left'?'right':'left'}:0;">FRONT (pintu)</div>`;
+  for(const it of items){
+    const d=R.specs[it.type], l=it.x-d.w/2, t=it.y-d.h/2;
+    const src=imgSrc(d,it.type);
+    html+=`<div class="comp drag${it.manual?' manual':''}" data-id="${esc(it.id)}"
+        title="${esc(it.tag+' — '+d.desc)}${it.manual?' (manual)':''} · tarik untuk memindahkan"
+        style="left:${l}px;top:${t}px;width:${d.w}px;height:${d.h}px;">
+      <div class="ph" style="border-color:${d.color};background:${d.bg}CC;color:${d.color};">
+        <b>${esc(d.desc.split(' ').slice(0,2).join(' '))}</b><i>${esc(d.pn)}</i><i>${d.w}×${d.h} mm</i></div>
+      ${src?`<img src="${esc(src)}" alt="${esc(d.desc)}" onload="this.parentNode.classList.add('has-img')">`:''}</div>`;
+    if(showTags)
+      html+=`<div class="dtag" style="left:${it.x}px;top:${t-3}px;">${esc(it.tag)}</div>`;
+  }
+  html+=`</div>`;
+  html+=`<div class="dim dim-h" style="left:${OX+FRAME}px;top:${OY-24}px;width:${D}px;">${D} mm (depth)</div>`;
+  html+=`<div class="dim dim-v" style="left:${OX+D+FRAME*2+8}px;top:${OY+FRAME}px;height:${H}px;">${H} mm</div>`;
+  /* keterangan aliran udara */
+  const note=which==='right'
+    ? `Exhaust — udara keluar di atas. Intake ada di Left side (bawah).`
+    : `Intake berfilter — udara masuk di bawah. Exhaust ada di Right side (atas).`;
+  html+=`<div class="dim mono" style="left:${OX+FRAME}px;top:${OY+H+FRAME*2+6}px;width:${D+120}px;white-space:normal;line-height:1.5;">${esc(note)}</div>`;
+  stage.innerHTML=html;
+  stage.style.width=totW+'px'; stage.style.height=totH+'px';
+  stage.style.transform=`scale(${zoom})`;
+  const wrap=document.getElementById('stage-wrap');
+  wrap.style.width=totW*zoom+'px'; wrap.style.height=totH*zoom+'px';
+  set('zoom-pct',Math.round(zoom*100)+'%');
+  attachSideDrag(which);
+}
+
+/* Tarik-lepas di panel sisi: snap 5 mm, ditahan di dalam panel. */
+function attachSideDrag(which){
+  const stage=document.getElementById('stage');
+  stage.querySelectorAll('.comp.drag').forEach(el=>{
+    el.addEventListener('mousedown',e=>{
+      e.preventDefault();
+      const id=el.dataset.id;
+      const it=R.side.items.find(x=>x.id===id); if(!it) return;
+      const d=R.specs[it.type];
+      const startX=e.clientX, startY=e.clientY, ox=it.x, oy=it.y;
+      el.classList.add('dragging');
+      let nx=ox, ny=oy;
+      const move=ev=>{
+        const dx=(ev.clientX-startX)/zoom, dy=(ev.clientY-startY)/zoom;
+        nx=Math.round((ox+dx)/DOOR_SNAP)*DOOR_SNAP;
+        ny=Math.round((oy+dy)/DOOR_SNAP)*DOOR_SNAP;
+        nx=Math.min(R.D-d.w/2, Math.max(d.w/2, nx));
+        ny=Math.min(R.H-d.h/2, Math.max(d.h/2, ny));
+        el.style.left=(nx-d.w/2)+'px'; el.style.top=(ny-d.h/2)+'px';
+        set('toolbar-meta',`${it.tag} → X ${nx} / Y ${ny} mm (${which} side)`);
+      };
+      const up=()=>{
+        document.removeEventListener('mousemove',move);
+        document.removeEventListener('mouseup',up);
+        el.classList.remove('dragging');
+        if(nx===ox && ny===oy){ draw(); return; }
+        const p=activeProject();
+        (p.cfg.sidePos||(p.cfg.sidePos={}))[id]={x:nx,y:ny,side:which};
+        p.updated=Date.now(); persist();
+        generate(false); setDrawMode(which);
+        toast(`${it.tag} → X ${nx} / Y ${ny} mm`);
+      };
+      document.addEventListener('mousemove',move);
+      document.addEventListener('mouseup',up);
+    });
+  });
+}
+/* Tombol Reset posisi selalu berlaku untuk tab yang sedang dibuka. */
+function resetActiveLayout(){
+  if(isSideMode()) return resetSideLayout();
+  if(drawMode==='door') return resetDoorLayout();
+  return resetPlateLayout();
+}
+async function resetSideLayout(){
+  const p=activeProject();
+  const n=Object.keys(p.cfg.sidePos||{}).length;
+  if(!n){ toast('Panel sisi sudah memakai posisi otomatis'); return; }
+  if(!await modalConfirm({title:'Reset posisi panel sisi',confirmLabel:'Reset',
+    message:`${n} perangkat sisi yang kamu posisikan manual akan kembali otomatis.`})) return;
+  p.cfg.sidePos={}; p.updated=Date.now(); persist();
+  generate(false); setDrawMode(drawMode);
+  toast('Panel sisi kembali otomatis');
+}
 
 /* ── Front cover: operator devices seen from outside the panel ────────── */
 function drawDoor(){
@@ -1456,14 +1656,17 @@ async function resetPlateLayout(){
    cetak/PDF akurat dan tidak tergantung dukungan transform di print engine. */
 function staticDrawing(mode, maxW){
   if(!R) return '';
-  const {W,H}=R, FRAME=14, PAD=R.assumptions.layout.pad;
+  const side=mode==='left'||mode==='right';
+  const {H}=R, FRAME=14, PAD=R.assumptions.layout.pad;
+  const W=side?R.D:R.W;                                 /* panel sisi: lebar = kedalaman */
   const k=Math.min(1,(maxW-70)/(W+FRAME*2));            /* sisakan ruang dimensi */
   const p=v=>Math.round(v*k*100)/100;
   const OX=34, OY=22;
   const boxW=p(W+FRAME*2), boxH=p(H+FRAME*2);
   let h=`<div class="sd" style="width:${OX+boxW+40}px;height:${OY+boxH+30}px;">`;
   h+=`<div class="enclosure" style="left:${OX}px;top:${OY}px;width:${boxW}px;height:${boxH}px;"></div>`;
-  h+=`<div class="${mode==='door'?'doorplate':'backplate'}" style="left:${OX+p(FRAME)}px;top:${OY+p(FRAME)}px;width:${p(W)}px;height:${p(H)}px;">`;
+  const plateCls=side?'sideplate':(mode==='door'?'doorplate':'backplate');
+  h+=`<div class="${plateCls}" style="left:${OX+p(FRAME)}px;top:${OY+p(FRAME)}px;width:${p(W)}px;height:${p(H)}px;">`;
 
   if(mode==='door'){
     const M=R.door.margin;
@@ -1474,6 +1677,17 @@ function staticDrawing(mode, maxW){
       const d=R.specs[it.type];
       h+=`<div class="comp${d.round?' round':''}" style="left:${p(it.x-d.w/2)}px;top:${p(it.y-d.h/2)}px;width:${p(d.w)}px;height:${p(d.h)}px;">
         <div class="ph${d.round?' round':''}" style="border-color:${d.color};background:${d.bg}CC;"></div>
+        ${imgSrc(d,it.type)?`<img src="${esc(imgSrc(d,it.type))}" alt="" onload="this.parentNode.classList.add('has-img')">`:''}</div>`;
+      h+=`<div class="dtag" style="left:${p(it.x)}px;top:${p(it.y-d.h/2)-2}px;">${esc(it.tag)}</div>`;
+    }
+  }else if(side){
+    const M=R.side.margin;
+    h+=`<div class="door-margin" style="inset:${p(M)}px;"></div>`;
+    h+=`<div class="side-face" style="${mode==='left'?'right':'left'}:0;width:${p(16)}px;font-size:6px;">FRONT</div>`;
+    for(const it of (mode==='left'?R.side.left:R.side.right)){
+      const d=R.specs[it.type];
+      h+=`<div class="comp" style="left:${p(it.x-d.w/2)}px;top:${p(it.y-d.h/2)}px;width:${p(d.w)}px;height:${p(d.h)}px;">
+        <div class="ph" style="border-color:${d.color};background:${d.bg}CC;"></div>
         ${imgSrc(d,it.type)?`<img src="${esc(imgSrc(d,it.type))}" alt="" onload="this.parentNode.classList.add('has-img')">`:''}</div>`;
       h+=`<div class="dtag" style="left:${p(it.x)}px;top:${p(it.y-d.h/2)-2}px;">${esc(it.tag)}</div>`;
     }
@@ -1496,12 +1710,15 @@ function staticDrawing(mode, maxW){
   }
   h+=`</div>`;
   /* dimensi */
-  h+=`<div class="dim dim-h" style="left:${OX+p(FRAME)}px;top:${OY-18}px;width:${p(W)}px;font-size:9px;">${W} mm</div>`;
+  h+=`<div class="dim dim-h" style="left:${OX+p(FRAME)}px;top:${OY-18}px;width:${p(W)}px;font-size:9px;">${W} mm${side?' (depth)':''}</div>`;
   h+=`<div class="dim dim-v" style="left:${OX+boxW+6}px;top:${OY+p(FRAME)}px;height:${p(H)}px;font-size:9px;">${H} mm</div>`;
-  if(mode!=='door')
-    h+=`<div class="dim mono" style="left:${OX}px;top:${OY+boxH+8}px;font-size:9px;">Depth ${R.D} mm · skala 1:${Math.round(1/k)}</div>`;
-  else
-    h+=`<div class="dim mono" style="left:${OX}px;top:${OY+boxH+8}px;font-size:9px;">Zona bebas bor ${R.door.margin} mm · skala 1:${Math.round(1/k)}</div>`;
+  const foot=side
+    ? (mode==='right'?'Exhaust — udara keluar di atas':'Intake berfilter — udara masuk di bawah')+
+      ` · zona bebas bor ${R.side.margin} mm`
+    : mode==='door'
+      ? `Zona bebas bor ${R.door.margin} mm`
+      : `Depth ${R.D} mm`;
+  h+=`<div class="dim mono" style="left:${OX}px;top:${OY+boxH+8}px;font-size:9px;">${esc(foot)} · skala 1:${Math.round(1/k)}</div>`;
   h+=`</div>`;
   return h;
 }
@@ -1515,35 +1732,40 @@ function coordTable(items){
         <td class="pn">${esc(d.pn||'—')}</td>
         <td><b>${Math.round(it.x)}</b></td><td><b>${Math.round(it.y)}</b></td>
         <td>${d.w} × ${d.h}</td>
-        <td style="color:var(--gray-500);">${it.manual?'manual':(d.mount==='door'?'door':'rail')}</td></tr>`;
+        <td style="color:var(--gray-500);">${it.manual?'manual'
+          :it.side?it.side+' side':(d.mount==='door'?'door':'rail')}</td></tr>`;
     }).join('')+`</table>`;
 }
 /* Export hanya gambar layout — terpisah dari Report PDF. */
+/* Layout PDF: hanya gambar, SATU HALAMAN PER LAYOUT, kop formal per halaman. */
 function printLayout(){
   recompute();
   const p=activeProject();
-  document.getElementById('print-area').innerHTML=`
-    <div class="rep-head">
-      <div class="rep-mark" style="display:flex;align-items:center;gap:10px;">
-        <div style="width:34px;height:34px;border-radius:8px;background:var(--blue-500);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;">PB</div>
-        <div><b style="font-size:14px;">Panel Layout Drawing</b><br>
-          <span style="font-size:11px;color:var(--gray-500);">MicroPlus Engineering</span></div>
-      </div>
-      <div style="text-align:right;font-size:11px;color:var(--gray-500);">
-        ${esc(p.name)} · Rev ${esc(p.rev)}<br>${esc(p.customer)}<br>
-        ${R.W} × ${R.H} × ${R.D} mm · IP55<br>${fmtDate(Date.now())}
-      </div>
-    </div>
-    <div class="sd-row">
-      <div><h3>Inside panel — backplate</h3>${staticDrawing('plate',380)}</div>
-      <div><h3>Front cover</h3>${staticDrawing('door',380)}</div>
-    </div>
-    <h3>Front cover — device positions</h3>${coordTable(R.door.items)}
-    <h3>Inside panel — component positions</h3>${coordTable(R.items)}
-    <p style="font-size:10.5px;color:var(--gray-500);line-height:1.6;margin-top:10px;">
-      X / Y diukur dari sudut kiri-atas ke titik tengah komponen (front cover: titik tengah lubang).
-      Dimensi komponen adalah estimasi engineering — verifikasi datasheet sebelum pengeboran.
-    </p>`;
+  const pg=(title, mode, items, note)=>`<section class="pdf-page">
+    ${docHeader(title,p)}
+    <h2 class="pg-title">${esc(title)}</h2>
+    <div class="sd-center">${staticDrawing(mode,700)}</div>
+    <h3>Posisi komponen</h3>${coordTable(items)}
+    <p class="pg-note">${note}</p>${docFooter()}</section>`;
+
+  const pages=[
+    pg('Layout — Inside Panel (Backplate)','plate',R.items,
+      `Backplate ${R.W} × ${R.H} mm · kabinet ${R.W} × ${R.H} × ${R.D} mm.
+       X / Y ke titik tengah komponen dari sudut kiri-atas.`),
+    pg('Layout — Front Cover (Pintu Panel)','door',R.door.items,
+      `Pintu ${R.W} × ${R.H} mm · zona bebas bor ${R.door.margin} mm.
+       X / Y ke <b>titik tengah lubang</b> dari sudut kiri-atas.`),
+  ];
+  if(R.side.right.length)
+    pages.push(pg('Layout — Right Side (Exhaust)','right',R.side.right,
+      `Dilihat dari luar; lebar gambar = kedalaman ${R.D} mm. Exhaust di atas.`));
+  if(R.side.left.length)
+    pages.push(pg('Layout — Left Side (Intake)','left',R.side.left,
+      `Dilihat dari luar; lebar gambar = kedalaman ${R.D} mm. Intake di bawah.`));
+
+  document.getElementById('print-area').innerHTML=pages.join('')+
+    `<p class="pg-note">Dimensi komponen adalah estimasi engineering —
+      verifikasi datasheet sebelum pengeboran.</p>`;
   document.body.classList.add('printing-layout');
   setTimeout(()=>{ window.print();
     setTimeout(()=>document.body.classList.remove('printing-layout'),300); },150);
@@ -1559,6 +1781,7 @@ function zoomFit(){
 let libFilter='all';
 function setLibFilter(f){ libFilter=f; renderLibrary(); }
 function renderLibrary(){
+  bindLibImport();
   const q=(document.getElementById('lib-search').value||'').toLowerCase();
   const db=libDb(), patches=state.library.components;
   const all=Object.keys(db).map(k=>({key:k, d:db[k],
@@ -1846,20 +2069,24 @@ async function addToProject(key){
                 ['rail1','Dalam panel · Rail 1 — incoming / power'],
                 ['rail2','Dalam panel · Rail 2 — control'],
                 ['rail3','Dalam panel · Rail 3 — drives'],
-                ['rail4','Dalam panel · Rail 4 — terminal block']]},
+                ['rail4','Dalam panel · Rail 4 — terminal block'],
+                ['left','Left side — intake / ventilasi'],
+                ['right','Right side — exhaust / ventilasi']]},
     ],
     validate:v=>v.dest!=='door' && d.mount==='door'
       ? null   /* diizinkan: kadang perangkat pintu dipasang di plat samping */
       : null});
   if(!v) return;
-  const place=v.dest==='door'?'door':'plate';
-  const rail=v.dest==='door'?2:+v.dest.slice(4);
+  const onRail=/^rail\d$/.test(v.dest);
+  const place=onRail?'plate':v.dest;            /* door | left | right | plate */
+  const rail=onRail?+v.dest.slice(4):2;
   const extras=p.cfg.extras||(p.cfg.extras=[]);
   const found=extras.find(e=>e.type===key && e.place===place &&
-                            (place==='door'||e.rail===rail));
+                            (place!=='plate'||e.rail===rail));
   if(found) found.qty+=v.qty; else extras.push({type:key, qty:v.qty, place, rail});
   p.cfg=PanelEngine.normalizeCfg(p.cfg); p.updated=Date.now(); persist();
-  toast(`${v.qty} × "${d.desc}" → ${place==='door'?'front cover':'rail '+rail}`,'ok');
+  const where={door:'front cover',left:'left side',right:'right side'}[place]||('rail '+rail);
+  toast(`${v.qty} × "${d.desc}" → ${where}`,'ok');
 }
 function removeExtra(i){
   const p=activeProject(); (p.cfg.extras||[]).splice(i,1);
@@ -1977,10 +2204,268 @@ function saveEngineSettings(){
   L.ductH=+document.getElementById('set-duct').value || d.ductH;
   persist(); go('designer');
 }
+/* ══════════ EXPORT / IMPORT LIBRARY ══════════
+   Supaya pengguna bisa saling bertukar library komponen. Format & validasinya
+   ada di engine.js (teruji tanpa DOM); di sini hanya dialog + file I/O. */
+function exportLibraryDialog(){
+  const db=libDb(), patches=state.library.components;
+  const rows=Object.keys(db).map(k=>({k, d:db[k],
+    isCustom:!COMPONENT_DB[k], isMod:!!patches[k] && !!COMPONENT_DB[k],
+    hasImg:!!(patches[k]&&patches[k].hasImage)}));
+  rows.sort((a,b)=>(a.d.cat+a.d.desc).localeCompare(b.d.cat+b.d.desc));
+  /* Default pilihan: yang kamu ubah/tambah sendiri — itu yang layak dibagikan.
+     Kalau belum ada, pilih semua. */
+  const worth=rows.filter(r=>r.isCustom||r.isMod);
+  const preset=worth.length?new Set(worth.map(r=>r.k)):new Set(rows.map(r=>r.k));
+
+  let cat='';
+  const list=rows.map(r=>{
+    let head='';
+    if(r.d.cat!==cat){ cat=r.d.cat;
+      head=`<div style="grid-column:1/-1;font-size:10.5px;font-weight:600;color:var(--gray-500);
+        text-transform:uppercase;letter-spacing:.4px;margin:8px 0 2px;">${esc(cat)}</div>`; }
+    const badge=r.isCustom?' <span class="badge b-green">custom</span>'
+              :r.isMod?' <span class="badge b-amber">diubah</span>':'';
+    return head+`<label style="grid-column:1/-1;display:flex;align-items:flex-start;gap:7px;
+        font-size:12px;padding:2px 0;cursor:pointer;">
+      <input type="checkbox" class="ex-cb" value="${esc(r.k)}" ${preset.has(r.k)?'checked':''}
+        style="width:auto;margin-top:2px;">
+      <span>${esc(r.d.desc)}${badge}
+        <span style="color:var(--gray-500);"> · ${esc(r.d.pn||r.k)}${r.hasImg?' · 🖼':''}</span></span>
+    </label>`;
+  }).join('');
+
+  openModal({title:'Export library komponen', wide:true,
+    body:`<p class="hint" style="margin-bottom:10px;">Pilih komponen yang mau dibagikan.
+        Yang tercentang awal adalah komponen <b>custom</b> dan yang <b>kamu ubah</b> —
+        biasanya itu yang berguna untuk pengguna lain.</p>
+      <div class="lib-tabs" style="margin-bottom:8px;">
+        <button type="button" id="ex-all">Semua</button>
+        <button type="button" id="ex-none">Kosongkan</button>
+        <button type="button" id="ex-mine">Hanya custom + diubah</button>
+      </div>
+      <label style="display:flex;align-items:center;gap:7px;font-size:12px;margin-bottom:10px;">
+        <input type="checkbox" id="ex-img" checked style="width:auto;"> Sertakan gambar komponen
+        <span style="color:var(--gray-500);">(file jadi lebih besar, tapi penerima langsung dapat gambarnya)</span>
+      </label>
+      <div class="field"><label for="ex-by">Dibuat oleh (opsional)</label>
+        <input id="ex-by" value="${esc((state.settings.company&&state.settings.company.name)||'')}"></div>
+      <div class="grid2" style="max-height:38vh;overflow-y:auto;border:1px solid var(--gray-200);
+        border-radius:8px;padding:8px 10px;">${list}</div>`,
+    footer:`<span id="ex-count" style="font-size:11.5px;color:var(--gray-500);"></span>
+      <span class="spacer"></span>
+      <button class="btn" data-close>Batal</button>
+      <button class="btn primary" id="ex-go">Export JSON</button>`,
+    onMount:m=>{
+      const cbs=[...m.querySelectorAll('.ex-cb')];
+      const upd=()=>{ const n=cbs.filter(c=>c.checked).length;
+        m.querySelector('#ex-count').textContent=`${n} dari ${cbs.length} komponen dipilih`; };
+      cbs.forEach(c=>c.addEventListener('change',upd));
+      m.querySelector('#ex-all').onclick=()=>{ cbs.forEach(c=>c.checked=true); upd(); };
+      m.querySelector('#ex-none').onclick=()=>{ cbs.forEach(c=>c.checked=false); upd(); };
+      m.querySelector('#ex-mine').onclick=()=>{ cbs.forEach(c=>c.checked=preset.has(c.value)); upd(); };
+      upd();
+      m.querySelector('#ex-go').onclick=async()=>{
+        const keys=cbs.filter(c=>c.checked).map(c=>c.value);
+        if(!keys.length) return modalError('Pilih minimal satu komponen.');
+        const withImg=m.querySelector('#ex-img').checked;
+        modalError('');
+        m.querySelector('#ex-go').textContent='Menyiapkan…';
+        const imageMap=withImg?await collectImages(keys):{};
+        const pkg=PanelEngine.exportLibrary(state.library.components, keys,
+          {images:withImg, imageMap, by:m.querySelector('#ex-by').value.trim()});
+        downloadJson(pkg, 'panel-builder-library-'+new Date().toISOString().slice(0,10)+'.json');
+        closeModal();
+        const nImg=Object.keys(imageMap).length;
+        toast(`${keys.length} komponen diexport${nImg?` (${nImg} gambar)`:''}`,'ok');
+      };
+    }});
+}
+/* Kumpulkan data URI gambar untuk komponen terpilih — dari IndexedDB dulu,
+   lalu server kalau belum ada di lokal. */
+async function collectImages(keys){
+  const out={};
+  for(const k of keys){
+    let blob=null;
+    try{ const rec=await idbGet(k); if(rec&&rec.blob) blob=rec.blob; }catch(e){}
+    if(!blob && dbMode){
+      try{ const r=await fetch('api/image/'+encodeURIComponent(k));
+           if(r.ok) blob=await r.blob(); }catch(e){}
+    }
+    if(!blob) continue;
+    const dataUrl=await new Promise(res=>{
+      const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=()=>res(null);
+      fr.readAsDataURL(blob);
+    });
+    if(dataUrl) out[k]=dataUrl;
+  }
+  return out;
+}
+function downloadJson(obj, name){
+  const url=URL.createObjectURL(new Blob([JSON.stringify(obj,null,2)],
+    {type:'application/json'}));
+  const a=document.createElement('a'); a.href=url; a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),5000);
+}
+
+/* ── Import ── */
+function bindLibImport(){
+  const f=document.getElementById('lib-import-file');
+  if(!f || f.dataset.bound) return;
+  f.dataset.bound='1';
+  f.onchange=()=>{ const file=f.files&&f.files[0]; f.value=''; if(file) importLibraryFile(file); };
+}
+function importLibraryFile(file){
+  const fr=new FileReader();
+  fr.onerror=()=>toast('File tidak bisa dibaca.','err');
+  fr.onload=()=>{
+    let raw;
+    try{ raw=JSON.parse(fr.result); }
+    catch(e){ return toast('File bukan JSON yang valid.','err'); }
+    const v=PanelEngine.validateLibraryFile(raw, state.library.components);
+    if(!v.ok) return toast('Import gagal: '+v.error,'err');
+    importPreview(v, file.name);
+  };
+  fr.readAsText(file);
+}
+function importPreview(v, filename){
+  const nImg=Object.keys(v.images).length;
+  openModal({title:'Import library komponen', wide:true,
+    body:`<p class="hint" style="margin-bottom:10px;">
+        <b>${esc(filename)}</b>${v.by?` · dibuat oleh ${esc(v.by)}`:''}
+        ${v.exported?` · ${esc(v.exported.slice(0,10))}`:''}</p>
+      <table class="kv" style="margin-bottom:12px;">
+        <tr><td>Komponen dalam file</td><td>${v.total}</td></tr>
+        <tr><td>Baru (belum ada di library)</td><td><b>${v.isNew}</b></td></tr>
+        <tr><td>Menimpa yang sudah ada</td><td><b>${v.overwrite}</b></td></tr>
+        <tr><td>Gambar disertakan</td><td>${nImg||'tidak ada'}</td></tr>
+        ${v.skipped.length?`<tr><td>Dilewati (tidak valid)</td><td>${v.skipped.length}</td></tr>`:''}
+      </table>
+      ${v.skipped.length?`<p class="hint" style="color:var(--amber-700);">Dilewati:
+        ${esc(v.skipped.slice(0,6).join(', '))}${v.skipped.length>6?` +${v.skipped.length-6} lagi`:''}</p>`:''}
+      ${v.overwrite?`<label style="display:flex;align-items:center;gap:7px;font-size:12px;margin-top:10px;">
+        <input type="checkbox" id="im-skip" style="width:auto;">
+        Lewati yang sudah ada — hanya tambahkan ${v.isNew} komponen baru
+      </label>`:''}
+      <p class="hint" style="margin-top:10px;">Komponen bawaan yang tertimpa tetap
+        bisa dikembalikan lewat tombol <b>Reset</b> di kartunya.</p>`,
+    footer:`<span class="spacer"></span>
+      <button class="btn" data-close>Batal</button>
+      <button class="btn primary" id="im-go">Import</button>`,
+    onMount:m=>{
+      m.querySelector('#im-go').onclick=async()=>{
+        const skip=m.querySelector('#im-skip');
+        const only=skip&&skip.checked;
+        let added=0, replaced=0, imgs=0;
+        for(const k of Object.keys(v.components)){
+          const exists=!!(state.library.components[k]||COMPONENT_DB[k]);
+          if(only&&exists) continue;
+          state.library.components[k]=Object.assign({},v.components[k]);
+          exists?replaced++:added++;
+          if(v.images[k]){
+            /* saveImage menulis penanda hasImage + menaruh byte-nya */
+            await saveImage(k, v.images[k]);
+            imgs++;
+          }
+        }
+        persist(); closeModal(); buildPlcOptions(); renderLibrary();
+        toast(`Import selesai: ${added} baru, ${replaced} ditimpa`+
+              (imgs?`, ${imgs} gambar`:''),'ok');
+      };
+    }});
+}
+
+/* ══════════ IDENTITAS PERUSAHAAN ══════════
+   Disimpan di settings (ikut ke database), logonya di tabel images seperti
+   gambar komponen — key khusus supaya tidak bentrok dengan komponen. */
+const CO_LOGO_KEY='__company_logo';
+const CO_FIELDS=['name','address','city','country','phone','email','web','tax',
+                 'engineer','role','footer'];
+function company(){ return (state.settings.company||(state.settings.company={})); }
 function enterSettings(){
   const p=activeProject();
   document.getElementById('set-pname').value=p.name;
   document.getElementById('set-pcust').value=p.customer;
+  const co=company();
+  for(const f of CO_FIELDS) document.getElementById('co-'+f).value=co[f]||'';
+  renderCompanyLogo();
+  bindCompanyLogoDrop();
+}
+function renderCompanyLogo(){
+  const co=company(), prev=document.getElementById('co-logo-prev'),
+        msg=document.getElementById('co-logo-msg'), clr=document.getElementById('co-logo-clear');
+  if(!prev) return;
+  const src=imgSrc({hasImage:co.hasLogo, imgVersion:co.logoVersion, asset:''}, CO_LOGO_KEY);
+  if(src){ prev.src=src; prev.style.display=''; msg.textContent='Klik atau jatuhkan untuk mengganti';
+           clr.style.display=''; }
+  else   { prev.style.display='none'; msg.textContent='Klik atau jatuhkan logo (PNG/JPG/SVG)';
+           clr.style.display='none'; }
+}
+let coDropBound=false;
+function bindCompanyLogoDrop(){
+  if(coDropBound) return; coDropBound=true;
+  const drop=document.getElementById('co-drop'), file=document.getElementById('co-logo-file');
+  if(!drop) return;
+  const load=async f=>{
+    try{
+      const r=await readImageFile(f); if(!r) return;
+      const co=company();
+      await saveImage(CO_LOGO_KEY, r.dataUrl);
+      co.hasLogo=true; co.logoVersion=Date.now();
+      persist(); renderCompanyLogo();
+      toast('Logo perusahaan disimpan','ok');
+    }catch(e){ toast(e.message,'err'); }
+  };
+  drop.onclick=()=>file.click();
+  file.onchange=()=>load(file.files[0]);
+  drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('over');});
+  drop.addEventListener('dragleave',()=>drop.classList.remove('over'));
+  drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('over');
+    load(e.dataTransfer.files[0]);});
+}
+async function clearCompanyLogo(){
+  const co=company();
+  await deleteImage(CO_LOGO_KEY);
+  delete co.hasLogo; delete co.logoVersion;
+  persist(); renderCompanyLogo(); toast('Logo dihapus');
+}
+function saveCompany(){
+  const co=company();
+  for(const f of CO_FIELDS) co[f]=document.getElementById('co-'+f).value.trim();
+  persist();
+  toast(co.name?`Identitas "${co.name}" disimpan`:'Identitas disimpan','ok');
+}
+/* Kop dokumen: dipakai Report PDF dan Layout PDF supaya konsisten. */
+function docHeader(title, p){
+  const co=company();
+  const logo=imgSrc({hasImage:co.hasLogo, imgVersion:co.logoVersion, asset:''}, CO_LOGO_KEY)
+    || 'assets/ui/logo.svg';
+  const lines=[co.address, [co.city,co.country].filter(Boolean).join(', '),
+    [co.phone&&('T '+co.phone), co.email].filter(Boolean).join(' · '),
+    [co.web, co.tax&&('NPWP '+co.tax)].filter(Boolean).join(' · ')].filter(Boolean);
+  return `<div class="doc-head">
+    <div class="dh-co">
+      <img class="dh-logo" src="${esc(logo)}" alt="" onerror="this.style.display='none'">
+      <div>
+        <b>${esc(co.name||'Panel Builder Assistant')}</b>
+        ${lines.map(l=>`<span>${esc(l)}</span>`).join('')}
+      </div>
+    </div>
+    <div class="dh-doc">
+      <b>${esc(title)}</b>
+      <table class="dh-meta">
+        <tr><td>Project</td><td>${esc(p.name)}</td></tr>
+        <tr><td>Customer</td><td>${esc(p.customer||'—')}</td></tr>
+        <tr><td>Revision</td><td>${esc(p.rev||'A')}</td></tr>
+        <tr><td>Date</td><td>${fmtDate(Date.now())}</td></tr>
+        ${co.engineer?`<tr><td>Prepared by</td><td>${esc(co.engineer)}${co.role?', '+esc(co.role):''}</td></tr>`:''}
+      </table>
+    </div>
+  </div>`;
+}
+function docFooter(){
+  const co=company();
+  return co.footer?`<div class="doc-foot">${esc(co.footer)}</div>`:'';
 }
 async function resetAll(){
   if(!await modalConfirm({title:'Reset semua data', danger:true, confirmLabel:'Hapus semuanya',
@@ -2018,27 +2503,26 @@ function renderWiring(){
 
 /* ══════════ REPORT ══════════ */
 function renderReport(){
-  recompute(); const p=activeProject(), c=R.cfg, A=R.assumptions;
-  document.getElementById('report-body').innerHTML=`
-    <div class="rep-head">
-      <img src="assets/ui/logo.svg" alt="" onload="this.parentNode.classList.add('has-logo')">
-      <div class="rep-mark" style="display:flex;align-items:center;gap:10px;">
-        <div style="width:36px;height:36px;border-radius:8px;background:var(--blue-500);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;">PB</div>
-        <div><b style="font-size:15px;">Panel Builder Assistant</b><br><span style="font-size:11px;color:var(--gray-500);">MicroPlus Engineering</span></div>
-      </div>
-      <div style="text-align:right;font-size:12px;color:var(--gray-500);">
-        <b style="color:var(--ink);font-size:14px;">Panel Design Report</b><br>
-        ${esc(p.name)} · Rev ${esc(p.rev)}<br>Customer: ${esc(p.customer)}<br>${fmtDate(Date.now())}
-      </div>
-    </div>
-    <h2>1. Konfigurasi mesin</h2>
+  document.getElementById('report-body').innerHTML=reportHtml();
+}
+/* Laporan formal, SATU HALAMAN PER LAYOUT.
+   Tiap .pdf-page memaksa page-break saat dicetak, dan setiap halaman gambar
+   membawa kop sendiri supaya lembar yang tercetak berdiri sendiri. */
+function reportHtml(){
+  recompute();
+  const p=activeProject(), c=R.cfg, A=R.assumptions;
+  const pg=(title, inner)=>`<section class="pdf-page">${docHeader(title,p)}
+    <h2 class="pg-title">${esc(title)}</h2>${inner}${docFooter()}</section>`;
+
+  /* ── Halaman 1: ringkasan engineering ── */
+  const summary=`
     <table class="data"><tr><th>Parameter</th><th>Nilai</th><th>Parameter</th><th>Nilai</th></tr>
       <tr><td>Supply</td><td>${c.supplyV} V 3P · ambient ${c.ambientC} °C</td><td>VFD</td><td>${c.vfd} × ${A.vfdKw} kW</td></tr>
-      <tr><td>PLC</td><td>${R.hasPlc?esc(c.plc):'<b>No PLC</b> — relay / starter panel'}</td><td>Servo</td><td>${c.servo} × ${A.servoW} W</td></tr>
+      <tr><td>PLC</td><td>${R.hasPlc?esc(R.cpu.plcName||R.cpu.pn):'<b>No PLC</b> — relay / starter panel'}</td><td>Servo</td><td>${c.servo} × ${A.servoW} W</td></tr>
       <tr><td>Digital I/O</td><td>${c.di} DI / ${c.do_} DO</td><td>Motors / valves</td><td>${c.motor} / ${c.valve}</td></tr>
       <tr><td>Analog I/O</td><td>${c.ai} AI / ${c.ao} AO</td><td>HMI</td><td>${c.hmi}</td></tr>
       <tr><td>Kabinet</td><td>${R.W} × ${R.H} × ${R.D} mm · IP55</td><td>Mounting</td><td>${R.dims.freeStanding?'Free standing':'Wall mount'}</td></tr></table>
-    <h2>2. Ringkasan engineering</h2>
+    <h3>Ringkasan kelistrikan &amp; termal</h3>
     <table class="data"><tr><th>Item</th><th>Nilai</th><th>Item</th><th>Nilai</th></tr>
       <tr><td>Total input power</td><td>${(R.totalW/1000).toFixed(2)} kW</td><td>Internal heat load</td><td>${R.heat} W</td></tr>
       <tr><td>Apparent power / PF</td><td>${(R.totalVA/1000).toFixed(2)} kVA / ${R.systemPf.toFixed(3)}</td><td>Effective surface Ae</td><td>${R.thermal.Ae.toFixed(3)} m²</td></tr>
@@ -2046,45 +2530,76 @@ function renderReport(){
       <tr><td>Starting current</td><td>${R.startA.toFixed(1)} A</td><td>Cooling</td><td>${esc(R.thermal.note)}</td></tr>
       <tr><td>Incoming breaker</td><td>${esc(R.mccb.pn)}</td><td>Terminal / wires</td><td>${R.termPoints} / ${R.wires}</td></tr>
       <tr><td>PSU</td><td>${esc(R.psu.pn)} (${Math.round(R.util)}%)</td><td>Rail spare</td><td>${Math.round(R.railFreeMm)} mm</td></tr></table>
-    <h2>3. Layout drawing</h2>
-    <div class="sd-row">
-      <div><h3>3.1 Inside panel — backplate</h3>${staticDrawing('plate',370)}</div>
-      <div><h3>3.2 Front cover</h3>${staticDrawing('door',370)}</div>
-    </div>
-    <h3>3.3 Front cover — device positions</h3>
-    ${coordTable(R.door.items)}
-    <p style="font-size:11px;color:var(--gray-500);line-height:1.7;">
-      X / Y diukur dari sudut kiri-atas pintu ke <b>titik tengah lubang</b>. Zona bebas bor
-      ${R.door.margin} mm di semua sisi (gasket + flange pintu).
-      ${R.door.manual.length?`${R.door.manual.length} komponen diposisikan manual.`:'Semua posisi otomatis.'}
-      ${R.door.fits?'':'<b style="color:var(--red-600);">Perangkat pintu tidak muat pada ukuran panel ini.</b>'}</p>
-    <h3>3.4 Inside panel — component positions</h3>
-    ${coordTable(R.items)}
-    <p style="font-size:11px;color:var(--gray-500);line-height:1.7;">
-      X / Y ke titik tengah komponen, dari sudut kiri-atas backplate. Backplate
-      ${R.W} × ${R.H} mm, margin ${R.assumptions.layout.pad} mm, rail spare
-      ${Math.round(R.railFreeMm)} mm dari ${Math.round(R.railLengthMm)} mm.</p>
-    ${R.warnings.length?`<h2>4. Temuan review</h2>
+    ${R.warnings.length?`<h3>Temuan review (${R.warnings.length})</h3>
     <table class="data"><tr><th>Level</th><th>Kode</th><th>Temuan</th></tr>
       ${R.warnings.map(w=>`<tr><td style="color:${WARN_COLOR[w.level]};">${w.level}</td>
-        <td class="pn">${esc(w.code)}</td><td>${esc(w.msg)}</td></tr>`).join('')}</table>`:''}
-    <h2>${R.warnings.length?5:4}. Bill of materials</h2>
-    <table class="data"><tr><th>Category</th><th>Part number</th><th>Description</th><th>Qty</th><th>Unit</th><th>Vendor</th><th>Basis</th></tr>
-      ${R.bom.map(b=>`<tr><td>${esc(b.cat)}</td><td class="pn">${esc(b.pn)}</td><td>${esc(b.desc)}</td>
-        <td>${b.qty}</td><td>${esc(b.unit)}</td><td>${esc(b.vendor)}</td><td>${esc(b.source)}</td></tr>`).join('')}</table>
-    <h2>${R.warnings.length?6:5}. Catatan &amp; asumsi</h2>
-    <p style="font-size:12px;color:var(--gray-500);line-height:1.8;">
+        <td class="pn">${esc(w.code)}</td><td>${esc(w.msg)}</td></tr>`).join('')}</table>`
+      :'<p class="pg-note">Tidak ada temuan review.</p>'}`;
+
+  /* ── Halaman gambar: satu layout per halaman, gambar + tabel koordinatnya ── */
+  const drawPage=(title, mode, items, note)=>pg(title,
+    `<div class="sd-center">${staticDrawing(mode,700)}</div>
+     <h3>Posisi komponen</h3>${coordTable(items)}
+     <p class="pg-note">${note}</p>`);
+
+  const pages=[pg('Panel Design Report', summary)];
+
+  pages.push(drawPage('Layout — Inside Panel (Backplate)', 'plate', R.items,
+    `X / Y ke titik tengah komponen, dari sudut kiri-atas backplate. Backplate
+     ${R.W} × ${R.H} mm, margin ${A.layout.pad} mm, rail spare
+     ${Math.round(R.railFreeMm)} mm dari ${Math.round(R.railLengthMm)} mm.
+     ${R.manualPlate.length?`${R.manualPlate.length} komponen digeser manual.`:'Semua posisi otomatis.'}`));
+
+  pages.push(drawPage('Layout — Front Cover (Pintu Panel)', 'door', R.door.items,
+    `X / Y diukur dari sudut kiri-atas pintu ke <b>titik tengah lubang</b>.
+     Zona bebas bor ${R.door.margin} mm di semua sisi (gasket + flange pintu).
+     ${R.door.manual.length?`${R.door.manual.length} perangkat diposisikan manual.`:'Semua posisi otomatis.'}
+     ${R.door.fits?'':'<b style="color:var(--red-600);">Perangkat pintu tidak muat pada ukuran panel ini.</b>'}`));
+
+  if(R.side.right.length)
+    pages.push(drawPage('Layout — Right Side (Exhaust)', 'right', R.side.right,
+      `Dilihat dari luar; lebar gambar = <b>kedalaman</b> enclosure (${R.D} mm).
+       Exhaust fan di atas — udara keluar di sini. Intake ada di sisi kiri.
+       Zona bebas bor ${R.side.margin} mm.`));
+  if(R.side.left.length)
+    pages.push(drawPage('Layout — Left Side (Intake)', 'left', R.side.left,
+      `Dilihat dari luar; lebar gambar = <b>kedalaman</b> enclosure (${R.D} mm).
+       Intake berfilter di bawah — udara masuk di sini, menyapu drive, lalu
+       keluar lewat exhaust di sisi kanan. Zona bebas bor ${R.side.margin} mm.`));
+
+  /* ── Halaman BOM ── */
+  const est=R.bom.filter(b=>b.source==='estimated').length;
+  pages.push(pg('Bill of Materials',
+    `<p class="pg-note">${R.bom.length} baris · ${R.bom.length-est} calculated,
+       ${est} estimated. Tanda ◇ = part number masih generik.</p>
+     <table class="data"><tr><th>#</th><th>Category</th><th>Part number</th><th>Description</th>
+       <th>Qty</th><th>Unit</th><th>Vendor</th><th>Basis</th></tr>
+       ${R.bom.map((b,i)=>`<tr><td>${i+1}</td><td>${esc(b.cat)}</td>
+         <td class="pn">${esc(b.pn)}${b.generic?' ◇':''}</td><td>${esc(b.desc)}</td>
+         <td><b>${b.qty}</b></td><td>${esc(b.unit)}</td><td>${esc(b.vendor)}</td>
+         <td>${esc(b.source)}</td></tr>`).join('')}</table>`));
+
+  /* ── Halaman asumsi ── */
+  pages.push(pg('Catatan &amp; Asumsi Perhitungan',
+    `<p style="font-size:11.5px;color:var(--gray-700);line-height:1.8;">
       Perhitungan memakai PF dan efisiensi per jenis beban (VFD ${A.pf.vfd}/${(A.eff.vfdDrive*A.eff.vfdMotor).toFixed(2)},
       servo ${A.pf.servo}, DOL ${A.pf.dol}/${A.eff.dolMotor}, PSU ${A.eff.psu}); power factor sistem
       <b>dihitung</b> (${R.systemPf.toFixed(3)}), bukan diasumsikan. Proteksi disizing ×${A.breakerMargin}
       (IEC 60204-1) dari tabel frame nyata. Termal memakai bentuk praktis IEC 60890
       (k = ${A.kEnclosure} W/m²K, batas dalam ${A.maxInternalC} °C, margin fan ×${A.fanMargin}).
-      Baris BOM bertanda <b>estimated</b> adalah alowansi, bukan hasil kalkulasi —
-      terutama panjang kabel, ferrule, dan gland. Part number bertanda ◇ masih generik.
-      Dimensi komponen adalah estimasi engineering: <b>verifikasi datasheet sebelum pembelian</b>.
-      Rincian lengkap asumsi ada di <code>ENGINEERING.md</code>.
-      Tidak ada data stok / lead time di aplikasi ini — jangan pakai laporan ini untuk komitmen pengiriman.
-    </p>`;
+      Warna kabel mengikuti IEC 60204-1 §13.2.</p>
+     <h3>Batasan yang harus diperhatikan</h3>
+     <ul style="font-size:11.5px;color:var(--gray-700);line-height:1.9;padding-left:18px;">
+       <li>Dimensi komponen adalah estimasi engineering — <b>verifikasi datasheet sebelum pembelian dan pengeboran</b>.</li>
+       <li>Baris BOM bertanda <b>estimated</b> adalah alowansi, bukan hasil kalkulasi (panjang kabel, ferrule, gland).</li>
+       <li>Ukuran kabel belum dihitung (belum ada voltage drop / grouping factor).</li>
+       <li>Kemampuan hubung singkat (Icu/Ics) belum dimodelkan — konfirmasi ke level gangguan sumber.</li>
+       <li>Tidak ada data stok / lead time — jangan pakai laporan ini untuk komitmen pengiriman.</li>
+       <li>Menambah ventilasi menurunkan rating IP; angka IP55 berasal dari baris enclosure.</li>
+     </ul>
+     <p class="pg-note">Rincian lengkap asumsi ada di <code>ENGINEERING.md</code>.</p>`));
+
+  return pages.join('');
 }
 /* Print CSS hanya menampilkan #view-reports, jadi tombol PDF dari view lain
    dulu menghasilkan halaman kosong. Pindah ke Reports dulu, lalu print. */

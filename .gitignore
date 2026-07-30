@@ -12,6 +12,8 @@ node_modules/
 
 # Source snapshots / archives
 *.zip
+*.rar
+*.7z
 
 # Tooling / editor / OS
 .claude/

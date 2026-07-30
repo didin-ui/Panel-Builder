@@ -153,6 +153,7 @@ Daftar lengkap — **inilah nama file yang dicari kode**, jadi pakai persis ini:
 | File | mm (W × H) | Piksel @ 6× |
 |---|---|---|
 | `cooling-fan-150.png` | 150 × 150 | 900 × 900 |
+| `outlet-filter-150.png` | 150 × 150 | 900 × 900 |
 
 **Drives**
 
