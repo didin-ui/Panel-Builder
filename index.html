@@ -1935,7 +1935,9 @@ function drawPlate(){
   for(const row of rows){
     if(row.list){
       html+=`<div class="rail-tag" style="left:${PAD}px;top:${row.railY-row.h/2-13}px;">${row.name}</div>`;
-      html+=`<div class="rail" style="left:${PAD-6}px;top:${row.railY-17.5}px;width:${W-PAD*2+12}px;height:35px;"></div>`;
+      /* drive dibaut ke backplate — barisnya tidak punya DIN rail */
+      if(row.needsRail!==false)
+        html+=`<div class="rail" style="left:${PAD-6}px;top:${row.railY-17.5}px;width:${W-PAD*2+12}px;height:35px;"></div>`;
     } else if(row.kind==='duct'){
       html+=`<div class="duct" style="left:${PAD-6}px;top:${row.y0}px;width:${W-PAD*2+12}px;height:${row.h}px;">${row.label}</div>`;
     } else {
@@ -2194,7 +2196,8 @@ function staticDrawing(mode, maxW, maxH){
     for(const row of R.rows){
       if(row.list){
         h+=`<div class="rail-tag" style="left:${p(PAD)}px;top:${p(row.railY-row.h/2)-11}px;font-size:8px;">${esc(row.name)}</div>`;
-        h+=`<div class="rail" style="left:${p(PAD-6)}px;top:${p(row.railY-17.5)}px;width:${p(W-PAD*2+12)}px;height:${p(35)}px;"></div>`;
+        if(row.needsRail!==false)
+          h+=`<div class="rail" style="left:${p(PAD-6)}px;top:${p(row.railY-17.5)}px;width:${p(W-PAD*2+12)}px;height:${p(35)}px;"></div>`;
       }else{
         h+=`<div class="${row.kind==='duct'?'duct':'tstrip'}" style="left:${p(PAD-6)}px;top:${p(row.y0)}px;width:${p(W-PAD*2+12)}px;height:${p(row.h)}px;font-size:7px;">${esc(row.label)}</div>`;
       }
@@ -2233,7 +2236,9 @@ function coordTable(items){
         <td><b>${Math.round(it.x)}</b></td><td><b>${Math.round(it.y)}</b></td>
         <td>${d.w} × ${d.h}</td>
         <td style="color:var(--gray-500);">${it.manual?'manual'
-          :it.side?it.side+' side':(d.mount==='door'?'door':'rail')}</td></tr>`;
+          :it.side?it.side+' side'
+          :d.mount==='door'?'door'
+          :d.mount==='plate'?'backplate (bolted)':'rail'}</td></tr>`;
     }).join('')+`</tbody></table>`;
 }
 /* Export hanya gambar layout — terpisah dari Report PDF. */
@@ -2571,7 +2576,7 @@ async function addToProject(key){
        options:[['door','Front cover — pintu panel'],
                 ['rail1','Dalam panel · Rail 1 — incoming / power'],
                 ['rail2','Dalam panel · Rail 2 — control'],
-                ['rail3','Dalam panel · Rail 3 — drives'],
+                ['rail3','Dalam panel · Baris 3 — drives (dibaut ke backplate)'],
                 ['rail4','Dalam panel · Rail 4 — terminal block'],
                 ['left','Left side — intake / ventilasi'],
                 ['right','Right side — exhaust / ventilasi']]},

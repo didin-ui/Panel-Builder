@@ -293,8 +293,8 @@
     eth:       { asset:'ethernet-switch-8p.png',w:52,  h:135, d:105, cat:'Network',    label:'Ethernet Switch', color:'#0F7A6C', bg:'#DDF1EE', pn:'FL-SWITCH-1008N',       desc:'Ethernet switch industrial 8 port',    vendor:'Phoenix Contact',     mount:'rail', powerW:8,  dimsVerified:false },
     mcb3:      { asset:'mcb-3p.png',           w:54,   h:90,  d:70,  cat:'Protection', label:'MCB',             color:'#6B7885', bg:'#EEF1F4', pn:'MCB-3P-C16',            desc:'MCB 3P curve C, drives feeder',        vendor:'Schneider Electric',  mount:'rail', powerW:0,  dimsVerified:false },
     mcb1:      { asset:'mcb-1p.png',           w:18,   h:90,  d:70,  cat:'Protection', label:'',                color:'#6B7885', bg:'#EEF1F4', pn:'MCB-1P-C6',             desc:'MCB 1P curve C, control',              vendor:'Schneider Electric',  mount:'rail', powerW:0,  dimsVerified:false },
-    vfd:       { asset:'vfd.png',              w:108,  h:128, d:145, cat:'Drives',     label:'VFD Drives',      color:'#5B4BB5', bg:'#EAE7F8', pn:'FR-D740-2.2K',          desc:'Inverter VFD',                         vendor:'Mitsubishi Electric', mount:'rail', powerW:0,  dimsVerified:false },
-    servo:     { asset:'servo.png',            w:85,   h:168, d:195, cat:'Drives',     label:'Servo Drives',    color:'#B03A6C', bg:'#F8E4ED', pn:'MR-J4-100A4',           desc:'Servo amplifier',                      vendor:'Mitsubishi Electric', mount:'rail', powerW:0,  dimsVerified:false },
+    vfd:       { asset:'vfd.png',              w:108,  h:128, d:145, cat:'Drives',     label:'VFD Drives',      color:'#5B4BB5', bg:'#EAE7F8', pn:'FR-D740-2.2K',          desc:'Inverter VFD',                         vendor:'Mitsubishi Electric', mount:'plate', powerW:0, dimsVerified:false },
+    servo:     { asset:'servo.png',            w:85,   h:168, d:195, cat:'Drives',     label:'Servo Drives',    color:'#B03A6C', bg:'#F8E4ED', pn:'MR-J4-100A4',           desc:'Servo amplifier',                      vendor:'Mitsubishi Electric', mount:'plate', powerW:0, dimsVerified:false },
     /* Pendinginan hidup di panel SISI: exhaust fan tinggi di sisi kanan,
        intake berfilter rendah di sisi kiri — udara masuk bawah-kiri, menyapu
        drive, keluar atas-kanan. */
@@ -1269,14 +1269,22 @@
         const rowH = Math.max(h, stackH);
         const used = chunk.reduce((t, x) => t + spec(x).w + GAP, 0) - GAP;
         if (chunk.some((t) => spec(t).w > usableW)) overflow = true;
-        railLengthMm += W - PAD * 2;
-        railUsedMm += Math.max(0, used);
         /* Rail berisi drive butuh ruang napas untuk heatsink-nya. */
         const hasDrive = chunk.some((t) => spec(t).cat === 'Drives');
         const clear = hasDrive ? Math.max(GAPV, o.driveClearance || 0) : GAPV;
         if (hasDrive) y += clear - GAPV;            /* ruang di ATAS rail drive */
+        /* VFD dan servo DIBAUT ke backplate, bukan diklip ke DIN rail — jadi
+           baris yang seluruhnya berisi komponen mount:'plate' tidak menggambar
+           rail dan tidak ikut menghitung panjang rail. */
+        const needsRail = chunk.some((t) => spec(t).mount !== 'plate');
+        if (needsRail) {                            /* hanya baris ber-rail yang dibeli */
+          railLengthMm += W - PAD * 2;
+          railUsedMm += Math.max(0, used);
+        }
         rows.push({ list: chunk, h: rowH, railY: y + rowH / 2, clearance: clear,
-                    name: title + (chunks.length > 1 ? ' (' + (i + 1) + '/' +
+                    needsRail,
+                    name: (needsRail ? title : title.replace(/^DIN RAIL \d+ · /, 'BACKPLATE · ')) +
+                          (chunks.length > 1 ? ' (' + (i + 1) + '/' +
                           chunks.length + ')' : '') });
         y += rowH + clear;                          /* dan di BAWAHnya */
       });
@@ -1798,6 +1806,13 @@
     line('DIN-TS35-2M', 'DIN rail TS35 ×7.5, 2 m length',
       Math.ceil(layout.railLengthMm / 2000), 'pcs', 'to be specified',
       'Mechanical', 'calculated', { generic: true });
+    /* Komponen mount:'plate' (VFD, servo) dibaut langsung ke backplate, jadi
+       butuh pengencang — bukan potongan DIN rail. */
+    const plateMounted = layout.items.filter((i) => specs[i.type].mount === 'plate').length;
+    if (plateMounted)
+      line('FASTENER-M6', 'Baut M6 + ring + mur kandang untuk komponen backplate',
+        plateMounted * 4, 'set', 'to be specified', 'Mechanical', 'estimated',
+        { generic: true, note: '4 titik pengikat per komponen' });
     line('DUCT-45x60-2M', 'Slotted wire duct 45×60 mm with cover, 2 m length',
       Math.ceil(layout.ductLengthMm / 2000), 'pcs', 'to be specified',
       'Mechanical', 'calculated', { generic: true });

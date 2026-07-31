@@ -348,6 +348,26 @@ drive ke rail biasa, dan itu dilaporkan lewat `DRIVE_CLEARANCE`.
 **Masih belum dimodelkan:** clearance samping antar drive, dan derating ketika
 drive dipasang berdampingan rapat.
 
+### Drive dibaut ke backplate, bukan diklip ke DIN rail
+
+VFD dan servo amplifier punya `mount: 'plate'`. Di panel sungguhan badan drive
+dibaut langsung ke plat belakang lewat lubang di heatsink-nya — tidak ada klip
+DIN di belakangnya, dan massanya memang tidak pantas digantung di rail.
+
+Baris yang **seluruh** isinya `mount: 'plate'` karena itu:
+
+- tidak menggambar elemen rail (layar maupun cetak),
+- dilabeli `BACKPLATE · DRIVES`, bukan `DIN RAIL 3 · DRIVES`,
+- tidak ikut menambah `railLengthMm`, sehingga jumlah DIN rail di BOM turun
+  (mesin acuan: 4 baris → 3 rail, 3040 → 2280 mm),
+- memunculkan baris `FASTENER-M6` di BOM sebanyak 4 titik per komponen.
+
+Baris campuran tetap berail — satu komponen ber-klip DIN di baris itu sudah
+cukup untuk membutuhkan railnya.
+
+`railFreeMm` sekarang hanya menghitung sisa ruang di rail yang benar-benar ada,
+jadi angka "spare" tidak lagi ikut menghitung lebar yang dipakai drive.
+
 ---
 
 ## 9. Front cover (door) layout
@@ -525,9 +545,11 @@ Things the tool could easily fabricate and deliberately does not:
 - **Prices.** `unitPrice` and `subtotal` exist as `null` so the schema is ready
   for the cost estimator; nothing invents a number.
 - **Vendor order numbers for commodities.** Enclosure, backplate, gland plate,
-  DIN rail, duct, PE bar and glands are generic descriptors flagged
-  `generic: true` (shown as ◇). A fabricated Rittal order number would look
-  authoritative and be wrong.
+  DIN rail, duct, PE bar, glands and backplate fasteners are generic descriptors
+  flagged `generic: true` (shown as ◇). A fabricated Rittal order number would
+  look authoritative and be wrong. The `FASTENER-M6` line is additionally
+  `estimated` — 4 titik per komponen adalah praktik lazim, bukan angka dari
+  lembar data.
 - **Wire lengths.** Flagged `estimated` with a 1.2 m per-wire allowance stated in
   the line note. Real lengths need routing, which is Phase 4.
 

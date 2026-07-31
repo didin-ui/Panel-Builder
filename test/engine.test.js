@@ -71,7 +71,7 @@ describe('golden — reference machine (24DI/16DO/4AI/2AO, 3 VFD, 2 servo, 6 mot
     assert.deepEqual([r.W, r.H, r.D], [800, 1200, 300]);
     assert.equal(r.termPoints, 92);
     assert.equal(r.wires, 119);
-    assert.equal(r.bom.length, 59);
+    assert.equal(r.bom.length, 60);   // 59 + pengencang backplate untuk drive
   });
 
   test('front cover', () => {
@@ -267,6 +267,57 @@ describe('invariant — layout bookkeeping', () => {
     const fanCount = 0;   /* fan tidak lagi di backplate */
     assert.equal(placedOnRails, r.items.length - fanCount,
       'every rail entry must produce exactly one placed item');
+    /* Panjang rail hanya boleh dihitung dari baris yang benar-benar berail. */
+    const railed = railRows.filter((x) => x.needsRail).length;
+    assert.equal(r.railLengthMm, railed * (r.W - E.ASSUMPTIONS.layout.pad * 2),
+      'rail length must count only rows that carry a DIN rail');
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════ */
+describe('drive dipasang di backplate, bukan DIN rail', () => {
+  /* Di panel sungguhan VFD dan servo amplifier dibaut ke plat belakang lewat
+     lubang di heatsink-nya; tidak ada klip DIN di badannya. Menggambar rail di
+     bawahnya salah, dan ikut menghitung panjang rail membuat BOM kelebihan. */
+  test('vfd dan servo dideklarasikan mount plate', () => {
+    assert.equal(E.COMPONENT_DB.vfd.mount, 'plate');
+    assert.equal(E.COMPONENT_DB.servo.mount, 'plate');
+  });
+
+  test('baris drive tidak menggambar rail dan tidak menambah panjang rail', () => {
+    const withDrives = R({ vfd: 3, servo: 2, motor: 5 });
+    const drives = withDrives.rows.filter(
+      (x) => x.list && x.list.every((t) => withDrives.specs[t].mount === 'plate'));
+    assert.ok(drives.length > 0, 'harus ada baris drive');
+    for (const row of drives) {
+      assert.equal(row.needsRail, false);
+      assert.ok(!/DIN RAIL/.test(row.name), `label masih menyebut rail: ${row.name}`);
+      assert.match(row.name, /BACKPLATE/);
+    }
+    /* rail yang dibeli berkurang tepat sebanyak baris drive */
+    const noDrives = R({ vfd: 0, servo: 0, motor: 0 });
+    const span = withDrives.W - E.ASSUMPTIONS.layout.pad * 2;
+    const railedRows = (r) => r.rows.filter((x) => x.list && x.needsRail).length;
+    assert.equal(withDrives.railLengthMm, railedRows(withDrives) * span);
+    assert.equal(noDrives.railLengthMm, railedRows(noDrives) * span);
+  });
+
+  test('baris ber-rail tetap menggambar rail', () => {
+    const r = R();
+    const control = r.rows.find((x) => x.list && x.list.includes('plc'));
+    assert.equal(control.needsRail, true);
+    assert.match(control.name, /DIN RAIL/);
+  });
+
+  test('komponen backplate mendapat pengencang di BOM, bukan potongan rail', () => {
+    const r = R({ vfd: 3, servo: 2, motor: 5 });
+    const plate = r.items.filter((i) => r.specs[i.type].mount === 'plate').length;
+    const fast = r.bom.find((b) => b.pn === 'FASTENER-M6');
+    assert.ok(fast, 'pengencang backplate hilang dari BOM');
+    assert.equal(fast.qty, plate * 4);
+    /* panel tanpa drive tidak perlu baut backplate sama sekali */
+    const bare = R({ vfd: 0, servo: 0, motor: 0 });
+    assert.equal(bare.bom.some((b) => b.pn === 'FASTENER-M6'), false);
   });
 });
 
