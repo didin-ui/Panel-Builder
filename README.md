@@ -169,6 +169,66 @@ Sekarang payload sync **0,2 KB** dan 20× penyimpanan hanya menambah puluhan KB.
 
 Batas: 2 MB per gambar (`MAX_IMAGE_BYTES`), tipe PNG/JPEG/WebP/GIF/SVG.
 
+## Skala: pertumbuhan proyek & library
+
+Diukur dengan server dan engine sungguhan, bukan taksiran. Kolom node & `<img>`
+itu hitungan eksak dari DOM.
+
+Yang **tidak** jadi masalah — 500 proyek + 1000 komponen library:
+
+| | angka |
+|---|---|
+| payload tiap kali simpan | 882 KB |
+| tulis ke SQLite | 38 ms |
+| `GET /api/state` saat aplikasi dibuka | 36 ms |
+| localStorage terpakai | 0,86 MB (kuota browser ±5 MB) |
+| file database | 1,6 MB |
+
+Volume datanya sendiri sehat. Yang patah justru render.
+
+**Halaman Projects dulu melambat kuadratik.** `plcLabel()` memanggil `libDb()`
+per baris, dan `libDb()` menyalin seluruh `COMPONENT_DB` plus tiap override —
+jadi biayanya proyek × library. 1000 proyek + 2000 komponen = 2 juta penyalinan
+objek untuk satu render. `libDb()` sekarang di-cache, dan dihitung sekali per
+render.
+
+Cache-nya punya dua pengaman karena cache basi adalah kegagalan senyap:
+identitas objek (menangkap penggantian library dari server/import) dan
+`invalidateLibDb()` (menangkap perubahan di tempat). Ada tes statis yang gagal
+kalau ada baris baru menyentuh `state.library.components` tanpa invalidasi.
+
+**Daftar panjang dibatasi, tapi tidak diam-diam.** Projects 100 baris,
+Components library 240 kartu. Jumlah sebenarnya tetap ditulis dan ada tombol
+**Tampilkan semua** — membatasi tanpa memberi tahu berarti user mengira
+proyeknya hilang.
+
+**Gambar library `loading="lazy"`.** Dulu membuka library dengan 2000 komponen
+memicu 2000 request ke `/api/image`. Gambar di gambar panel sengaja tetap
+eager: lazy bisa membuat gambar kosong saat dicetak.
+
+**Gambar tidak lagi dimuat semua saat startup.** `hydrateImages()` dulu menarik
+setiap gambar dari IndexedDB jadi blob URL — 2000 gambar × ±140 KB ≈ 280 MB
+ditahan di memori sebelum satupun dilihat, plus 2000 transaksi berurutan yang
+membuat startup menggantung. Sekarang hanya key yang benar-benar digambar.
+
+Hasilnya, pada 1000 proyek + 2000 komponen:
+
+| | sebelum | sesudah |
+|---|---|---|
+| render Projects | 7389 ms | 67 ms |
+| node tabel Projects | 15.011 | 1.516 |
+| render Library | 1134 ms | 157 ms |
+| node Library | 35.340 | 4.084 |
+| `<img>` saat library dibuka | 2.000 (eager) | 221 (lazy) |
+
+(Angka ms dari linkedom, jauh lebih lambat dari browser — baca perbandingannya,
+bukan nilai absolutnya. Jumlah node dan `<img>` eksak.)
+
+**Yang belum dibereskan:** `/api/sync` masih mengirim *seluruh* state tiap kali
+simpan dan server menulis ulang setiap baris proyek. Pada 500 proyek itu 882 KB
+dan 38 ms — masih nyaman, tapi tumbuh linear selamanya. Kalau sudah menyentuh
+beberapa ribu proyek, ini yang perlu diganti jadi simpan per proyek.
+
 ## Backup
 Cukup salin file `panelbuilder.db`. (Mode WAL: salin saat server berhenti,
 atau gunakan `sqlite3 panelbuilder.db ".backup backup.db"`.)

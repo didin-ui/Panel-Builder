@@ -831,7 +831,7 @@ async function connectDb(){
   try{
     const h = await fetch('/api/health'); if(!h.ok) throw 0;
     const r = await fetch('/api/state'); const data = await r.json();
-    if(data.library) state.library = data.library;
+    if(data.library){ state.library = data.library; invalidateLibDb(); }
     if(data.projects && data.projects.length){
       state.projects = data.projects;
       if(data.settings) state.settings = data.settings;
@@ -967,7 +967,27 @@ function recompute(){
 }
 /* Database komponen setelah library user diterapkan — sumber tunggal untuk
    view Library. Gambar hasil upload (data URI) menang atas file di assets/. */
-function libDb(){ return PanelEngine.resolveDb(state.library.components); }
+/* resolveDb menyalin SELURUH COMPONENT_DB (±90 komponen) plus setiap override
+   library, jadi biayanya sebanding jumlah komponen. Dulu dipanggil ulang per
+   baris di renderProjects lewat plcLabel() — biayanya jadi proyek × library,
+   dan halaman Projects melambat kuadratik: 1000 proyek + 2000 komponen berarti
+   2 juta penyalinan objek untuk satu render. Sekarang dihitung sekali lalu
+   dipakai ulang sampai library berubah.
+
+   Cache ini punya DUA pengaman, karena cache basi berarti komponen yang baru
+   diedit tidak muncul sampai reload — kegagalan senyap, jenis yang paling
+   mahal. Pertama, identitas: kalau seluruh objek components diganti (muat dari
+   server, import library, seed test) cache otomatis gugur tanpa perlu ada yang
+   ingat. Kedua, invalidateLibDb() untuk perubahan di tempat, yang tidak
+   mengubah identitas objeknya. */
+let libDbCache=null, libDbFor=null;
+function libDb(){
+  const src=state.library.components;
+  if(libDbCache && libDbFor===src) return libDbCache;
+  libDbFor=src;
+  return (libDbCache=PanelEngine.resolveDb(src));
+}
+function invalidateLibDb(){ libDbCache=null; libDbFor=null; }
 /* ══════════ GAMBAR KOMPONEN ══════════
    Byte gambar TIDAK ikut `state` dan TIDAK masuk localStorage. Sumbernya:
      1. IndexedDB  — cache lokal + tempat simpan saat server mati
@@ -1014,13 +1034,38 @@ function dropBlobUrl(key){
   if(blobUrls[key]){ URL.revokeObjectURL(blobUrls[key]); delete blobUrls[key]; }
 }
 /* Muat gambar dari IndexedDB ke blob URL supaya render tidak menunggu jaringan
-   dan tetap jalan tanpa server. */
-async function hydrateImages(){
-  let keys=[]; try{ keys=await idbKeys(); }catch(e){ return; }
-  for(const k of keys){
-    try{ const rec=await idbGet(k); if(rec&&rec.blob) setBlobUrl(k,rec.blob); }catch(e){}
+   dan tetap jalan tanpa server.
+
+   Dulu ini menarik SEMUA gambar sekaligus saat aplikasi dibuka. Tiap blob URL
+   menahan byte-nya di memori selama halaman hidup, jadi library 2000 komponen
+   × ±140 KB ≈ 280 MB ditahan sebelum satupun sempat dilihat — plus 2000
+   transaksi IndexedDB berurutan yang membuat startup terasa menggantung.
+   Sekarang hanya key yang benar-benar akan digambar yang dihidrasi; sisanya
+   diambil lewat api/image/<key> yang sudah ber-ETag dan di-cache browser. */
+async function hydrateImages(keys){
+  let known=[]; try{ known=await idbKeys(); }catch(e){ return; }
+  const want = keys ? new Set(keys) : null;
+  let added=0;
+  for(const k of known){
+    if(blobUrls[k]) continue;                    /* sudah ada, jangan buat dua kali */
+    if(want && !want.has(k)) continue;
+    try{ const rec=await idbGet(k); if(rec&&rec.blob){ setBlobUrl(k,rec.blob); added++; } }catch(e){}
   }
-  if(keys.length) redrawImages();
+  if(added) redrawImages();
+}
+/* Key yang dipakai gambar yang sedang tampil: tipe komponen di layout ditambah
+   induknya (vfd_400_5k5 → vfd), karena imgSrc jatuh ke baseKey. */
+function visibleImageKeys(){
+  if(!R) return [];
+  const keys=new Set();
+  const add=(list)=>{ for(const it of list||[]){
+    keys.add(it.type);
+    const d=R.specs[it.type];
+    if(d && d.baseKey) keys.add(d.baseKey);
+  } };
+  add(R.items); add(R.door && R.door.items);
+  add(R.side && R.side.left); add(R.side && R.side.right);
+  return [...keys];
 }
 function redrawImages(){
   if(document.getElementById('view-library').classList.contains('active')) renderLibrary();
@@ -1057,6 +1102,7 @@ async function saveImage(key, dataUrl){
     catch(e){ /* tanpa IndexedDB, andalkan server saja */ }
   }
   const patch=state.library.components[key]||(state.library.components[key]={});
+  invalidateLibDb();
   patch.hasImage=true; patch.imgVersion=Date.now();
   delete patch.image;                               /* jangan pernah simpan byte di state */
   const ok=await pushImage(key,dataUrl);
@@ -1294,12 +1340,14 @@ function renderDashCompany(){
 /* ══════════ PROJECTS ══════════ */
 /* Nama CPU yang enak dibaca. cfg.plc menyimpan KEY komponen sejak katalog PLC
    dibuat, jadi tabel dulu menampilkan "plc_s71214" mentah. */
-function plcLabel(cfg){
+function plcLabel(cfg, db){
   if(!cfg.plc || cfg.plc===PanelEngine.NO_PLC) return {text:'No PLC', muted:true};
-  const d=libDb()[cfg.plc];
+  const d=(db||libDb())[cfg.plc];
   if(!d) return {text:cfg.plc+' (tidak ada di library)', muted:true, bad:true};
   return {text:d.plcName||d.desc, sub:d.pn};
 }
+const PROJ_PAGE=100;                             /* baris per render, lihat catatan di bawah */
+let projShowAll=false;
 function renderProjects(){
   const q=(document.getElementById('proj-search').value||'').trim().toLowerCase();
   const sort=document.getElementById('proj-sort').value;
@@ -1313,6 +1361,14 @@ function renderProjects(){
     ? `${rows.length} dari ${state.projects.length} proyek`
     : `${state.projects.length} proyek`);
 
+  /* Tiap baris = 15 node DOM + satu normalizeCfg. Tanpa batas, 1000 proyek
+     berarti 15.000 node dan 1000 normalisasi tiap kali halaman ini dibuka —
+     padahal yang terbaca hanya sepuluh baris teratas. Batasnya kelihatan dan
+     bisa dibuka, bukan dipotong diam-diam. */
+  const total=rows.length;
+  if(!projShowAll) rows=rows.slice(0, PROJ_PAGE);
+  const hiddenProj=total-rows.length;
+
   if(!rows.length){
     document.getElementById('proj-table').innerHTML=
       `<tr><td style="padding:34px 14px;text-align:center;color:var(--gray-500);">
@@ -1325,8 +1381,8 @@ function renderProjects(){
   document.getElementById('proj-table').innerHTML =
     `<thead><tr><th>Project</th><th>Customer</th><th>PLC / CPU</th><th>Panel</th>
       <th>Rev</th><th>Updated</th><th class="act"></th></tr></thead><tbody>` +
-    rows.map(p=>{
-      const c=PanelEngine.normalizeCfg(p.cfg), L=plcLabel(c);
+    ((db)=>rows.map(p=>{                         /* db sekali, bukan sekali per baris */
+      const c=PanelEngine.normalizeCfg(p.cfg), L=plcLabel(c, db);
       const size=c.cabH>0?`${c.cabH} × ${c.cabW} mm`:`auto · L ${c.cabW} mm`;
       const active=p.id===state.activeId;
       return `<tr class="click${active?' on':''}" onclick="openProject(${p.id})"
@@ -1346,7 +1402,13 @@ function renderProjects(){
           <button class="btn danger" title="Hapus proyek"
             onclick="event.stopPropagation();delProject(${p.id})">Delete</button>
         </td></tr>`;
-    }).join('')+`</tbody>`;
+    }).join(''))(libDb())
+    + (hiddenProj? `<tr><td colspan="7" style="padding:16px;text-align:center;color:var(--gray-500);">
+         Menampilkan <b>${rows.length}</b> dari <b>${total}</b> proyek.
+         Cari di kotak filter, atau
+         <button class="btn" onclick="projShowAll=true;renderProjects();">Tampilkan semua ${total}</button>
+       </td></tr>` : '')
+    + `</tbody>`;
 }
 async function newProject(){
   const v = await modalForm({
@@ -1639,6 +1701,7 @@ function generate(save){
     `Incoming ${R.mccb.pn} covers ${R.flcA.toFixed(1)} A FLC (${R.startA.toFixed(1)} A starting).`+
     (R.warnings.length?` ${R.warnings.length} item(s) need review — see Cabinet card.`:''));
   draw(); zoomFit();
+  hydrateImages(visibleImageKeys());             /* hanya gambar yang tampil */
 }
 let drawMode='plate';
 const DRAW_TABS=['plate','door','left','right'];
@@ -2288,6 +2351,8 @@ function zoomFit(){
 /* ══════════ LIBRARY ══════════ */
 let libFilter='all';
 function setLibFilter(f){ libFilter=f; renderLibrary(); }
+const LIB_PAGE=240;                              /* kartu per render, lihat catatan di bawah */
+let libShowAll=false;
 function renderLibrary(){
   bindLibImport();
   const q=(document.getElementById('lib-search').value||'').toLowerCase();
@@ -2319,7 +2384,15 @@ function renderLibrary(){
     .map(([f,lab])=>`<button class="${libFilter===f?'on':''}" onclick="setLibFilter('${f}')">${lab} ${counts[f]}</button>`).join('');
   set('lib-count',`${entries.length} tampil · ${counts.all} komponen (${counts.door} front cover, ${counts.custom} custom, ${counts.modified} diubah)`);
 
-  document.getElementById('lib-grid').innerHTML=entries.length? entries.map(x=>{
+  /* Tiap kartu ±18 node DOM. Library 2000 komponen berarti 35.000 node dalam
+     satu innerHTML — halaman ikut berat walau kartunya tidak pernah dilihat.
+     Dibatasi, TAPI jumlah sebenarnya tetap ditulis dan ada tombol untuk
+     menampilkan semuanya: membatasi diam-diam berarti user mengira komponennya
+     hilang. */
+  const shown = libShowAll ? entries : entries.slice(0, LIB_PAGE);
+  const hidden = entries.length - shown.length;
+
+  document.getElementById('lib-grid').innerHTML=shown.length? shown.map(x=>{
     const d=x.d, src=imgSrc(d, x.key);
     const badges=[`<span class="badge b-blue">${esc(d.cat)}</span>`];
     if(x.isPlc)     badges.push('<span class="badge b-blue">CPU · '+(d.builtinDi||0)+'DI/'+(d.builtinDo||0)+'DO</span>');
@@ -2331,7 +2404,8 @@ function renderLibrary(){
     return `<div class="lib-card">
       <div class="lib-img${src?'':' no-src'}">
         <div class="lph">${esc(d.asset||d.pn||x.key)}<br>${d.w} × ${d.h} × ${d.d} mm</div>
-        ${src?`<img src="${esc(src)}" alt="${esc(d.desc)}" onload="this.parentNode.classList.add('has-img')">`:''}
+        ${src?`<img src="${esc(src)}" alt="${esc(d.desc)}" loading="lazy" decoding="async"
+               onload="this.parentNode.classList.add('has-img')">`:''}
       </div>
       <b>${esc(d.desc)}</b>
       <small><span class="pn">${esc(d.pn||'—')}</span><br>
@@ -2344,7 +2418,14 @@ function renderLibrary(){
         ${x.isCustom?`<button class="btn danger" onclick="deleteComponent('${esc(x.key)}')">Hapus</button>`:''}
       </div>
     </div>`;}).join('')
+    + (hidden? `<div class="hint" style="grid-column:1/-1;padding:16px;text-align:center;">
+         Menampilkan <b>${shown.length}</b> dari <b>${entries.length}</b> komponen yang cocok.
+         Persempit dengan kotak filter, atau
+         <button class="btn" onclick="libShowAll=true;renderLibrary();">Tampilkan semua ${entries.length}</button>
+       </div>` : '')
     : `<p class="hint" style="grid-column:1/-1;padding:20px;">Tidak ada komponen yang cocok.</p>`;
+  /* Kartu yang benar-benar digambar saja — bukan seluruh library. */
+  hydrateImages(shown.map(x=>x.key));
 }
 
 /* ── gambar: baca file, susutkan, simpan sebagai data URI ────────────── */
@@ -2520,7 +2601,7 @@ function componentEditor(key,isNew){
         }
         if(isNew){
           next.label=''; next.color='#6B7885'; next.bg='#EEF1F4'; next.custom=true; next.asset='';
-          state.library.components[k]=next;
+          state.library.components[k]=next; invalidateLibDb();
         }else{
           /* hanya simpan field yang berbeda dari bawaan → override tetap minimal
              dan komponen ikut membaik kalau nilai bawaannya diperbarui */
@@ -2529,7 +2610,7 @@ function componentEditor(key,isNew){
           for(const [kk,vv] of Object.entries(next)) if(vv!==def[kk]) diff[kk]=vv;
           /* penanda gambar dipertahankan; byte-nya diurus saveImage/deleteImage */
           if(patch.hasImage){ diff.hasImage=true; diff.imgVersion=patch.imgVersion; }
-          state.library.components[k]=diff;
+          state.library.components[k]=diff; invalidateLibDb();
         }
         /* Byte gambar TIDAK masuk state — disimpan ke IndexedDB + tabel images */
         if(imageNew && image) await saveImage(k, image);
@@ -2537,6 +2618,7 @@ function componentEditor(key,isNew){
         /* patch yang kosong sama sekali tidak perlu disimpan */
         const cur=state.library.components[k];
         if(!isNew && cur && !Object.keys(cur).length) delete state.library.components[k];
+        invalidateLibDb();
         persist(); closeModal(); renderLibrary();
         toast(isNew?`Komponen "${desc}" ditambahkan`:`"${desc}" diperbarui`,'ok');
       };
@@ -2547,6 +2629,7 @@ async function resetComponent(key){
   if(!await modalConfirm({title:'Reset komponen',confirmLabel:'Reset',
     message:`"${d.desc}" dikembalikan ke nilai bawaan. Perubahan dimensi dan gambar yang kamu simpan akan hilang.`})) return;
   delete state.library.components[key];
+  invalidateLibDb();
   await deleteImage(key);            /* byte gambar ikut dibuang dari IDB + database */
   persist(); renderLibrary(); toast('Dikembalikan ke bawaan');
 }
@@ -2557,6 +2640,7 @@ async function deleteComponent(key){
     message:`"${d.desc}" akan dihapus dari library.`+
       (used.length?` Komponen ini masih dipakai di ${used.length} proyek (${used.map(p=>p.name).join(', ')}) — di sana akan muncul peringatan sampai kamu hapus juga dari layoutnya.`:'')})) return;
   delete state.library.components[key];
+  invalidateLibDb();
   await deleteImage(key);
   persist(); renderLibrary(); toast('Komponen dihapus');
 }
@@ -2877,7 +2961,7 @@ function importPreview(v, filename){
         for(const k of Object.keys(v.components)){
           const exists=!!(state.library.components[k]||COMPONENT_DB[k]);
           if(only&&exists) continue;
-          state.library.components[k]=Object.assign({},v.components[k]);
+          state.library.components[k]=Object.assign({},v.components[k]); invalidateLibDb();
           exists?replaced++:added++;
           if(v.images[k]){
             /* saveImage menulis penanda hasImage + menaruh byte-nya */
@@ -3254,7 +3338,6 @@ async function deleteSelected(){
 buildNav(); buildSizeOptions(); buildPlcOptions(); updateTopbar(); updateUser();
 window.addEventListener('resize',()=>{ if(document.getElementById('view-designer').classList.contains('active')) zoomFit(); });
 (async ()=>{
-  hydrateImages();                               /* gambar dari IndexedDB, tidak menunggu jaringan */
   await connectDb();                             /* coba server; gagal = tetap jalan lokal */
   updateTopbar(); updateUser();
   const h=(location.hash||'#dashboard').slice(1);
