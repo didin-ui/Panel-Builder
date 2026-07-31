@@ -409,7 +409,12 @@
     /* Proyek lama menyimpan nama tampilan ('Mitsubishi FX5U'); sekarang yang
        disimpan adalah key komponen, supaya dropdown dan library satu sumber. */
     if (LEGACY_PLC[c.plc]) c.plc = LEGACY_PLC[c.plc];
-    c.hasPlc = c.plc !== NO_PLC && !!c.plc;
+    /* Kosong / hilang BUKAN berarti "tanpa PLC" — itu berarti belum diisi, jadi
+       pakai default. Hanya NO_PLC yang berarti panel tanpa CPU. Tanpa penjagaan
+       ini, plc yang undefined (mis. dropdown belum terisi saat form dibaca)
+       diam-diam mengubah panel ber-PLC menjadi panel relay. */
+    if (typeof c.plc !== 'string' || !c.plc) c.plc = DEFAULT_CFG.plc;
+    c.hasPlc = c.plc !== NO_PLC;
     /* Only 200 V and 400 V classes are in the drive tables */
     c.voltClass = c.supplyV <= 300 ? 200 : 400;
     /* Manual door positions: keep only well-formed numeric pairs, so a corrupt

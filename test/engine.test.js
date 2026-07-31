@@ -909,6 +909,33 @@ describe('PLC catalogue — dropdown and library are one source', () => {
     assert.ok(r.items.some((i) => i.type === 'my_plc'));
   });
 
+  test('a missing or blank plc means "not set", not "no PLC"', () => {
+    /* Sebuah cfg tanpa field plc pernah diam-diam jadi panel tanpa CPU, dan
+       nilainya berubah lagi setelah round-trip JSON (undo/simpan) — dua desain
+       berbeda dari satu proyek yang sama. */
+    for (const raw of [{}, { plc: undefined }, { plc: '' }, { plc: null }, { plc: 0 }]) {
+      const n = E.normalizeCfg(raw);
+      assert.equal(n.plc, E.DEFAULT_CFG.plc, 'plc not defaulted for ' + JSON.stringify(raw));
+      assert.equal(n.hasPlc, true, 'blank plc must not mean No PLC');
+    }
+    /* hanya 'none' yang berarti tanpa CPU */
+    assert.equal(E.normalizeCfg({ plc: E.NO_PLC }).hasPlc, false);
+  });
+
+  test('a config survives a JSON round trip unchanged', () => {
+    /* undo/redo dan penyimpanan memakai JSON.stringify — hasilnya harus
+       menghasilkan desain yang identik, bukan CPU atau PSU yang berbeda */
+    for (const over of [{}, { plc: E.NO_PLC }, { plc: 'plc_s71214' }, { vfd: 0, servo: 0 }]) {
+      const a = R(over);
+      const b = E.compute(JSON.parse(JSON.stringify(a.cfg)));
+      assert.equal(b.cpu ? b.cpu.pn : null, a.cpu ? a.cpu.pn : null, 'CPU changed');
+      assert.equal(b.psu.pn, a.psu.pn, 'PSU changed');
+      assert.deepEqual([b.W, b.H, b.D], [a.W, a.H, a.D], 'enclosure changed');
+      assert.equal(b.items.length, a.items.length, 'component count changed');
+      assert.equal(b.bom.length, a.bom.length, 'BOM changed');
+    }
+  });
+
   test('legacy cfg.plc display names are mapped to component keys', () => {
     assert.equal(E.normalizeCfg({ plc: 'Mitsubishi FX5U' }).plc, 'plc');
     assert.equal(E.normalizeCfg({ plc: 'Mitsubishi FX5UJ' }).plc, 'plc_fx5uj40');

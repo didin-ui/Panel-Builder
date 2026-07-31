@@ -151,6 +151,16 @@
     outline:2px dashed var(--blue-600);outline-offset:2px;}
   /* rail tujuan penuh — komponen tidak ikut kursor */
   .comp.drag.blocked{cursor:not-allowed;outline:2px dashed var(--red-600);}
+  /* terpilih (bisa digeser pakai panah) */
+  .comp.sel{outline:2px solid var(--blue-600);outline-offset:2px;z-index:4;}
+  .comp.sel::after{content:'';position:absolute;inset:-6px;border:1px dashed var(--blue-500);
+    border-radius:5px;pointer-events:none;}
+  /* komponen yang disebut peringatan — dicari lewat gambar, bukan lewat teks */
+  .comp.flag{outline:2px solid var(--red-600);outline-offset:2px;
+    animation:flagpulse 1.4s ease-in-out infinite;}
+  @keyframes flagpulse{0%,100%{outline-color:var(--red-600);}50%{outline-color:#F09A93;}}
+  .tbtn:disabled{opacity:.35;cursor:default;}
+  .tbtn:disabled:hover{border-color:var(--gray-300);color:var(--gray-700);}
   .dtag{position:absolute;transform:translate(-50%,-100%);background:var(--navy);color:#fff;
     font-family:'IBM Plex Mono',monospace;font-size:9px;border-radius:3px;padding:1px 4px;
     white-space:nowrap;pointer-events:none;}
@@ -484,10 +494,15 @@
             <label><input type="checkbox" id="chk-grid" checked onchange="draw()"> Grid</label>
             <label><input type="checkbox" id="chk-tags" checked onchange="draw()"> Labels</label>
             <div class="sep"></div>
+            <button class="tbtn" id="btn-undo" onclick="undo()" disabled>↶</button>
+            <button class="tbtn" id="btn-redo" onclick="redo()" disabled>↷</button>
+            <div class="sep"></div>
             <button class="btn" style="padding:5px 10px;" onclick="printLayout()">Export drawing (PDF)</button>
             <button class="btn" style="padding:5px 10px;" id="btn-reset-pos"
               onclick="resetActiveLayout()">Reset posisi</button>
-            <span style="margin-left:auto;font-size:11px;color:var(--gray-500);" id="zoom-pct">100%</span>
+            <span style="margin-left:auto;font-size:11px;color:var(--gray-500);text-align:right;"
+              id="sel-info"></span>
+            <span style="font-size:11px;color:var(--gray-500);" id="zoom-pct">100%</span>
           </div>
           <div class="cab-scroll" id="scroll">
             <div class="stage-wrap" id="stage-wrap"><div class="stage" id="stage"></div></div>
@@ -868,6 +883,81 @@ function go(id){
 
 /* ══════════ SHARED ══════════ */
 let zoom=1, R=null;   /* R = hasil compute terakhir untuk proyek aktif */
+
+/* ══════════ UNDO / REDO ══════════
+   Menyimpan snapshot cfg proyek aktif sebelum tiap perubahan layout. Tinggal di
+   memori (tidak ikut disimpan) — itu perilaku undo yang lazim: riwayat milik
+   sesi, bukan milik dokumen. Dipisah per proyek supaya membuka proyek lain
+   tidak membuatmu bisa meng-undo perubahan di proyek sebelumnya. */
+const HISTORY_MAX=40;
+const history={};                                  /* {projectId:{past:[],future:[]}} */
+function hist(){
+  const id=activeProject().id;
+  return history[id]||(history[id]={past:[],future:[]});
+}
+function snapshot(){ return JSON.stringify(activeProject().cfg); }
+/* Panggil SEBELUM mengubah cfg. `label` muncul di tooltip tombol undo. */
+function pushHistory(label){
+  const h=hist();
+  h.past.push({cfg:snapshot(), label:label||'perubahan layout'});
+  if(h.past.length>HISTORY_MAX) h.past.shift();
+  h.future.length=0;                               /* cabang baru membuang redo */
+  updateUndoButtons();
+}
+function applyCfg(json){
+  const p=activeProject();
+  p.cfg=PanelEngine.normalizeCfg(JSON.parse(json));
+  p.updated=Date.now(); persist();
+  sel=null;
+  generate(false); setDrawMode(drawMode);
+  updateUndoButtons();
+}
+function undo(){
+  const h=hist();
+  if(!h.past.length){ toast('Tidak ada yang bisa di-undo'); return; }
+  const step=h.past.pop();
+  h.future.push({cfg:snapshot(), label:step.label});
+  applyCfg(step.cfg);
+  toast('Undo: '+step.label);
+}
+function redo(){
+  const h=hist();
+  if(!h.future.length){ toast('Tidak ada yang bisa di-redo'); return; }
+  const step=h.future.pop();
+  h.past.push({cfg:snapshot(), label:step.label});
+  applyCfg(step.cfg);
+  toast('Redo: '+step.label);
+}
+function updateUndoButtons(){
+  const h=hist();
+  const u=document.getElementById('btn-undo'), r=document.getElementById('btn-redo');
+  if(u){ u.disabled=!h.past.length;
+         u.title=h.past.length?'Undo: '+h.past[h.past.length-1].label+' (Ctrl+Z)':'Tidak ada yang bisa di-undo'; }
+  if(r){ r.disabled=!h.future.length;
+         r.title=h.future.length?'Redo: '+h.future[h.future.length-1].label+' (Ctrl+Y)':'Tidak ada yang bisa di-redo'; }
+}
+
+/* ══════════ SELEKSI KOMPONEN ══════════
+   Klik tanpa menggeser = memilih. Komponen terpilih bisa digeser pakai panah
+   (jauh lebih presisi daripada mouse dengan langkah 2 mm). */
+let sel=null;                                      /* {mode, id} */
+let dragCancel=null;                               /* diisi selama drag berjalan */
+function selectComp(mode, id){ sel={mode,id}; draw(); showSelection(); }
+function clearSelection(){ if(!sel) return; sel=null; draw(); showSelection(); }
+function selectedItem(){
+  if(!sel||!R) return null;
+  const list = sel.mode==='plate' ? R.items
+             : sel.mode==='door'  ? R.door.items : R.side.items;
+  return list.find(i=>i.id===sel.id)||null;
+}
+function showSelection(){
+  const it=selectedItem();
+  if(!it){ set('sel-info',''); return; }
+  const d=R.specs[it.type];
+  const step=sel.mode==='plate'?PLATE_STEP:DOOR_SNAP;
+  set('sel-info',`${it.tag} · ${d.desc} — X ${Math.round(it.x)} / Y ${Math.round(it.y)} mm `+
+    `· panah geser ${step} mm, Shift ×5`);
+}
 function recompute(){
   R = PanelEngine.compute(activeProject().cfg,
         {...state.settings, components: state.library.components});
@@ -1283,7 +1373,8 @@ async function newProject(){
   toast('Proyek "'+v.name+'" dibuat','ok');
   go('designer');
 }
-function openProject(id){ state.activeId=id; persist(); updateTopbar(); go('designer'); }
+function openProject(id){ state.activeId=id; sel=null; persist(); updateTopbar();
+  updateUndoButtons(); go('designer'); }
 function dupProject(id){
   const p=state.projects.find(x=>x.id===id);
   state.projects.push({...p, id:state.nextId++, name:p.name+' (copy)', updated:Date.now(), cfg:{...p.cfg}});
@@ -1463,7 +1554,7 @@ function setDrawMode(m){
   drawMode=DRAW_TABS.indexOf(m)>=0?m:'plate';
   for(const t of DRAW_TABS)
     document.getElementById('tab-'+t).classList.toggle('on',t===drawMode);
-  draw(); zoomFit();
+  draw(); zoomFit(); showSelection(); updateUndoButtons();
 }
 const isSideMode=()=>drawMode==='left'||drawMode==='right';
 /* Chip menjelaskan gambar yang sedang tampil, jadi ikut berubah saat tab pindah
@@ -1478,6 +1569,22 @@ function updateChip(){
     ? `Front cover ${R.W} × ${R.H} mm · ${R.door.items.length} devices`
     : `Cabinet ${R.W} × ${R.H} × ${R.D} mm · IP55`);
 }
+/* Tag yang disebut peringatan → ditandai merah di gambar. Sebelumnya kamu hanya
+   dapat teks "G1/Q4 bertumpuk" lalu harus mencari sendiri komponennya. */
+function flaggedTags(){
+  const t=new Set();
+  if(!R) return t;
+  for(const pair of R.overlaps||[]) for(const tag of String(pair).split('/')) t.add(tag);
+  for(const tag of (R.door&&R.door.outside)||[]) t.add(tag);
+  for(const tag of (R.side&&R.side.outside)||[]) t.add(tag);
+  return t;
+}
+function compClasses(it, flags){
+  let c='';
+  if(sel && sel.id===it.id) c+=' sel';
+  if(flags.has(it.tag)) c+=' flag';
+  return c;
+}
 function draw(){
   if(!R) return;
   updateChip();
@@ -1490,6 +1597,7 @@ function draw(){
    Exhaust fan tinggi di kanan, intake filter rendah di kiri. Panah aliran
    udara digambar supaya arah crossflow-nya jelas. */
 function drawSide(which){
+  const flags=flaggedTags();
   const {H}=R, D=R.D, FRAME=22, M=R.side.margin;
   const stage=document.getElementById('stage');
   const showTags=document.getElementById('chk-tags').checked;
@@ -1506,7 +1614,7 @@ function drawSide(which){
   for(const it of items){
     const d=R.specs[it.type], l=it.x-d.w/2, t=it.y-d.h/2;
     const src=imgSrc(d,it.type);
-    html+=`<div class="comp drag${it.manual?' manual':''}" data-id="${esc(it.id)}"
+    html+=`<div class="comp drag${it.manual?' manual':''}${compClasses(it,flags)}" data-id="${esc(it.id)}"
         title="${esc(it.tag+' — '+d.desc)}${it.manual?' (manual)':''} · tarik untuk memindahkan"
         style="left:${l}px;top:${t}px;width:${d.w}px;height:${d.h}px;">
       <div class="ph" style="border-color:${d.color};background:${d.bg}CC;color:${d.color};">
@@ -1553,17 +1661,23 @@ function attachSideDrag(which){
         el.style.left=(nx-d.w/2)+'px'; el.style.top=(ny-d.h/2)+'px';
         set('toolbar-meta',`${it.tag} → X ${nx} / Y ${ny} mm (${which} side)`);
       };
+      let cancelled=false;
       const up=()=>{
         document.removeEventListener('mousemove',move);
         document.removeEventListener('mouseup',up);
+        dragCancel=null;
         el.classList.remove('dragging');
-        if(nx===ox && ny===oy){ draw(); return; }
+        if(cancelled){ draw(); return; }
+        /* tidak bergerak = klik biasa → pilih komponennya */
+        if(nx===ox && ny===oy){ selectComp('side',id); return; }
         const p=activeProject();
+        pushHistory(`geser ${it.tag}`);
         (p.cfg.sidePos||(p.cfg.sidePos={}))[id]={x:nx,y:ny,side:which};
         p.updated=Date.now(); persist();
         generate(false); setDrawMode(which);
         toast(`${it.tag} → X ${nx} / Y ${ny} mm`);
       };
+      dragCancel=()=>{ cancelled=true; up(); };
       document.addEventListener('mousemove',move);
       document.addEventListener('mouseup',up);
     });
@@ -1581,6 +1695,7 @@ async function resetSideLayout(){
   if(!n){ toast('Panel sisi sudah memakai posisi otomatis'); return; }
   if(!await modalConfirm({title:'Reset posisi panel sisi',confirmLabel:'Reset',
     message:`${n} perangkat sisi yang kamu posisikan manual akan kembali otomatis.`})) return;
+  pushHistory('reset panel sisi');
   p.cfg.sidePos={}; p.updated=Date.now(); persist();
   generate(false); setDrawMode(drawMode);
   toast('Panel sisi kembali otomatis');
@@ -1588,6 +1703,7 @@ async function resetSideLayout(){
 
 /* ── Front cover: operator devices seen from outside the panel ────────── */
 function drawDoor(){
+  const flags=flaggedTags();
   const {W,H}=R, FRAME=22, M=R.door.margin;
   const stage=document.getElementById('stage');
   const showTags=document.getElementById('chk-tags').checked;
@@ -1608,7 +1724,7 @@ function drawDoor(){
   for(const it of R.door.items){
     const d=R.specs[it.type], l=it.x-d.w/2, t=it.y-d.h/2;
     const src=imgSrc(d, it.type);
-    html+=`<div class="comp drag${d.round?' round':''}${it.manual?' manual':''}"
+    html+=`<div class="comp drag${d.round?' round':''}${it.manual?' manual':''}${compClasses(it,flags)}"
         data-id="${esc(it.id)}" title="${esc(it.tag+' — '+d.desc)}${it.manual?' (manual)':''} · tarik untuk memindahkan"
         style="left:${l}px;top:${t}px;width:${d.w}px;height:${d.h}px;">
       <div class="ph${d.round?' round':''}" style="border-color:${d.color};background:${d.bg}CC;color:${d.color};">
@@ -1655,20 +1771,26 @@ function attachDoorDrag(originX, originY){
         el.dataset.nx=nx; el.dataset.ny=ny;
         set('toolbar-meta',`${it.tag} → X ${nx} / Y ${ny} mm`);
       };
+      let cancelled=false;
       const up=()=>{
         document.removeEventListener('mousemove',move);
         document.removeEventListener('mouseup',up);
+        dragCancel=null;
         el.classList.remove('dragging');
+        if(cancelled){ draw(); return; }
         const nx=+el.dataset.nx, ny=+el.dataset.ny;
-        if(!Number.isFinite(nx)||!Number.isFinite(ny)) return;
-        if(nx===ox && ny===oy) return;
+        /* tidak bergerak = klik biasa → pilih komponennya */
+        if(!Number.isFinite(nx)||!Number.isFinite(ny)){ selectComp('door',id); return; }
+        if(nx===ox && ny===oy){ selectComp('door',id); return; }
         const p=activeProject();
+        pushHistory(`geser ${it.tag}`);
         (p.cfg.doorPos||(p.cfg.doorPos={}))[id]={x:nx,y:ny};
         p.updated=Date.now(); persist();
         generate(false);
         setDrawMode('door');
         toast(`${it.tag} dipindah ke X ${nx} / Y ${ny} mm`);
       };
+      dragCancel=()=>{ cancelled=true; up(); };
       document.addEventListener('mousemove',move);
       document.addEventListener('mouseup',up);
     });
@@ -1680,12 +1802,14 @@ async function resetDoorLayout(){
   if(!n){ toast('Front cover sudah memakai posisi otomatis'); return; }
   if(!await modalConfirm({title:'Reset front cover',confirmLabel:'Reset',
     message:`${n} komponen yang kamu posisikan manual akan kembali ke tata letak otomatis.`})) return;
+  pushHistory('reset front cover');
   p.cfg.doorPos={}; p.updated=Date.now(); persist();
   generate(false); setDrawMode('door');
   toast('Front cover kembali otomatis');
 }
 
 function drawPlate(){
+  const flags=flaggedTags();
   const {items,rows,W,H}=R, FRAME=22, PAD=R.assumptions.layout.pad;
   const stage=document.getElementById('stage');
   const showGrid=document.getElementById('chk-grid').checked;
@@ -1710,7 +1834,7 @@ function drawPlate(){
     const d=R.specs[it.type], l=it.x-d.w/2, t=it.y-d.h/2;
     const dash=it.doorMounted?'opacity:.75;':'';
     const drag=it.type==='fan'?'':' drag';       /* fan menempel di pintu/samping */
-    html+=`<div class="comp${drag}${it.manual?' manual':''}"
+    html+=`<div class="comp${drag}${it.manual?' manual':''}${compClasses(it,flags)}"
         ${drag?`data-id="${esc(it.id)}"`:''}
         title="${esc(it.tag+' — '+d.desc)}${it.manual?' (manual)':''}${drag?' · tarik kiri/kanan, naik/turun pindah rail':''}"
         style="left:${l}px;top:${t}px;width:${d.w}px;height:${d.h}px;${dash}">
@@ -1822,15 +1946,19 @@ function attachPlateDrag(){
       const up=()=>{
         document.removeEventListener('mousemove',move);
         document.removeEventListener('mouseup',up);
+        dragCancel=null;
         el.classList.remove('dragging'); el.classList.remove('blocked');
         if(blocked){ draw(); toast('Tidak ada ruang kosong di rail itu','err'); return; }
-        if(nx===ox && nrow===it.row){ draw(); return; }
+        /* tidak bergerak = klik biasa → pilih komponennya */
+        if(nx===ox && nrow===it.row){ selectComp('plate',id); return; }
         const p=activeProject();
+        pushHistory(`geser ${it.tag}`);
         (p.cfg.platePos||(p.cfg.platePos={}))[id]={x:nx, row:nrow};
         p.updated=Date.now(); persist();
         generate(false); setDrawMode('plate');
         toast(`${it.tag} → X ${nx} mm (langkah ${PLATE_STEP} mm)`);
       };
+      dragCancel=()=>{ blocked=true; up(); };      /* Esc = batal, kembalikan */
       document.addEventListener('mousemove',move);
       document.addEventListener('mouseup',up);
     });
@@ -1842,6 +1970,7 @@ async function resetPlateLayout(){
   if(!n){ toast('Layout dalam panel sudah otomatis'); return; }
   if(!await modalConfirm({title:'Reset posisi komponen',confirmLabel:'Reset',
     message:`${n} komponen yang kamu geser manual akan kembali ke tata letak otomatis.`})) return;
+  pushHistory('reset layout dalam panel');
   p.cfg.platePos={}; p.updated=Date.now(); persist();
   generate(false); setDrawMode('plate');
   toast('Layout dalam panel kembali otomatis');
@@ -2290,13 +2419,16 @@ async function addToProject(key){
   const extras=p.cfg.extras||(p.cfg.extras=[]);
   const found=extras.find(e=>e.type===key && e.place===place &&
                             (place!=='plate'||e.rail===rail));
+  pushHistory(`tambah ${d.desc}`);
   if(found) found.qty+=v.qty; else extras.push({type:key, qty:v.qty, place, rail});
   p.cfg=PanelEngine.normalizeCfg(p.cfg); p.updated=Date.now(); persist();
   const where={door:'front cover',left:'left side',right:'right side'}[place]||('rail '+rail);
   toast(`${v.qty} × "${d.desc}" → ${where}`,'ok');
 }
 function removeExtra(i){
-  const p=activeProject(); (p.cfg.extras||[]).splice(i,1);
+  const p=activeProject();
+  pushHistory('hapus komponen tambahan');
+  (p.cfg.extras||[]).splice(i,1);
   p.updated=Date.now(); persist(); enterDesigner();
 }
 
@@ -2835,6 +2967,95 @@ function printReport(){
     go('reports');
     setTimeout(()=>window.print(), 120);
   } else window.print();
+}
+
+/* ══════════ KEYBOARD DI PANEL DESIGNER ══════════ */
+document.addEventListener('keydown',e=>{
+  /* jangan bajak pengetikan di form atau saat ada modal terbuka */
+  const t=e.target, tag=(t&&t.tagName||'').toUpperCase();
+  if(tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA'||(t&&t.isContentEditable)) return;
+  if(document.getElementById('mask')) return;
+  const onDesigner=document.getElementById('view-designer').classList.contains('active');
+
+  /* Undo/redo berlaku di mana saja — perubahan layout bisa dipicu dari library */
+  const ctrl=e.ctrlKey||e.metaKey;
+  if(ctrl && e.key.toLowerCase()==='z' && !e.shiftKey){ e.preventDefault(); return undo(); }
+  if(ctrl && (e.key.toLowerCase()==='y' || (e.key.toLowerCase()==='z'&&e.shiftKey))){
+    e.preventDefault(); return redo(); }
+  if(!onDesigner) return;
+
+  if(e.key==='Escape'){
+    if(dragCancel){ dragCancel(); return; }        /* batalkan drag yang berjalan */
+    clearSelection(); return;
+  }
+  const it=selectedItem();
+  if(!it) return;
+
+  if(e.key==='Delete'||e.key==='Backspace'){ e.preventDefault(); return deleteSelected(); }
+
+  const arrow={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];
+  if(!arrow) return;
+  e.preventDefault();
+  nudgeSelected(arrow[0], arrow[1], e.shiftKey?5:1);
+});
+
+/* Geser komponen terpilih dengan panah. Aturannya sama dengan drag:
+   backplate = X per 2 mm + naik/turun pindah rail; pintu & sisi = bebas 5 mm. */
+function nudgeSelected(dx, dy, mult){
+  const it=selectedItem(); if(!it) return;
+  const d=R.specs[it.type], p=activeProject();
+  if(sel.mode==='plate'){
+    const rails=R.railRows.map(i=>({row:i,y:R.rows[i].railY,name:R.rows[i].name}));
+    let row = it.row!=null ? it.row
+      : rails.reduce((b,r)=>Math.abs(r.y-it.y)<Math.abs(b.y-it.y)?r:b,rails[0]).row;
+    if(dy){                                        /* naik/turun = pindah rail */
+      const idx=rails.findIndex(r=>r.row===row);
+      const next=rails[Math.min(rails.length-1,Math.max(0,idx+dy))];
+      if(!next||next.row===row) return;
+      row=next.row;
+    }
+    const PAD=R.assumptions.layout.pad;
+    const cy=R.rows[row].railY;
+    const skip=[it.id];
+    if(it.type==='contactor') skip.push('overload#'+it.id.split('#')[1]);
+    const want=it.x + (dx?dx*PLATE_STEP*mult:0);
+    const x=freeSlotX(want, d.w, occupiedAt(cy-d.h/2, cy+d.h/2, skip), PAD, R.W-PAD);
+    if(x===null){ toast('Tidak ada ruang kosong di rail itu','err'); return; }
+    pushHistory(`geser ${it.tag}`);
+    (p.cfg.platePos||(p.cfg.platePos={}))[it.id]={x, row};
+  }else{
+    const step=DOOR_SNAP*mult;
+    const maxX = sel.mode==='door' ? R.W : R.D;
+    const nx=Math.min(maxX-d.w/2, Math.max(d.w/2, it.x+dx*step));
+    const ny=Math.min(R.H-d.h/2, Math.max(d.h/2, it.y+dy*step));
+    if(nx===it.x && ny===it.y) return;
+    pushHistory(`geser ${it.tag}`);
+    if(sel.mode==='door') (p.cfg.doorPos||(p.cfg.doorPos={}))[it.id]={x:nx,y:ny};
+    else (p.cfg.sidePos||(p.cfg.sidePos={}))[it.id]={x:nx,y:ny,side:it.side};
+  }
+  p.updated=Date.now(); persist();
+  generate(false); setDrawMode(drawMode); showSelection();
+}
+
+/* Delete hanya boleh untuk komponen yang KAMU tambahkan dari library. Komponen
+   hasil kalkulasi tidak bisa dihapus di sini — mengubahnya berarti mengubah
+   konfigurasi mesin, bukan gambarnya. */
+async function deleteSelected(){
+  const it=selectedItem(); if(!it) return;
+  const p=activeProject(), extras=p.cfg.extras||[];
+  const idx=extras.findIndex(e=>e.type===it.type);
+  if(idx<0){
+    toast(`${it.tag} berasal dari kalkulasi — ubah di Machine configuration`,'err');
+    return;
+  }
+  const d=R.specs[it.type];
+  if(!await modalConfirm({title:'Hapus dari layout', danger:true, confirmLabel:'Hapus',
+    message:`Hapus satu "${d.desc}" (${it.tag}) dari proyek ini?`})) return;
+  pushHistory(`hapus ${it.tag}`);
+  if(extras[idx].qty>1) extras[idx].qty--; else extras.splice(idx,1);
+  p.cfg=PanelEngine.normalizeCfg(p.cfg); p.updated=Date.now(); persist();
+  sel=null; generate(false); setDrawMode(drawMode);
+  toast(`${it.tag} dihapus`);
 }
 
 /* Search global dihapus: dia hanya melompat ke proyek atau memfilter library,
