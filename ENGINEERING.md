@@ -34,8 +34,41 @@ Totals: `ΣP_in`, `ΣS`, `I_FLC = ΣS / (√3 · V)`, `PF_system = ΣP_in / ΣS`
 | Motor DOL | 0.82 | — | 0.80 | Typical 1.5 kW 4-pole induction motor |
 | PSU (24 V) | 0.95 | 0.90 | — | Active PFC switch-mode supply |
 
-Implied ratings from the count-based config: `vfdKw 2.2`, `servoW 750`,
-`dolKw 1.5`. DOL count = `motors − VFD − servo`.
+### Daftar beban
+
+Beban bermotor adalah **daftar**, bukan hitungan: `cfg.loads = [{kind, kW, qty}]`
+dengan `kind` = `vfd` | `servo` | `dol`. Tiap entri punya ratingnya sendiri, dan
+rating itulah yang menentukan arus, ukuran breaker, kabel, panas, **dan ukuran
+fisik drive di layout**.
+
+Sebelumnya `vfd: 3` berarti tiga VFD 2,2 kW — rating dipatok global
+(`vfdKw 2.2`, `servoW 750`, `dolKw 1.5`), sehingga mesin dengan rating campur
+tidak bisa dinyatakan sama sekali. Panel cooling tower dengan fan 5,5 kW dan dua
+pompa 1,5 kW dihitung sebagai 3 × 2,2 kW: arus salah, breaker salah, kabel salah,
+panas salah, dan footprint drive salah (5,5 kW itu 170 × 260 mm, bukan 108 × 128).
+
+`vfd`, `servo` dan `motor` masih ada tapi **diturunkan** dari daftar — satu sumber
+kebenaran. Hitungan yang dikirim bersamaan dengan `loads` diabaikan.
+
+**Migrasi netral.** Proyek tanpa `loads` mensintesisnya dari hitungan lama memakai
+rating asumsi di atas, jadi desainnya identik sampai ke jumlah baris BOM. Konstanta
+`DEFAULT_RATING` sekarang hanya dipakai untuk migrasi itu.
+
+### Pemilihan drive per rating
+
+Tabel `[kW, part number]` per kelas tegangan, bukan formula — penomoran MR-JE tidak
+seragam (750 W adalah `MR-JE-70A`, bukan `-75A`). Frame terkecil yang sanggup yang
+dipilih; kalau ratingnya di antara frame, naik ke atasnya dan dilaporkan lewat
+`DRIVE_FRAME`. Di atas frame terbesar → `DRIVE_OVER_RANGE`.
+
+Ukuran fisik dikelompokkan per frame band (VFD: 3 band, servo: 3 band). Starter DOL
+juga per rating — motor 5,5 kW mendapat LC1D18BD + LRD16, motor 1,5 kW mendapat
+LC1D09BD + LRD08.
+
+Karena satu panel bisa memuat beberapa model, key komponennya disintesis
+(`vfd_400_5k5`, `contactor_LC1D18BD`) dengan `baseKey` menunjuk ke jenis aslinya.
+Itu membuat gambar yang sudah kamu unggah untuk `vfd`/`contactor` tetap terpakai
+sebagai cadangan, dan penandaan tag (T1, K1) tetap benar.
 
 **Cross-check.** A 1.5 kW 400 V motor computes to 3.30 A; nameplate FLC for that
 class is ~3.4 A. Good.

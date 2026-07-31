@@ -462,12 +462,15 @@
               Tanpa PLC: nilai I/O di atas tetap tersimpan tapi tidak membeli modul apa pun.
               Kontrol lewat pushbutton pintu, selector, dan safety relay.</p>
             <div class="grid2">
-              <div class="field"><label>VFD (× 2.2 kW)</label><input id="cfg-vfd" type="number" value="3" min="0" max="6"></div>
-              <div class="field"><label>Servo (× 750 W)</label><input id="cfg-servo" type="number" value="2" min="0" max="6"></div>
               <div class="field"><label>HMI</label><input id="cfg-hmi" type="number" value="2" min="0" max="4"></div>
-              <div class="field"><label>Motors</label><input id="cfg-motor" type="number" value="6" min="0" max="12"></div>
+              <div class="field"><label>Solenoid valves</label><input id="cfg-valve" type="number" value="5" min="0" max="24"></div>
             </div>
-            <div class="field"><label>Solenoid valves</label><input id="cfg-valve" type="number" value="5" min="0" max="24"></div>
+            <div class="field">
+              <label>Beban bermotor
+                <a onclick="addLoad()" style="float:right;font-weight:400;
+                  color:var(--blue-600);cursor:pointer;">+ tambah beban</a></label>
+              <div id="cfg-loads"></div>
+            </div>
             <div id="cfg-extras"></div>
             <button class="btn-generate" onclick="generate(true)">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/></svg>
@@ -1413,8 +1416,10 @@ function readCfgForm(){
   return PanelEngine.normalizeCfg({
     ...activeProject().cfg,
     plc:v('cfg-plc'), di:n('cfg-di'), do_:n('cfg-do'),
-    ai:n('cfg-ai'), ao:n('cfg-ao'), vfd:n('cfg-vfd'), servo:n('cfg-servo'),
-    hmi:n('cfg-hmi'), motor:n('cfg-motor'), valve:n('cfg-valve'),
+    ai:n('cfg-ai'), ao:n('cfg-ao'),
+    /* vfd/servo/motor tidak lagi punya field — semuanya diturunkan dari
+       cfg.loads, yang diedit lewat daftar beban di bawah. */
+    hmi:n('cfg-hmi'), valve:n('cfg-valve'),
     supplyV:+v('cfg-supplyv'), ambientC:+v('cfg-ambient'),
     ...sizeFromValue(v('cfg-size'))});
 }
@@ -1464,12 +1469,83 @@ function fillCfgForm(c){
   buildPlcOptions();                     /* library bisa berubah kapan saja */
   document.getElementById('cfg-plc').value=c.hasPlc?c.plc:'none';
   document.getElementById('cfg-size').value = sizeToValue(c);
-  const m={'cfg-di':c.di,'cfg-do':c.do_,'cfg-ai':c.ai,'cfg-ao':c.ao,'cfg-vfd':c.vfd,
-           'cfg-servo':c.servo,'cfg-hmi':c.hmi,'cfg-motor':c.motor,'cfg-valve':c.valve,
+  const m={'cfg-di':c.di,'cfg-do':c.do_,'cfg-ai':c.ai,'cfg-ao':c.ao,
+           'cfg-hmi':c.hmi,'cfg-valve':c.valve,
            'cfg-supplyv':c.supplyV,'cfg-ambient':c.ambientC};
   for(const k in m) document.getElementById(k).value=m[k];
+  renderLoads();
   syncPlcFields();
 }
+/* ══════════ DAFTAR BEBAN BERMOTOR ══════════
+   Menggantikan tiga kolom hitungan (VFD / Servo / Motors) yang memaksa semua
+   VFD 2,2 kW dan semua servo 750 W. Sekarang tiap entri punya rating sendiri,
+   dan itulah yang menentukan arus, breaker, panas, dan ukuran drive. */
+const LOAD_KIND={vfd:'VFD', servo:'Servo', dol:'Motor DOL'};
+function renderLoads(){
+  const el=document.getElementById('cfg-loads');
+  if(!el) return;
+  const loads=activeProject().cfg.loads||[];
+  if(!loads.length){
+    el.innerHTML=`<p style="font-size:11px;color:var(--gray-500);line-height:1.6;margin:2px 0;">
+      Belum ada beban bermotor. Klik <b>+ tambah beban</b> untuk menambah VFD,
+      servo, atau motor DOL.</p>`;
+    return;
+  }
+  el.innerHTML=loads.map((l,i)=>`
+    <div style="display:flex;align-items:center;gap:6px;font-size:11.5px;
+      padding:5px 7px;border:1px solid var(--gray-200);border-radius:6px;margin-bottom:4px;">
+      <span style="flex:1;">${esc(LOAD_KIND[l.kind]||l.kind)}
+        <b>${l.kW} kW</b> × ${l.qty}</span>
+      <button class="btn" style="padding:2px 7px;font-size:11px;"
+        title="Ubah" onclick="editLoad(${i})">✎</button>
+      <button class="btn danger" style="padding:2px 7px;font-size:11px;"
+        title="Hapus" onclick="removeLoad(${i})">×</button>
+    </div>`).join('')+
+    `<p style="font-size:10.5px;color:var(--gray-500);margin:4px 0 0;">
+      Total ${loads.reduce((t,l)=>t+l.qty,0)} unit ·
+      ${loads.reduce((t,l)=>t+l.kW*l.qty,0).toFixed(2)} kW poros</p>`;
+}
+async function addLoad(){ await loadDialog(null); }
+async function editLoad(i){ await loadDialog(i); }
+async function loadDialog(idx){
+  const p=activeProject(), loads=p.cfg.loads||(p.cfg.loads=[]);
+  const cur = idx==null ? {kind:'vfd', kW:2.2, qty:1} : loads[idx];
+  const v=await modalForm({
+    title: idx==null?'Tambah beban':'Ubah beban',
+    submitLabel: idx==null?'Tambahkan':'Simpan',
+    intro:'Rating ini menentukan arus, ukuran breaker &amp; kabel, panas, dan '+
+          '<b>ukuran fisik drive</b> di layout — bukan sekadar label.',
+    fields:[
+      {id:'kind', label:'Jenis', type:'select', value:cur.kind, full:true,
+       options:[['vfd','VFD — motor dengan inverter'],
+                ['servo','Servo — motor + amplifier'],
+                ['dol','Motor DOL — kontaktor + overload']]},
+      {id:'kW', label:'Daya poros (kW)', type:'number', value:cur.kW,
+       min:0.01, max:200, step:0.01, required:true},
+      {id:'qty', label:'Jumlah', type:'number', value:cur.qty, min:1, max:50, required:true},
+    ],
+    validate:v=>!(v.kW>0)?'Daya harus lebih besar dari 0.':null,
+  });
+  if(!v) return;
+  pushHistory(idx==null?'tambah beban':'ubah beban');
+  const entry={kind:v.kind, kW:+v.kW, qty:+v.qty};
+  if(idx==null) loads.push(entry); else loads[idx]=entry;
+  p.cfg=PanelEngine.normalizeCfg(p.cfg); p.updated=Date.now(); persist();
+  renderLoads(); generate(false);
+  toast(`${LOAD_KIND[entry.kind]} ${entry.kW} kW × ${entry.qty}`,'ok');
+}
+async function removeLoad(i){
+  const p=activeProject(), l=(p.cfg.loads||[])[i];
+  if(!l) return;
+  if(!await modalConfirm({title:'Hapus beban', danger:true, confirmLabel:'Hapus',
+    message:`Hapus ${LOAD_KIND[l.kind]} ${l.kW} kW × ${l.qty} dari proyek ini?`})) return;
+  pushHistory('hapus beban');
+  p.cfg.loads.splice(i,1);
+  p.cfg=PanelEngine.normalizeCfg(p.cfg); p.updated=Date.now(); persist();
+  renderLoads(); generate(false);
+  toast('Beban dihapus');
+}
+
 /* Tanpa PLC, field I/O tidak berarti — dinonaktifkan (nilainya tetap disimpan). */
 function syncPlcFields(){
   const none=document.getElementById('cfg-plc').value==='none';
@@ -1894,6 +1970,16 @@ function drawPlate(){
    komponen boleh 0. Vertikal TIDAK bebas: selalu snap ke garis rail terdekat,
    jadi naik/turun berarti pindah rail, bukan menggantung di antaranya. */
 const PLATE_STEP=2;
+/* Model kontaktor/overload berbeda per rating motor, jadi key-nya disintesis
+   (contactor_LC1D18BD). Jenisnya dikenali lewat baseKey, dan pasangannya
+   dicocokkan lewat urutan — overload ke-n milik kontaktor ke-n. */
+function baseOf(type){ const d=R&&R.specs[type]; return (d&&d.baseKey)||type; }
+function pairedOverload(contactorId){
+  const ks=R.items.filter(i=>baseOf(i.type)==='contactor');
+  const os=R.items.filter(i=>baseOf(i.type)==='overload');
+  const n=ks.findIndex(i=>i.id===contactorId);
+  return n>=0 ? os[n]||null : null;
+}
 
 /* Cari X terdekat dari `want` yang TIDAK menumpuk komponen lain.
    `occupied` = daftar {a,b} rentang X yang sudah terpakai di jalur vertikal
@@ -1991,7 +2077,7 @@ function attachPlateDrag(){
       el.classList.add('dragging');
       /* Overload menempel pada kontaktornya, jadi jangan dianggap penghalang. */
       const skip=[it.id];
-      if(it.type==='contactor') skip.push('overload#'+it.id.split('#')[1]);
+      if(baseOf(it.type)==='contactor'){ const o=pairedOverload(it.id); if(o) skip.push(o.id); }
       const PAD=R.assumptions.layout.pad;
       let nx=ox, nrow=it.row, blocked=false;
       const move=ev=>{
@@ -2000,8 +2086,9 @@ function attachPlateDrag(){
         const wantY=oy+dy;
         let best=rails[0];
         for(const r of rails) if(Math.abs(r.y-wantY)<Math.abs(best.y-wantY)) best=r;
-        const cy=it.type==='contactor'
-          ? best.y-(R.specs.overload.h+4)/2 : best.y;
+        const pair=pairedOverload(it.id);
+        const cy=(baseOf(it.type)==='contactor'&&pair)
+          ? best.y-(R.specs[pair.type].h+4)/2 : best.y;
         /* posisi bebas terdekat di jalur vertikal rail tujuan */
         const slot=freeSlotX(ox+dx, d.w,
           occupiedAt(cy-d.h/2, cy+d.h/2, skip), PAD, R.W-PAD);
@@ -2954,9 +3041,13 @@ function reportHtml(){
   /* ── Halaman 1: ringkasan engineering ── */
   const summary=`
     <table class="data"><tr><th>Parameter</th><th>Nilai</th><th>Parameter</th><th>Nilai</th></tr>
-      <tr><td>Supply</td><td>${c.supplyV} V 3P · ambient ${c.ambientC} °C</td><td>VFD</td><td>${c.vfd} × ${A.vfdKw} kW</td></tr>
-      <tr><td>PLC</td><td>${R.hasPlc?esc(R.cpu.plcName||R.cpu.pn):'<b>No PLC</b> — relay / starter panel'}</td><td>Servo</td><td>${c.servo} × ${A.servoW} W</td></tr>
-      <tr><td>Digital I/O</td><td>${c.di} DI / ${c.do_} DO</td><td>Motors / valves</td><td>${c.motor} / ${c.valve}</td></tr>
+      <tr><td>Supply</td><td>${c.supplyV} V 3P · ambient ${c.ambientC} °C</td>
+        <td>Beban bermotor</td><td>${c.loads.length
+          ? c.loads.map(l=>`${l.qty} × ${esc(LOAD_KIND[l.kind]||l.kind)} ${l.kW} kW`).join('<br>')
+          : '—'}</td></tr>
+      <tr><td>PLC</td><td>${R.hasPlc?esc(R.cpu.plcName||R.cpu.pn):'<b>No PLC</b> — relay / starter panel'}</td>
+        <td>Total daya poros</td><td>${c.loads.reduce((t,l)=>t+l.kW*l.qty,0).toFixed(2)} kW</td></tr>
+      <tr><td>Digital I/O</td><td>${c.di} DI / ${c.do_} DO</td><td>Motor / valve</td><td>${c.motor} / ${c.valve}</td></tr>
       <tr><td>Analog I/O</td><td>${c.ai} AI / ${c.ao} AO</td><td>HMI</td><td>${c.hmi}</td></tr>
       <tr><td>Kabinet</td><td>${R.W} × ${R.H} × ${R.D} mm · IP55</td><td>Mounting</td><td>${R.dims.freeStanding?'Free standing':'Wall mount'}</td></tr></table>
     <h3>Ringkasan kelistrikan &amp; termal</h3>
@@ -3100,7 +3191,7 @@ function nudgeSelected(dx, dy, mult){
     const PAD=R.assumptions.layout.pad;
     const cy=R.rows[row].railY;
     const skip=[it.id];
-    if(it.type==='contactor') skip.push('overload#'+it.id.split('#')[1]);
+    if(baseOf(it.type)==='contactor'){ const o=pairedOverload(it.id); if(o) skip.push(o.id); }
     const want=it.x + (dx?dx*PLATE_STEP*mult:0);
     const x=freeSlotX(want, d.w, occupiedAt(cy-d.h/2, cy+d.h/2, skip), PAD, R.W-PAD);
     if(x===null){ toast('Tidak ada ruang kosong di rail itu','err'); return; }

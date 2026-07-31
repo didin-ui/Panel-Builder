@@ -261,7 +261,7 @@ describe('invariant — layout bookkeeping', () => {
     assert.ok(r.railFreeMm >= 0, 'negative free rail');
     assert.ok(r.railFreeMm <= r.railLengthMm, 'free rail exceeds total rail');
     for (const it of r.items)
-      assert.ok(E.COMPONENT_DB[it.type], `unknown component type "${it.type}"`);
+      assert.ok(r.specs[it.type], `unknown component type "${it.type}"`);
     const railRows = r.rows.filter((x) => x.list);
     const placedOnRails = railRows.reduce((t, x) => t + x.list.length, 0);
     const fanCount = 0;   /* fan tidak lagi di backplate */
@@ -356,7 +356,8 @@ describe('invariant — warnings replace silent failure', () => {
   });
   test('the 750 W servo frame gap at 400 V is disclosed', () => {
     const r = R({ supplyV: 400, servo: 1 });
-    assert.ok(r.warnings.some((w) => w.code === 'SERVO_FRAME'));
+    assert.ok(r.warnings.some((w) => w.code === 'DRIVE_FRAME'),
+      'frame substitution not disclosed: ' + r.warnings.map(w=>w.code).join(','));
   });
   test('every warning is well formed', () => {
     MATRIX.forEach(({ c }) => {
@@ -685,7 +686,10 @@ describe('front cover layout', () => {
   test('backplate components are designated too', () => {
     const r = R();
     const byType = {};
-    for (const it of r.items) if (!byType[it.type]) byType[it.type] = it.tag;
+    for (const it of r.items) {
+      const base = r.specs[it.type].baseKey || it.type;
+      if (!byType[base]) byType[base] = it.tag;
+    }
     assert.equal(byType.mccb, 'Q1');
     assert.equal(byType.psu, 'G1');
     assert.equal(byType.plc, 'A1');
@@ -1069,10 +1073,12 @@ describe('backplate — manual horizontal placement', () => {
   });
 
   test('an overload follows the contactor it hangs under', () => {
-    const r = R({ motor: 6, vfd: 0, servo: 0,
-                  platePos: { 'contactor#1': { x: 500 } } });
-    const k = r.items.find((i) => i.id === 'contactor#1');
-    const f = r.items.find((i) => i.id === 'overload#1');
+    const base = R({ motor: 6, vfd: 0, servo: 0 });
+    const kId = base.items.find((i) => (base.specs[i.type].baseKey) === 'contactor').id;
+    const fId = base.items.find((i) => (base.specs[i.type].baseKey) === 'overload').id;
+    const r = R({ motor: 6, vfd: 0, servo: 0, platePos: { [kId]: { x: 500 } } });
+    const k = r.items.find((i) => i.id === kId);
+    const f = r.items.find((i) => i.id === fId);
     assert.equal(f.x, k.x, 'overload left behind when the contactor moved');
     assert.ok(f.y > k.y, 'overload must sit below its contactor');
   });
@@ -1413,6 +1419,156 @@ describe('side panels — where the exhaust fan actually lives', () => {
   });
 });
 
+describe('load list — mixed ratings', () => {
+  const MIXED = [{ kind: 'vfd', kW: 5.5, qty: 1 }, { kind: 'vfd', kW: 1.5, qty: 2 },
+                 { kind: 'servo', kW: 0.75, qty: 2 },
+                 { kind: 'dol', kW: 5.5, qty: 1 }, { kind: 'dol', kW: 1.5, qty: 2 }];
+
+  test('an old project without a load list keeps its exact design', () => {
+    /* Migrasi harus netral: hitungan lama disintesis dengan rating asumsi. */
+    const legacy = E.compute({ di: 24, do_: 16, ai: 4, ao: 2,
+                               vfd: 3, servo: 2, motor: 6, hmi: 2, valve: 5 });
+    const now = R();
+    assert.equal(legacy.flcA.toFixed(3), now.flcA.toFixed(3));
+    assert.equal(legacy.mccb.pn, now.mccb.pn);
+    assert.equal(legacy.heat, now.heat);
+    assert.deepEqual([legacy.W, legacy.H, legacy.D], [now.W, now.H, now.D]);
+    assert.equal(legacy.bom.length, now.bom.length);
+    /* dan daftar bebannya tersintesis */
+    assert.deepEqual(legacy.cfg.loads, [
+      { kind: 'vfd', kW: 2.2, qty: 3 },
+      { kind: 'servo', kW: 0.75, qty: 2 },
+      { kind: 'dol', kW: 1.5, qty: 1 },
+    ]);
+  });
+
+  test('counts are derived from the list, never the other way round', () => {
+    const n = E.normalizeCfg({ loads: MIXED });
+    assert.equal(n.vfd, 3);
+    assert.equal(n.servo, 2);
+    assert.equal(n.dolCount, 3);
+    assert.equal(n.motor, 8);
+    /* hitungan yang dikirim bersamaan HARUS diabaikan */
+    const clash = E.normalizeCfg({ loads: MIXED, vfd: 99, servo: 99, motor: 99 });
+    assert.equal(clash.vfd, 3);
+    assert.equal(clash.motor, 8);
+  });
+
+  test('each rating gets its own drive model and footprint', () => {
+    const r = R({ loads: MIXED });
+    const models = [...new Set(r.items.filter((i) => /^vfd_|^servo_/.test(i.type))
+      .map((i) => i.type))].map((t) => r.specs[t]);
+    const pns = models.map((m) => m.pn).sort();
+    assert.deepEqual(pns, ['FR-D740-1.5K', 'FR-D740-5.5K', 'MR-J4-100A4']);
+    const big = models.find((m) => m.pn === 'FR-D740-5.5K');
+    const small = models.find((m) => m.pn === 'FR-D740-1.5K');
+    assert.ok(big.w > small.w && big.h > small.h,
+      'a 5.5 kW drive must not share the 1.5 kW footprint');
+  });
+
+  test('each DOL rating gets a properly sized starter', () => {
+    const r = R({ loads: MIXED });
+    const starters = [...new Set(r.items
+      .filter((i) => r.specs[i.type].baseKey === 'contactor').map((i) => i.type))]
+      .map((t) => r.specs[t].pn).sort();
+    assert.equal(starters.length, 2, 'expected two contactor sizes: ' + starters);
+    const overloads = [...new Set(r.items
+      .filter((i) => r.specs[i.type].baseKey === 'overload').map((i) => i.type))]
+      .map((t) => r.specs[t].pn);
+    assert.equal(overloads.length, 2, 'expected two overload ranges');
+    /* dan yang besar benar-benar untuk motor besar */
+    assert.ok(r.bom.some((b) => b.pn === 'LC1D18BD'), 'no starter for the 5.5 kW motor');
+    assert.ok(r.bom.some((b) => b.pn === 'LC1D09BD'), 'no starter for the 1.5 kW motors');
+  });
+
+  test('mixed ratings change the electrical result, not just the labels', () => {
+    const mixed = R({ loads: MIXED });
+    const flat = R({ loads: [{ kind: 'vfd', kW: 2.2, qty: 3 },
+                             { kind: 'servo', kW: 0.75, qty: 2 },
+                             { kind: 'dol', kW: 1.5, qty: 3 }] });
+    assert.ok(mixed.flcA > flat.flcA + 5, 'FLC did not follow the ratings');
+    assert.notEqual(mixed.mccb.pn, flat.mccb.pn, 'breaker did not resize');
+    assert.ok(mixed.heat > flat.heat, 'heat did not follow the ratings');
+    assert.ok(mixed.startA > flat.startA, 'starting current did not follow');
+  });
+
+  test('the load schedule lists one row per entry', () => {
+    const r = R({ loads: MIXED });
+    const motorRows = r.schedule.filter((x) => x.kind);
+    assert.equal(motorRows.length, MIXED.length);
+    for (const l of MIXED)
+      assert.ok(motorRows.some((x) => x.kind === l.kind && x.kW === l.kW && x.qty === l.qty),
+        'missing schedule row for ' + JSON.stringify(l));
+    /* dan tiap baris memakai PF/efisiensi yang benar untuk jenisnya */
+    const vfdRow = motorRows.find((x) => x.kind === 'vfd');
+    assert.equal(vfdRow.pf, E.ASSUMPTIONS.pf.vfd);
+  });
+
+  test('only DOL loads carry locked-rotor inrush', () => {
+    const r = R({ loads: MIXED });
+    for (const row of r.schedule.filter((x) => x.kind))
+      if (row.kind === 'dol')
+        assert.ok(row.startEach > row.aEach * 5, 'DOL should inrush');
+      else
+        assert.equal(row.startEach, row.aEach, row.kind + ' must be soft-started');
+  });
+
+  test('a rating between frames steps up and says so', () => {
+    const r = R({ loads: [{ kind: 'vfd', kW: 4.0, qty: 1 }] });
+    assert.ok(r.bom.some((b) => b.pn === 'FR-D740-5.5K'), 'did not step up to 5.5 kW');
+    const w = r.warnings.find((x) => x.code === 'DRIVE_FRAME');
+    assert.ok(w && w.level === 'info');
+    assert.match(w.msg, /4 kW/);
+  });
+
+  test('a rating above the largest frame is an explicit warning', () => {
+    const r = R({ loads: [{ kind: 'vfd', kW: 30, qty: 1 }] });
+    const w = r.warnings.find((x) => x.code === 'DRIVE_OVER_RANGE');
+    assert.ok(w && w.level === 'warn');
+    assert.match(w.msg, /30 kW/);
+    assert.ok(Number.isFinite(r.heat), 'must still compute');
+  });
+
+  test('part numbers come from a table, not a formula', () => {
+    /* MR-JE 750 W adalah -70A, bukan -75A: penomorannya tidak seragam */
+    assert.ok(R({ supplyV: 230, loads: [{ kind: 'servo', kW: 0.75, qty: 1 }] })
+      .bom.some((b) => b.pn === 'MR-JE-70A'));
+    assert.ok(R({ supplyV: 230, loads: [{ kind: 'servo', kW: 0.4, qty: 1 }] })
+      .bom.some((b) => b.pn === 'MR-JE-40A'));
+    assert.ok(R({ supplyV: 400, loads: [{ kind: 'servo', kW: 2, qty: 1 }] })
+      .bom.some((b) => b.pn === 'MR-J4-200A4'));
+  });
+
+  test('malformed load entries are dropped, not propagated', () => {
+    const n = E.normalizeCfg({ loads: [
+      { kind: 'vfd', kW: 2.2, qty: 2 },
+      { kind: 'nonsense', kW: 1, qty: 1 },      /* jenis tidak dikenal */
+      { kind: 'vfd', kW: 0, qty: 1 },           /* daya nol */
+      { kind: 'dol', kW: 1.5, qty: 0 },         /* qty difloor ke 1 */
+      null, 'junk',
+    ] });
+    assert.deepEqual(n.loads, [{ kind: 'vfd', kW: 2.2, qty: 2 },
+                               { kind: 'dol', kW: 1.5, qty: 1 }]);
+  });
+
+  test('an empty load list is a valid panel', () => {
+    const r = E.compute({ ...E.DEFAULT_CFG, loads: [], vfd: 0, servo: 0, motor: 0 });
+    assert.deepEqual(r.cfg.loads, []);
+    assert.equal(r.items.filter((i) => /^vfd_|^servo_/.test(i.type)).length, 0);
+    assert.ok(Number.isFinite(r.flcA) && r.flcA > 0, 'control load still draws current');
+    assert.ok(!r.rows.some((x) => x.list && /DRIVES/.test(x.name)), 'empty drives rail drawn');
+  });
+
+  test('a load list survives a JSON round trip', () => {
+    const a = R({ loads: MIXED });
+    const b = E.compute(JSON.parse(JSON.stringify(a.cfg)));
+    assert.equal(b.flcA.toFixed(4), a.flcA.toFixed(4));
+    assert.equal(b.mccb.pn, a.mccb.pn);
+    assert.equal(b.items.length, a.items.length);
+    assert.deepEqual(b.cfg.loads, a.cfg.loads);
+  });
+});
+
 describe('24 V capacity follows the supplies actually installed', () => {
   const withPsu = (type, qty) =>
     R({ extras: [{ type, qty, place: 'plate', rail: 1 }] });
@@ -1556,7 +1712,8 @@ describe('drive thermal clearance', () => {
     const base = R();
     const rows = base.railRows;
     /* pindahkan VFD ke rail 1 (incoming), yang jaraknya cuma gapV */
-    const r = R({ platePos: { 'vfd#1': { x: 400, row: rows[0] } } });
+    const vfdId = base.items.find((i) => base.specs[i.type].baseKey === 'vfd').id;
+    const r = R({ platePos: { [vfdId]: { x: 400, row: rows[0] } } });
     const w = r.warnings.find((x) => x.code === 'DRIVE_CLEARANCE');
     assert.ok(w && w.level === 'warn', 'cramped drive not reported');
     assert.match(w.msg, /T1/);
@@ -1739,7 +1896,7 @@ describe('no PLC', () => {
   test('safety chain, door devices and starters still work', () => {
     const r = noPlc({ vfd: 0, servo: 0, motor: 4 });
     assert.equal(r.items.filter((i) => i.type === 'safety').length, 1);
-    assert.equal(r.items.filter((i) => i.type === 'contactor').length, 4);
+    assert.equal(r.items.filter((i) => r.specs[i.type].baseKey === 'contactor').length, 4);
     assert.equal(r.door.items.filter((i) => i.type === 'estop').length, 1);
     assert.ok(r.wiring.some((w) => /13\/14/.test(w.from)), 'safety output unwired');
   });

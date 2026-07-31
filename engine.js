@@ -160,6 +160,54 @@
      "4" suffix, whose smallest frame is 600 W, so a 750 W axis takes the next
      frame up (100A4 = 1 kW). Sizing up to the nearest available frame is
      normal practice — the amplifier is oversized, not mismatched. */
+  /* ══════════ KATALOG DRIVE PER RATING ══════════
+     Sebelumnya semua VFD dianggap 2,2 kW dan semua servo 750 W, jadi mesin
+     dengan rating campur (fan 5,5 kW + dua pompa 1,5 kW) tidak bisa dinyatakan
+     — dan arus, breaker, kabel, panas, serta FOOTPRINT-nya semua salah.
+     Ukuran dikelompokkan per frame; seperti biasa dimsVerified:false. */
+  const VFD_FRAMES = [
+    { max: 1.5, w: 108, h: 128, d: 135 },
+    { max: 3.7, w: 108, h: 128, d: 155 },
+    { max: 7.5, w: 170, h: 260, d: 170 },
+    { max: 15,  w: 220, h: 300, d: 195 },
+  ];
+  const SERVO_FRAMES = [
+    { max: 1.0, w: 85,  h: 168, d: 195 },
+    { max: 2.0, w: 105, h: 168, d: 195 },
+    { max: 5.0, w: 130, h: 250, d: 200 },
+  ];
+  /* [kW, part number] per kelas tegangan. Ditulis eksplisit, bukan dihitung:
+     penomoran MR-JE tidak seragam — 750 W adalah MR-JE-70A, bukan -75A. */
+  const VFD_LADDER = {
+    200: [[0.4, 'FR-D720-0.4K'], [0.75, 'FR-D720-0.75K'], [1.5, 'FR-D720-1.5K'],
+          [2.2, 'FR-D720-2.2K'], [3.7, 'FR-D720-3.7K']],
+    400: [[0.4, 'FR-D740-0.4K'], [0.75, 'FR-D740-0.75K'], [1.5, 'FR-D740-1.5K'],
+          [2.2, 'FR-D740-2.2K'], [3.7, 'FR-D740-3.7K'], [5.5, 'FR-D740-5.5K'],
+          [7.5, 'FR-D740-7.5K'], [11, 'FR-F840-11K'], [15, 'FR-F840-15K']],
+  };
+  const SERVO_LADDER = {
+    200: [[0.1, 'MR-JE-10A'], [0.2, 'MR-JE-20A'], [0.4, 'MR-JE-40A'],
+          [0.75, 'MR-JE-70A'], [1.0, 'MR-JE-100A'], [2.0, 'MR-JE-200A'],
+          [3.0, 'MR-JE-300A']],
+    400: [[0.6, 'MR-J4-60A4'], [1.0, 'MR-J4-100A4'], [2.0, 'MR-J4-200A4'],
+          [3.5, 'MR-J4-350A4'], [5.0, 'MR-J4-500A4']],
+  };
+  const kwTag = (kw) => String(kw).replace('.', 'k') + (String(kw).indexOf('.') < 0 ? 'k' : '');
+
+  /* Pilih frame terkecil yang sanggup; kalau melebihi ladder, pakai yang terbesar
+     dan laporkan. Menaikkan ke frame terdekat adalah praktik normal. */
+  function pickDrive(kind, kW, cls) {
+    const ladder = (kind === 'servo' ? SERVO_LADDER : VFD_LADDER)[cls] ||
+                   (kind === 'servo' ? SERVO_LADDER : VFD_LADDER)[400];
+    const frames = kind === 'servo' ? SERVO_FRAMES : VFD_FRAMES;
+    const hit = ladder.find((x) => x[0] >= kW - 1e-9);
+    const over = !hit;
+    const [use, pn] = hit || ladder[ladder.length - 1];
+    const f = frames.find((x) => use <= x.max) || frames[frames.length - 1];
+    return { pn, ratedKw: use, over, w: f.w, h: f.h, d: f.d,
+             key: kind + '_' + cls + '_' + kwTag(use) };
+  }
+
   const DRIVES = {
     vfd: {
       200: { pn: 'FR-D720-2.2K', w: 108, h: 128, d: 155 },
@@ -345,18 +393,21 @@
 
   /* Stable identity per placed device: type plus its ordinal among its kind.
      Manual door positions are keyed on this, so they survive a reorder. */
-  function designate(items, fixed) {
+  function designate(items, fixed, spec) {
     const perKind = {}, perPrefix = {};
+    /* key sintesis (vfd_400_5k5, contactor_LC1D18BD) mewarisi prefix induknya */
+    const baseOf = (t) => (spec && spec(t) && spec(t).baseKey) || t;
     return items.map((it) => {
       perKind[it.type] = (perKind[it.type] || 0) + 1;
       const ord = perKind[it.type];
       const id = it.type + '#' + ord;
       let tag;
-      if (fixed && fixed[it.type]) {
+      const base = baseOf(it.type);
+      if (fixed && fixed[base]) {
         const total = items.filter((x) => x.type === it.type).length;
-        tag = fixed[it.type] + (total > 1 ? '.' + ord : '');
+        tag = fixed[base] + (total > 1 ? '.' + ord : '');
       } else {
-        const p = DESIGNATION[it.type] || 'X';
+        const p = DESIGNATION[it.type] || DESIGNATION[base] || 'X';
         perPrefix[p] = (perPrefix[p] || 0) + 1;
         tag = p + perPrefix[p];
       }
@@ -382,6 +433,11 @@
     ambientC: 30,     /* design ambient outside the enclosure */
     cabW: 800,        /* per-project, was a global setting */
     cabH: 0,          /* 0 = derive height from the layout; else a fixed size */
+    /* Daftar beban bermotor — SUMBER KEBENARAN untuk arus, proteksi, panas dan
+       ukuran drive. [{kind:'vfd'|'servo'|'dol', kW, qty}]. Kalau kosong, ia
+       disintesis dari hitungan lama (vfd/servo/motor) memakai rating asumsi,
+       jadi proyek lama tetap menghasilkan angka yang sama persis. */
+    loads: [],
     /* [{type, qty, place, rail}] — library components added by hand.
        place 'plate' uses rail 1–3; place 'door' goes on the front cover. */
     extras: [],
@@ -390,6 +446,9 @@
     sidePos: {},      /* {'fan#1': {x,y,side}} — manual placement di panel sisi */
   };
   const NO_PLC = 'none';
+  /* Rating yang dulu diasumsikan global; sekarang hanya dipakai untuk
+     memigrasikan proyek lama yang belum punya daftar beban. */
+  const DEFAULT_RATING = { vfd: 2.2, servo: 0.75, dol: 1.5 };
   /* Nama PLC versi lama (sebelum PLC jadi komponen library) → key komponen */
   const LEGACY_PLC = {
     'Mitsubishi FX5U': 'plc',
@@ -462,6 +521,31 @@
           (p.side === 'left' || p.side === 'right') ? { side: p.side } : {});
     }
     c.sidePos = sp;
+    /* ── Daftar beban ────────────────────────────────────────────────────
+       Bersihkan dulu; kalau kosong, sintesis dari hitungan lama supaya proyek
+       yang sudah ada menghasilkan desain yang identik. Sesudah itu hitungan
+       vfd/servo/motor DITURUNKAN dari daftar, bukan sebaliknya — satu sumber. */
+    const KINDS = ['vfd', 'servo', 'dol'];
+    let loads = (Array.isArray(c.loads) ? c.loads : [])
+      .filter((l) => l && KINDS.indexOf(l.kind) >= 0 && num(l.kW, 0) > 0)
+      .map((l) => ({ kind: l.kind,
+                     kW: Math.round(num(l.kW, 0) * 1000) / 1000,
+                     qty: Math.max(1, clampInt(l.qty) || 1) }));
+    if (!loads.length) {
+      const nv = clampInt(raw && raw.vfd), ns = clampInt(raw && raw.servo);
+      const nm = clampInt(raw && raw.motor);
+      const nd = Math.max(0, nm - nv - ns);
+      if (nv) loads.push({ kind: 'vfd',   kW: DEFAULT_RATING.vfd,   qty: nv });
+      if (ns) loads.push({ kind: 'servo', kW: DEFAULT_RATING.servo, qty: ns });
+      if (nd) loads.push({ kind: 'dol',   kW: DEFAULT_RATING.dol,   qty: nd });
+    }
+    c.loads = loads;
+    const countOf = (k) => loads.filter((l) => l.kind === k)
+                                .reduce((t, l) => t + l.qty, 0);
+    c.vfd = countOf('vfd');
+    c.servo = countOf('servo');
+    c.dolCount = countOf('dol');
+    c.motor = c.vfd + c.servo + c.dolCount;
     c.extras = (Array.isArray(c.extras) ? c.extras : [])
       .filter((e) => e && e.type)
       .map((e) => ({
@@ -492,37 +576,34 @@
      Every load is reduced to real input power and apparent power, then summed.
      Total current comes from ΣS, not from an assumed blanket power factor —
      the resulting PF is an output, not an input. */
+  /* Satu baris skedul per ENTRI beban, jadi rating campur benar-benar terbawa
+     ke arus, breaker, kabel dan panas. */
   function loadSchedule(c, A) {
     const V = c.supplyV, root3 = Math.sqrt(3);
-    const dol = Math.max(0, c.motor - c.vfd - c.servo);
     const rows = [];
-
-    const add = (name, qty, shaftW, pf, eff, opts) => {
-      if (qty <= 0) return;
-      const pIn = shaftW / eff;                 /* real power drawn per unit */
-      const s = pIn / pf;                       /* apparent power per unit */
-      const a = s / (root3 * V);                /* line current per unit */
-      rows.push(Object.assign({
-        name, qty, shaftW,
-        pf, eff,
-        pInEach: pIn, pIn: pIn * qty,
-        sEach: s, s: s * qty,
-        aEach: a, a: a * qty,
-        startEach: a,                           /* soft-started unless overridden */
-      }, opts || {}));
+    const PROP = {
+      vfd:   { pf: A.pf.vfd,   eff: A.eff.vfdDrive * A.eff.vfdMotor,   label: 'VFD' },
+      servo: { pf: A.pf.servo, eff: A.eff.servoDrive * A.eff.servoMotor, label: 'Servo' },
+      dol:   { pf: A.pf.dol,   eff: A.eff.dolMotor,                    label: 'Motor DOL' },
     };
-
-    add('VFD ' + A.vfdKw + ' kW', c.vfd, A.vfdKw * 1000, A.pf.vfd,
-        A.eff.vfdDrive * A.eff.vfdMotor);
-    add('Servo ' + A.servoW + ' W', c.servo, A.servoW, A.pf.servo,
-        A.eff.servoDrive * A.eff.servoMotor);
-    add('Motor DOL ' + A.dolKw + ' kW', dol, A.dolKw * 1000, A.pf.dol,
-        A.eff.dolMotor);
-    /* DOL is the only load with locked-rotor inrush */
-    const dolRow = rows.find((r) => r.name.indexOf('DOL') >= 0);
-    if (dolRow) dolRow.startEach = dolRow.aEach * A.dolStartMultiple;
-
-    return { rows, dol };
+    for (const l of c.loads) {
+      const p = PROP[l.kind];
+      const shaftW = l.kW * 1000;
+      const pIn = shaftW / p.eff;               /* real power drawn per unit */
+      const s = pIn / p.pf;                     /* apparent power per unit */
+      const a = s / (root3 * V);                /* line current per unit */
+      rows.push({
+        kind: l.kind, kW: l.kW,
+        name: p.label + ' ' + l.kW + ' kW',
+        qty: l.qty, shaftW, pf: p.pf, eff: p.eff,
+        pInEach: pIn, pIn: pIn * l.qty,
+        sEach: s, s: s * l.qty,
+        aEach: a, a: a * l.qty,
+        /* hanya DOL yang punya inrush rotor terkunci */
+        startEach: l.kind === 'dol' ? a * A.dolStartMultiple : a,
+      });
+    }
+    return { rows, dol: c.dolCount };
   }
 
   /* 24 V budget, split by where the heat ends up.
@@ -826,19 +907,34 @@
       Math.max(controlA * A.breakerMargin, A.minControlMcbA), 1);
     controlMcb.steadyA = controlA;
 
-    const dolFlc = dol > 0
-      ? (A.dolKw * 1000 / A.eff.dolMotor) / (Math.sqrt(3) * c.supplyV * A.pf.dol)
-      : 0;
-    const starter = dol > 0 ? selectStarter(A.dolKw, dolFlc) : null;
-
-    /* ── drives by voltage class ───────────────────────────────────── */
-    const vfdSpec = DRIVES.vfd[c.voltClass];
-    const servoSpec = DRIVES.servo[c.voltClass];
-    if (c.servo > 0 && servoSpec.ratedW > A.servoW)
-      warnings.push({ level: 'info', code: 'SERVO_FRAME',
-        msg: 'No ' + A.servoW + ' W amplifier in the ' + c.voltClass +
-             ' V class; using the next frame up (' + servoSpec.pn + ', ' +
-             servoSpec.ratedW + ' W).' });
+    /* ── Satu drive / starter PER ENTRI beban, sesuai rating masing-masing ── */
+    const drivePicks = [];                       /* {key, spec, qty} untuk rail 3 */
+    const starterPicks = [];                     /* {contactorKey, overloadKey, qty} */
+    let starter = null;                          /* starter pertama, untuk ringkasan */
+    for (const l of c.loads) {
+      if (l.kind === 'dol') {
+        const flc = (l.kW * 1000 / A.eff.dolMotor) /
+                    (Math.sqrt(3) * c.supplyV * A.pf.dol);
+        const st = selectStarter(l.kW, flc);
+        st.kW = l.kW;
+        starterPicks.push({ st, qty: l.qty });
+        if (!starter) starter = st;
+        continue;
+      }
+      const d = pickDrive(l.kind, l.kW, c.voltClass);
+      d.wantKw = l.kW;
+      drivePicks.push({ d, qty: l.qty, kind: l.kind });
+      if (d.over)
+        warnings.push({ level: 'warn', code: 'DRIVE_OVER_RANGE',
+          msg: l.kW + ' kW melebihi frame terbesar di kelas ' + c.voltClass +
+               ' V; memakai ' + d.pn + ' (' + d.ratedKw + ' kW). Pilih drive ' +
+               'secara manual atau naikkan tegangan supply.' });
+      else if (d.ratedKw > l.kW + 1e-9)
+        warnings.push({ level: 'info', code: 'DRIVE_FRAME',
+          msg: 'Tidak ada frame ' + l.kW + ' kW di kelas ' + c.voltClass +
+               ' V; memakai frame terdekat di atasnya (' + d.pn + ', ' +
+               d.ratedKw + ' kW).' });
+    }
 
     /* Resolve the live selections into the component specs used for layout */
     const specs = Object.assign({}, db);
@@ -848,26 +944,34 @@
     specs.psu   = ov(specs.psu,   { pn: psuPick.pn, w: psuPick.w, h: psuPick.h,
                                     d: psuPick.d,
                                     desc: 'Power supply 24 VDC ' + psuPick.ratedA + ' A' });
-    specs.vfd   = ov(specs.vfd,   { pn: vfdSpec.pn, w: vfdSpec.w, h: vfdSpec.h,
-                                    d: vfdSpec.d,
-                                    desc: 'Inverter VFD ' + A.vfdKw + ' kW ' +
-                                          c.voltClass + ' V' });
-    specs.servo = ov(specs.servo, { pn: servoSpec.pn, w: servoSpec.w, h: servoSpec.h,
-                                    d: servoSpec.d,
-                                    desc: 'Servo amplifier ' + servoSpec.ratedW +
-                                          ' W ' + c.voltClass + ' V' });
+    /* Satu spec per model drive terpilih. `baseKey` membuat gambar yang sudah
+       kamu unggah untuk `vfd`/`servo` tetap terpakai sebagai cadangan. */
+    for (const { d, kind } of drivePicks) {
+      specs[d.key] = ov(specs[kind], {
+        pn: d.pn, w: d.w, h: d.h, d: d.d, baseKey: kind,
+        desc: (kind === 'servo' ? 'Servo amplifier ' : 'Inverter VFD ') +
+              d.ratedKw + ' kW ' + c.voltClass + ' V',
+      });
+    }
+    /* Sama untuk starter DOL: motor 5,5 kW butuh kontaktor lebih besar daripada
+       motor 1,5 kW — dulu semuanya memakai satu ukuran. */
+    for (const { st } of starterPicks) {
+      st.cKey = 'contactor_' + st.contactor.pn;
+      st.oKey = 'overload_' + st.overload.pn;
+      specs[st.cKey] = ov(specs.contactor, {
+        pn: st.contactor.pn, w: st.contactor.w, h: st.contactor.h,
+        d: st.contactor.d, baseKey: 'contactor',
+        desc: 'Contactor ' + st.contactor.ac3A + ' A AC-3 (' + st.kW +
+              ' kW), coil 24 VDC' });
+      specs[st.oKey] = ov(specs.overload, {
+        pn: st.overload.pn, baseKey: 'overload',
+        desc: 'Thermal overload ' + st.overload.min + '–' + st.overload.max +
+              ' A, set ' + st.setA.toFixed(1) + ' A' });
+    }
     specs.mcb3  = ov(specs.mcb3,  { pn: driveMcb.pn,
                                     desc: 'MCB 3P C' + driveMcb.tripA + ' drives feeder' });
     specs.mcb1  = ov(specs.mcb1,  { pn: controlMcb.pn,
                                     desc: 'MCB 1P C' + controlMcb.tripA + ' control' });
-    if (starter) {
-      specs.contactor = ov(specs.contactor, { pn: starter.contactor.pn,
-        w: starter.contactor.w, h: starter.contactor.h, d: starter.contactor.d,
-        desc: 'Contactor ' + starter.contactor.ac3A + ' A AC-3, coil 24 VDC' });
-      specs.overload = ov(specs.overload, { pn: starter.overload.pn,
-        desc: 'Thermal overload ' + starter.overload.min + '–' +
-              starter.overload.max + ' A, set ' + starter.setA.toFixed(1) + ' A' });
-    }
 
     /* Re-apply the library patch LAST so a corrected datasheet dimension wins
        over the size that came from the selection table. Pinning is intentional:
@@ -896,8 +1000,14 @@
       e.type !== 'psu' && db[e.type] && num(db[e.type].psuA, 0) > 0);
     const psuManual = psuExtras.length > 0;
     /* ── thermal (needs a size; size needs a layout; so: layout first) ── */
+    /* Kontaktor dulu, lalu overload — buildLayout memasangkan keduanya
+       berurutan, jadi urutannya harus sejajar. */
+    const contactorKeys = [], overloadKeys = [];
+    for (const { st, qty } of starterPicks) {
+      for (let i = 0; i < qty; i++) { contactorKeys.push(st.cKey); overloadKeys.push(st.oKey); }
+    }
     const rail1 = ['mccb', 'spd'].concat(psuManual ? [] : ['psu'])
-      .concat(fill(dol, 'contactor'), fill(dol, 'overload'));
+      .concat(contactorKeys, overloadKeys);
     /* An Ethernet switch only earns its place if there is something to network */
     const needsEth = hasPlc || c.hmi > 0;
     const rail2 = (hasPlc ? [plcKey] : [])
@@ -905,7 +1015,11 @@
               fill(aiMods, expAiKey), fill(aoMods, expAoKey),
               needsEth ? ['eth'] : [], ['safety', 'mcb3'],
               fill(2 + c.hmi, 'mcb1'), fill(relays, 'irelay'));
-    const rail3 = fill(c.vfd, 'vfd').concat(fill(c.servo, 'servo'));
+    /* VFD dulu, lalu servo — masing-masing dengan model sesuai rating-nya */
+    const rail3 = [];
+    for (const kind of ['vfd', 'servo'])
+      for (const p of drivePicks)
+        if (p.kind === kind) for (let i = 0; i < p.qty; i++) rail3.push(p.d.key);
 
     /* Rail 4: terminal block yang dipakai, ditempatkan seperti komponen lain.
        Kosong secara default — isi dari Components library → “+ Panel → Rail 4”. */
@@ -1129,6 +1243,14 @@
   /* ══════════ LAYOUT BUILDER ══════════ */
   function buildLayout(rails, o) {
     const { W, PAD, GAP, GAPV, DUCT, TSTRIP, spec } = o;
+    /* Model kontaktor/overload berbeda per rating motor, jadi jenisnya dikenali
+       lewat baseKey — bukan lewat nama key yang harfiah. */
+    const isBase = (t, base) => t === base || (spec(t) && spec(t).baseKey === base);
+    const overloadFor = (list, kIdx) => {
+      const n = list.slice(0, kIdx + 1).filter((t) => isBase(t, 'contactor')).length;
+      const os = list.filter((t) => isBase(t, 'overload'));
+      return os[n - 1] || os[0] || 'overload';
+    };
     /* Exhaust fan dan intake filter kini digambar di panel SISI (left/right
        side view), jadi backplate tidak lagi menyisihkan kolom untuk fan. */
     const usableW = W - PAD * 2;
@@ -1141,8 +1263,9 @@
       chunks.forEach((chunk, i) => {
         if (!chunk.length) return;
         const h = Math.max(60, ...chunk.map((t) => spec(t).h));
-        const stackH = chunk.indexOf('contactor') >= 0
-          ? spec('contactor').h + 4 + spec('overload').h : 0;
+        const kIdx = chunk.findIndex((t) => isBase(t, 'contactor'));
+        const stackH = kIdx >= 0
+          ? spec(chunk[kIdx]).h + 4 + spec(overloadFor(chunk, kIdx)).h : 0;
         const rowH = Math.max(h, stackH);
         const used = chunk.reduce((t, x) => t + spec(x).w + GAP, 0) - GAP;
         if (chunk.some((t) => spec(t).w > usableW)) overflow = true;
@@ -1187,18 +1310,19 @@
       let x = PAD;
       for (const t of row.list) {
         const d = spec(t);
-        if (t === 'overload') {
+        if (isBase(t, 'overload')) {
           /* overload hangs under its own contactor, same x */
-          const hosts = items.filter((i) => i.type === 'contactor');
-          const mine = items.filter((i) => i.type === 'overload').length;
+          const hosts = items.filter((i) => isBase(i.type, 'contactor'));
+          const mine = items.filter((i) => isBase(i.type, 'overload')).length;
           if (hosts[mine]) {
             items.push({ type: t, x: hosts[mine].x,
-              y: hosts[mine].y + (spec('contactor').h + d.h) / 2 + 4 });
+              y: hosts[mine].y + (spec(hosts[mine].type).h + d.h) / 2 + 4 });
           }
           continue;
         }
-        const yPos = (t === 'contactor')
-          ? row.railY - (spec('overload').h + 4) / 2 : row.railY;
+        const yPos = isBase(t, 'contactor')
+          ? row.railY - (spec(overloadFor(row.list, row.list.indexOf(t))).h + 4) / 2
+          : row.railY;
         items.push({ type: t, x: x + d.w / 2, y: yPos });
         x += d.w + GAP;
       }
@@ -1207,7 +1331,7 @@
       .reduce((t) => t + (W - PAD * 2), 0);
 
     /* tag every placed component so drawing, schedule and BOM agree */
-    items = designate(items);
+    items = designate(items, null, spec);
 
     /* ── penempatan manual di backplate ──────────────────────────────────
        X bebas (UI membulatkan ke langkah 2 mm, jadi jarak antar komponen boleh
@@ -1230,15 +1354,17 @@
         manualPlate.push(it.id);
         return next;
       });
-      /* overload mengikuti kontaktornya, jangan tertinggal saat dipindah */
-      const byId = {};
-      for (const it of items) byId[it.id] = it;
+      /* Overload mengikuti kontaktornya. Pasangannya dicocokkan lewat URUTAN
+         (overload ke-n milik kontaktor ke-n), bukan lewat nama key — model
+         kontaktor kini berbeda-beda mengikuti rating motornya. */
+      const hosts = items.filter((i) => isBase(i.type, 'contactor'));
+      let n = 0;
       items = items.map((it) => {
-        if (it.type !== 'overload') return it;
-        const host = byId['contactor#' + it.id.split('#')[1]];
+        if (!isBase(it.type, 'overload')) return it;
+        const host = hosts[n++];
         if (!host || !host.manual) return it;
         return Object.assign({}, it, { x: host.x,
-          y: host.y + (spec('contactor').h + spec('overload').h) / 2 + 4 });
+          y: host.y + (spec(host.type).h + spec(it.type).h) / 2 + 4 });
       });
     }
     /* Jarak 0 diizinkan, tapi tumpang tindih tetap dilaporkan. */
@@ -1305,7 +1431,7 @@
     emit(doorExtras || [], 'ADDED FROM LIBRARY', W - M * 2);
 
     /* Identify before overriding — manual positions are keyed on the id. */
-    let placed = designate(items, DOOR_TAG);
+    let placed = designate(items, DOOR_TAG, spec);
 
     /* Manual placement wins over the generated position. Only the devices you
        actually moved are pinned; the rest keep flowing automatically. */
@@ -1441,8 +1567,12 @@
     push('PSU conversion loss', dc.wTotal * (1 / A.eff.psu - 1));
     /* 24 V gear inside the box turns all of its input into heat */
     push('Control gear (24 V, internal)', dc.wInternal);
-    /* switchgear I²R */
-    const n = (t) => layout.items.filter((i) => i.type === t).length;
+    /* switchgear I²R — dihitung lewat baseKey, karena model kontaktor/overload
+       berbeda per rating motor dan key-nya disintesis (contactor_LC1D18BD). */
+    const n = (t) => layout.items.filter((i) => {
+      const d = spec(i.type);
+      return i.type === t || (d && d.baseKey === t);
+    }).length;
     push('Contactors', n('contactor') * A.heatPerContactor);
     push('Overload relays', n('overload') * A.heatPerOverload);
     push('MCCB', n('mccb') * 3 * A.heatPerMccbPole);

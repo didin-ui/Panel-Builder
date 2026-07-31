@@ -9,7 +9,7 @@ Node.js 18+ (cek: `node -v`)
 | `engine.js` | Semua kalkulasi & pemilihan komponen. Murni, tanpa DOM, tanpa dependency. |
 | `index.html` | UI + render. Tidak menghitung apa pun sendiri. |
 | `server.js` | API penyimpanan (Express + SQLite). |
-| `test/engine.test.js` | 241 assertion, jalankan `npm test`. |
+| `test/engine.test.js` | 276 assertion, jalankan `npm test`. |
 | `ASSET-LIST.md` | Ukuran piksel semua gambar & tekstur. |
 | `ENGINEERING.md` | Dasar perhitungan: rumus, konstanta, standar, dan batasannya. |
 
@@ -266,3 +266,16 @@ Nama proyek aktif di topbar hanya tampil di **Panel designer** — di halaman la
 diganti judul aplikasi, karena di sana nama itu menyesatkan (yang ditampilkan
 bukan konteks halamannya). Daftar proyek tetap menandai yang aktif dengan badge
 **Active** dan garis biru di tepi baris.
+
+## Beban bermotor
+Menu Panel designer tidak lagi punya kolom VFD/Servo/Motors dengan rating tetap.
+Sebagai gantinya ada **daftar beban**: tiap entri punya jenis (VFD / Servo /
+Motor DOL), daya poros dalam kW, dan jumlah. Rating itu menentukan arus, ukuran
+breaker & kabel, panas, **dan ukuran fisik drive di gambar** — VFD 5,5 kW itu
+170 × 260 mm, bukan 108 × 128 mm seperti yang 2,2 kW.
+
+Jadi panel dengan fan 5,5 kW + dua pompa 1,5 kW sekarang bisa dinyatakan apa
+adanya. Dulu semuanya dianggap 2,2 kW.
+
+Proyek lama tidak berubah: daftarnya disintesis dari hitungan lama memakai rating
+asumsi yang dulu (2,2 kW / 750 W / 1,5 kW), sampai jumlah baris BOM-nya identik.
