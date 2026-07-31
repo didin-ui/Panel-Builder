@@ -8,7 +8,7 @@
                   catch change, not wrongness.                                */
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
-const E = require('../engine.js');
+const E = require('../public/engine.js');
 
 const cfg = (over) => Object.assign({}, E.DEFAULT_CFG, over || {});
 const R = (over) => E.compute(cfg(over));

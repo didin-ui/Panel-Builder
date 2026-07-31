@@ -83,7 +83,13 @@ const app = express();
 /* Payload sync sekarang kecil karena gambar tidak lagi ikut. Batas ini hanya
    perlu menampung satu gambar per PUT /api/image/:key. */
 app.use(express.json({ limit: '8mb' }));
-app.use(express.static(__dirname));
+/* HANYA public/ yang dilayani. Sebelumnya ini `express.static(__dirname)`, yang
+   berarti panelbuilder.db — seluruh proyek dan data customer — bisa diunduh
+   siapa pun yang menjangkau port ini, begitu juga setiap file backup *.db,
+   server.js dan package.json. app.listen() tanpa host mengikat 0.0.0.0, jadi
+   itu berlaku untuk seluruh jaringan, bukan cuma mesin sendiri. */
+const CLIENT_DIR = path.join(__dirname, 'public');
+app.use(express.static(CLIENT_DIR, { dotfiles: 'deny', index: 'index.html' }));
 
 app.get('/api/health', (req, res) => res.json({
   ok: true, db: 'sqlite', images: true,
@@ -246,5 +252,13 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3100;
-app.listen(PORT, () =>
-  console.log(`Panel Builder Assistant → http://localhost:${PORT}  (db: panelbuilder.db)`));
+/* HOST default localhost: aplikasi ini belum punya autentikasi apa pun, jadi
+   mengikat 0.0.0.0 berarti setiap orang di jaringan bisa membaca, mengubah dan
+   menghapus seluruh proyek lewat /api/projects. Set HOST=0.0.0.0 kalau memang
+   sengaja mau dibagi — itu keputusan sadar, bukan default. */
+const HOST = process.env.HOST || '127.0.0.1';
+app.listen(PORT, HOST, () => {
+  console.log(`Panel Builder Assistant → http://localhost:${PORT}  (db: panelbuilder.db)`);
+  if (HOST === '0.0.0.0')
+    console.log('  ⚠  terbuka ke seluruh jaringan dan TANPA autentikasi.');
+});

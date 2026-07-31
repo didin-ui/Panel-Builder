@@ -6,16 +6,17 @@ Node.js 18+ (cek: `node -v`)
 ## Struktur
 | File | Isi |
 |---|---|
-| `engine.js` | Semua kalkulasi & pemilihan komponen. Murni, tanpa DOM, tanpa dependency. |
-| `index.html` | UI + render. Tidak menghitung apa pun sendiri. |
-| `server.js` | API penyimpanan (Express + SQLite). |
-| `test/engine.test.js` | 276 assertion, jalankan `npm test`. |
+| `public/engine.js` | Semua kalkulasi & pemilihan komponen. Murni, tanpa DOM, tanpa dependency. |
+| `public/index.html` | UI + render. Tidak menghitung apa pun sendiri. |
+| `public/assets/` | Gambar komponen dan tekstur. |
+| `server.js` | API penyimpanan (Express + SQLite). Di luar `public/`, jadi tidak ikut dilayani. |
+| `test/engine.test.js` | 280 assertion, jalankan `npm test`. |
 | `ASSET-LIST.md` | Ukuran piksel semua gambar & tekstur. |
 | `ENGINEERING.md` | Dasar perhitungan: rumus, konstanta, standar, dan batasannya. |
 
 `engine.js` bisa dipakai sendiri tanpa browser:
 ```js
-const {compute, DEFAULT_CFG} = require('./engine.js');
+const {compute, DEFAULT_CFG} = require('./public/engine.js');
 const R = compute({...DEFAULT_CFG, vfd: 4, supplyV: 400, ambientC: 35});
 console.log(R.mccb.pn, R.psu.pn, R.thermal.fans, R.bom.length);
 ```
@@ -39,12 +40,28 @@ npm install
 npm start
 ```
 Buka **http://localhost:3100** — indikator di kiri bawah sidebar harus berubah menjadi
-"● Database connected". Semua proyek kini tersimpan di file `panelbuilder.db` (SQLite)
-di folder yang sama, dan otomatis dipanggil kembali setiap aplikasi dibuka, dari
-browser/komputer mana pun yang mengakses server ini.
+"● Database connected". Semua proyek tersimpan di file `panelbuilder.db` (SQLite)
+di folder yang sama, dan otomatis dipanggil kembali setiap aplikasi dibuka.
+
+### Yang dilayani lewat HTTP
+Hanya isi folder `public/`. Sebelumnya server memasang `express.static(__dirname)`
+sehingga `panelbuilder.db` — seluruh proyek dan data customer — bisa diunduh siapa
+pun yang menjangkau port ini, begitu juga setiap backup `*.db`, `server.js` dan
+`package.json`. Kalau menaruh file di folder proyek, taruh di `public/` **hanya**
+kalau memang boleh dibaca publik.
+
+### Terikat ke localhost
+Server mendengarkan di `127.0.0.1` saja, karena aplikasi ini **belum punya
+autentikasi apa pun**: `/api/projects` bisa dibaca, ditulis dan dihapus tanpa
+kredensial. Untuk dipakai bersama satu tim:
+```
+HOST=0.0.0.0 npm start
+```
+Itu keputusan sadar — lakukan hanya di jaringan yang ente percaya, dan pasang
+autentikasi sebelum dipakai di luar itu.
 
 ## Mode tanpa server
-`index.html` tetap bisa dibuka langsung (double-click) tanpa `npm start` —
+`public/index.html` tetap bisa dibuka langsung (double-click) tanpa `npm start` —
 indikator menunjukkan "● Local only" dan data disimpan di localStorage browser.
 Saat server dijalankan lagi, data dari browser akan disinkronkan ke database
 pada penyimpanan berikutnya.
@@ -247,8 +264,11 @@ valid. CPU tanpa I/O bawaan diturunkan dari status PLC supaya tidak merusak
 hitungan modul ekspansi.
 
 ## Catatan navigasi
-- **AI design review** hanya tampil di Panel designer — isinya membahas layout
-  yang sedang digambar, jadi di halaman lain hanya menghalangi.
+- **Design review** hanya tampil di Panel designer — isinya membahas layout
+  yang sedang digambar, jadi di halaman lain hanya menghalangi. Panel ini
+  merangkum peringatan dan angka dari `engine.js`; **tidak ada model bahasa di
+  belakangnya**. Sebelumnya dilabeli "AI design review", yang membuat orang
+  mengira ada penilaian AI padahal isinya hasil hitungan deterministik.
 - **Layout generator** kini bagian dari **Settings** (bukan menu sidebar
   sendiri), karena isinya parameter global yang jarang diubah. Tautan lama
   `#layoutgen` otomatis diarahkan ke Settings.

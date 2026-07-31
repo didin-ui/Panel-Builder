@@ -368,7 +368,7 @@
     <div class="brand">
       <img src="assets/ui/logo.svg" alt="Logo" onload="this.parentNode.classList.add('has-logo')">
       <div class="brand-mark">PB</div>
-      <div class="brand-txt"><b>Panel Builder</b><span>AI design assistant</span></div>
+      <div class="brand-txt"><b>Panel Builder</b><span>Electrical design assistant</span></div>
     </div>
     <nav class="nav" id="nav"></nav>
     <div class="side-foot">v3.1.0 · MicroPlus Engineering<br><span id="db-status"><span style="color:#E8B34B;">●</span> Local only</span></div>
@@ -725,11 +725,11 @@
 <div class="ai" id="ai-panel">
   <div class="ai-h" onclick="document.getElementById('ai-panel').classList.toggle('min')">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/></svg>
-    AI design review <span style="margin-left:auto;">—</span>
+    Design review <span style="margin-left:auto;">—</span>
   </div>
   <div class="ai-b">
     <div class="ai-msg" id="ai-msg">Buka Panel designer lalu klik Generate panel.</div>
-    <div class="ai-in">Ask about this design…</div>
+    <div class="ai-in">Dihitung oleh engine — bukan pendapat, bukan model bahasa.</div>
   </div>
 </div>
 
@@ -867,7 +867,7 @@ function go(id){
   location.hash = id;
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active', v.id==='view-'+id));
   document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active', a.dataset.view===id));
-  /* AI design review membahas layout yang sedang digambar, jadi hanya relevan
+  /* Design review membahas layout yang sedang digambar, jadi hanya relevan
      di Panel designer — di halaman lain dia cuma menghalangi. */
   const ai=document.getElementById('ai-panel');
   if(ai) ai.style.display = id==='designer' ? '' : 'none';

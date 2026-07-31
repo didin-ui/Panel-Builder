@@ -7,21 +7,23 @@ kalau nanti di-host di Linux, jadi pakai huruf kecil semua.
 
 ```
 Panel_builder_Assistant/
-├── index.html
-└── assets/
-    ├── textures/          ← 4 file, di-tile (bagian berikutnya)
-    │   ├── din-rail.png            200 × 280 px
-    │   ├── wire-duct.png            96 × 360 px
-    │   ├── terminal-strip.png       42 × 320 px
-    │   └── backplate.png           400 × 400 px
-    ├── components/        ← 79 file sprite (tabel di bawah)
-    │   ├── plc-fx5u-32m.png
-    │   ├── mccb-3p-40a.png
-    │   └── …
-    └── ui/                ← opsional, branding
-        ├── logo.svg                tinggi 32 px (sidebar) & 40 px (laporan)
-        ├── favicon.png             32 × 32 px
-        └── avatar.png              60 × 60 px (dipotong bulat)
+└── public/               ← satu-satunya folder yang dilayani lewat HTTP
+    ├── index.html
+    ├── engine.js
+    └── assets/
+        ├── textures/          ← 4 file, di-tile (bagian berikutnya)
+        │   ├── din-rail.png            200 × 280 px
+        │   ├── wire-duct.png            96 × 360 px
+        │   ├── terminal-strip.png       42 × 320 px
+        │   └── backplate.png           400 × 400 px
+        ├── components/        ← 79 file sprite (tabel di bawah)
+        │   ├── plc-fx5u-32m.png
+        │   ├── mccb-3p-40a.png
+        │   └── …
+        └── ui/                ← opsional, branding
+            ├── logo.svg                tinggi 32 px (sidebar) & 40 px (laporan)
+            ├── favicon.png             32 × 32 px
+            └── avatar.png              60 × 60 px (dipotong bulat)
 ```
 
 Semua sudah punya fallback: file yang belum ada tidak menyebabkan error, hanya
