@@ -1027,9 +1027,15 @@ function redrawImages(){
   if(document.getElementById('view-designer').classList.contains('active')) draw();
 }
 function imgSrc(d,key){
-  if(key && blobUrls[key]) return blobUrls[key];
+  /* Key drive & starter disintesis per rating (vfd_400_5k5, contactor_LC1D18BD)
+     dan TIDAK punya gambar sendiri — gambarnya tersimpan di komponen induk yang
+     ada di library (vfd, contactor). Tanpa fallback ini, gambar yang sudah
+     diunggah tetap ada di library tapi kotaknya kosong di Panel designer. */
+  const own = key && state.library.components[key];
+  const k = own ? key : ((d && d.baseKey) || key);
+  if(k && blobUrls[k]) return blobUrls[k];
   if(d.image) return d.image;                       /* data URI lama, masih di memori */
-  if(key && d.hasImage) return `api/image/${encodeURIComponent(key)}?v=${d.imgVersion||0}`;
+  if(k && d.hasImage) return `api/image/${encodeURIComponent(k)}?v=${d.imgVersion||0}`;
   return d.asset ? 'assets/components/'+d.asset : '';
 }
 
