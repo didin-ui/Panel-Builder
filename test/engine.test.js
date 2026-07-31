@@ -1413,6 +1413,107 @@ describe('side panels — where the exhaust fan actually lives', () => {
   });
 });
 
+describe('24 V capacity follows the supplies actually installed', () => {
+  const withPsu = (type, qty) =>
+    R({ extras: [{ type, qty, place: 'plate', rail: 1 }] });
+
+  test('adding a supply raises capacity and lowers utilisation', () => {
+    /* Bug yang dilaporkan: BOM dan gambar menunjukkan dua unit, tapi
+       utilization tetap dihitung dari satu supply hasil pemilihan otomatis. */
+    const one = R();
+    const two = withPsu('psu', 1);
+    assert.equal(two.psuUnits.length, 2, 'second supply not counted');
+    assert.equal(two.psuCapacity, one.psuCapacity * 2);
+    assert.ok(two.util < one.util - 1,
+      `utilisation did not move: ${one.util.toFixed(1)}% → ${two.util.toFixed(1)}%`);
+    /* dan angkanya konsisten dengan BOM */
+    const line = two.bom.find((b) => b.pn === two.psuUnits[0].pn);
+    assert.equal(line.qty, 2);
+  });
+
+  test('utilisation is load divided by installed capacity', () => {
+    for (const [type, qty, cap] of [['psu_5a', 1, 5], ['psu_10a', 2, 20],
+                                    ['psu_20a', 1, 20], ['psu_40a', 1, 40]]) {
+      const r = withPsu(type, qty);
+      assert.equal(r.psuCapacity, cap, type + ' x' + qty);
+      const expect = (r.dcAmps / (cap * r.psu.derate)) * 100;
+      assert.ok(Math.abs(r.util - expect) < 0.01,
+        `${type}: util ${r.util.toFixed(1)} vs ${expect.toFixed(1)}`);
+    }
+  });
+
+  test('choosing a supply yourself disables the automatic one', () => {
+    const r = withPsu('psu_20a', 1);
+    assert.equal(r.psuManual, true);
+    assert.equal(r.psuUnits.length, 1, 'the auto supply was added as well');
+    assert.equal(r.psuCapacity, 20);
+    assert.equal(r.items.filter((i) => i.type === 'psu').length, 0,
+      'automatic slot still placed');
+  });
+
+  test('the generic psu is the automatic slot, not a manual choice', () => {
+    const r = withPsu('psu', 1);
+    assert.equal(r.psuManual, false, 'adding the auto slot must not disable auto-sizing');
+    assert.equal(r.items.filter((i) => i.type === 'psu').length, 2);
+  });
+
+  test('an undersized choice is reported instead of silently accepted', () => {
+    const r = withPsu('psu_5a', 1);
+    assert.ok(r.util > E.ASSUMPTIONS.psuMaxUtil * 100);
+    const w = r.warnings.find((x) => x.code === 'PSU_SHORT');
+    assert.ok(w, 'no shortage warning');
+    assert.match(w.msg, /5 A/);
+    assert.match(w.msg, /kamu pilih/, 'should point at the manual choice');
+  });
+
+  test('over 100% is an error, merely over the cap is a warning', () => {
+    const over = R({ di: 128, valve: 24, hmi: 4,
+                     extras: [{ type: 'psu_5a', qty: 1, place: 'plate', rail: 1 }] });
+    assert.ok(over.util > 100);
+    assert.equal(over.warnings.find((x) => x.code === 'PSU_SHORT').level, 'error');
+  });
+
+  test('a panel with no supply at all is an error', () => {
+    /* library override yang menghapus kapasitas semua supply */
+    const r = E.compute(cfg(), { components: { psu: { psuA: 0 } } });
+    assert.equal(r.psuUnits.length, 0);
+    assert.ok(r.warnings.some((x) => x.code === 'PSU_MISSING' && x.level === 'error'));
+    assert.ok(Number.isFinite(r.heat), 'must still compute');
+  });
+
+  test('N−1 is reported only when there is more than one supply', () => {
+    assert.equal(R().psuRedundantUtil, null, 'single supply cannot be redundant');
+    const two = withPsu('psu_10a', 2);
+    assert.ok(two.psuRedundantUtil > two.util,
+      'losing a unit must raise utilisation');
+    /* dua 10 A: normal 25%, kehilangan satu -> 50% */
+    assert.ok(Math.abs(two.psuRedundantUtil - two.util * 2) < 0.01);
+  });
+
+  test('the supply catalogue declares real capacities', () => {
+    for (const [k, a] of [['psu_5a', 5], ['psu_10a', 10], ['psu_20a', 20], ['psu_40a', 40]]) {
+      const d = E.COMPONENT_DB[k];
+      assert.ok(d, 'missing catalogue entry ' + k);
+      assert.equal(d.psuA, a);
+      assert.match(d.pn, new RegExp('/' + a + '$'), k + ' part number mismatch');
+      assert.equal(d.cat, 'Power');
+    }
+    /* lebar naik seiring kapasitas — footprint ikut benar */
+    const w = ['psu_5a', 'psu_10a', 'psu_20a', 'psu_40a'].map((k) => E.COMPONENT_DB[k].w);
+    for (let i = 1; i < w.length; i++)
+      assert.ok(w[i] > w[i - 1], 'a bigger supply should not be narrower');
+  });
+
+  test('installed supplies stay consistent with the drawing and BOM', () => {
+    const r = withPsu('psu_10a', 3);
+    assert.equal(r.psuUnits.length, 3);
+    /* setiap unit yang dihitung harus benar-benar ada di layout */
+    for (const u of r.psuUnits)
+      assert.ok(r.items.some((i) => i.tag === u.tag), u.tag + ' counted but not placed');
+    assert.equal(r.bom.find((b) => b.pn === 'QUINT4-PS/1AC/24DC/10').qty, 3);
+  });
+});
+
 describe('drive thermal clearance', () => {
   test('the drives rail gets breathing room, ordinary rails do not', () => {
     const r = R();

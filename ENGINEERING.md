@@ -88,6 +88,30 @@ I_required = I_load / (maxUtil · derate)
 45 °C, then −2%/K to a floor of 0.6 (QUINT-class behaviour). The smallest supply
 in the ladder meeting `I_required` wins. Ladder: 5 / 10 / 20 / 40 A.
 
+### Kapasitas mengikuti supply yang terpasang
+
+Utilization dihitung terhadap **total kapasitas semua supply di panel**, bukan
+terhadap satu unit hasil pemilihan otomatis. Sebelumnya supply tambahan tetap
+digambar dan masuk BOM tapi kapasitasnya diabaikan, sehingga angka utilization
+tidak pernah berubah walau unitnya ditambah — BOM bilang dua, hitungan bilang
+satu.
+
+Setiap komponen yang punya field `psuA` dihitung sebagai sumber 24 V. Katalog
+yang tersedia: `psu_5a`, `psu_10a`, `psu_20a`, `psu_40a`. Memilih salah satunya
+lewat **+ Panel** akan **mematikan pemilihan otomatis** — pilihanmu yang dipakai,
+seperti terminal block di rail 4. Komponen `psu` sendiri adalah slot otomatis
+itu, jadi menambahkannya berarti satu unit lagi dengan model yang sama.
+
+**Asumsi yang perlu disadari:** kapasitas beberapa supply **dijumlahkan**, yang
+benar kalau tiap supply memberi makan grup 24 V berbeda. Kalau maksudmu cadangan
+N+1 (paralel lewat modul redundansi), kapasitasnya TIDAK boleh dijumlahkan.
+Engine tidak bisa membedakan keduanya, jadi ia melaporkan **utilization saat satu
+unit mati** begitu ada lebih dari satu supply — supaya pilihannya sadar, bukan
+diasumsikan diam-diam.
+
+Peringatan: `PSU_SHORT` (di atas 70% → warn, di atas 100% → error) dan
+`PSU_MISSING` kalau panel tidak punya sumber 24 V sama sekali.
+
 The prototype used `dcLoad/24 > 9 ? 20A : 10A`, which allowed 89% utilisation
 before any derating.
 

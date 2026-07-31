@@ -179,7 +179,16 @@
   const COMPONENT_DB = {
     mccb:      { asset:'mccb-3p-40a.png',      w:75,   h:130, d:68,  cat:'Protection', label:'Main Breaker',    color:'#B3372E', bg:'#FAE3E1', pn:'NF32-SV-3P-32A',        desc:'Main breaker MCCB 3P',                 vendor:'Mitsubishi Electric', mount:'rail', powerW:0,  dimsVerified:false },
     spd:       { asset:'spd-3p-385v.png',      w:72,   h:90,  d:66,  cat:'Protection', label:'SPD',             color:'#C08415', bg:'#FBEED3', pn:'SPD-3P-385V-T2',        desc:'Surge protection device 3P+N T2',      vendor:'CITEL',               mount:'rail', powerW:0,  dimsVerified:false },
-    psu:       { asset:'psu-24vdc.png',        w:97,   h:130, d:125, cat:'Power',      label:'Power Supply',    color:'#2478CE', bg:'#E3EEF9', pn:'QUINT4-PS/1AC/24DC/20', desc:'Power supply 24 VDC',                  vendor:'Phoenix Contact',     mount:'rail', powerW:0,  dimsVerified:false },
+    /* `psu` = slot yang diisi otomatis oleh selectPsu; part number, ukuran dan
+       kapasitasnya menyusul hasil pemilihan. `psuA` menyatakan kapasitas keluaran
+       — semua komponen ber-psuA dihitung sebagai sumber 24 V. */
+    psu:       { asset:'psu-24vdc.png',        w:97,   h:130, d:125, cat:'Power',      label:'Power Supply',    color:'#2478CE', bg:'#E3EEF9', pn:'QUINT4-PS/1AC/24DC/20', desc:'Power supply 24 VDC',                  vendor:'Phoenix Contact',     mount:'rail', powerW:0,  dimsVerified:false, psuA:20 },
+    /* Katalog PSU untuk dipilih sendiri dari library (+ Panel). Menambah salah
+       satu dari ini mematikan pemilihan otomatis — lihat ENGINEERING.md §2. */
+    psu_5a:    { asset:'psu-24vdc-5a.png',     w:45,   h:130, d:125, cat:'Power',      label:'Power Supply',    color:'#2478CE', bg:'#E3EEF9', pn:'QUINT4-PS/1AC/24DC/5',  desc:'Power supply 24 VDC 5 A',              vendor:'Phoenix Contact',     mount:'rail', powerW:0,  dimsVerified:false, psuA:5 },
+    psu_10a:   { asset:'psu-24vdc-10a.png',    w:60,   h:130, d:125, cat:'Power',      label:'',                color:'#2478CE', bg:'#E3EEF9', pn:'QUINT4-PS/1AC/24DC/10', desc:'Power supply 24 VDC 10 A',             vendor:'Phoenix Contact',     mount:'rail', powerW:0,  dimsVerified:false, psuA:10 },
+    psu_20a:   { asset:'psu-24vdc-20a.png',    w:97,   h:130, d:125, cat:'Power',      label:'',                color:'#2478CE', bg:'#E3EEF9', pn:'QUINT4-PS/1AC/24DC/20', desc:'Power supply 24 VDC 20 A',             vendor:'Phoenix Contact',     mount:'rail', powerW:0,  dimsVerified:false, psuA:20 },
+    psu_40a:   { asset:'psu-24vdc-40a.png',    w:130,  h:130, d:145, cat:'Power',      label:'',                color:'#2478CE', bg:'#E3EEF9', pn:'QUINT4-PS/1AC/24DC/40', desc:'Power supply 24 VDC 40 A',             vendor:'Phoenix Contact',     mount:'rail', powerW:0,  dimsVerified:false, psuA:40 },
     contactor: { asset:'contactor.png',        w:45,   h:77,  d:86,  cat:'Switching',  label:'Contactor',       color:'#6B7885', bg:'#EEF1F4', pn:'LC1D09BD',              desc:'Contactor AC-3, coil 24 VDC',          vendor:'Schneider Electric',  mount:'rail', powerW:2,  dimsVerified:false },
     overload:  { asset:'thermal-overload.png', w:45,   h:70,  d:68,  cat:'Protection', label:'',                color:'#6B7885', bg:'#EEF1F4', pn:'LRD10',                 desc:'Thermal overload relay',               vendor:'Schneider Electric',  mount:'rail', powerW:0,  dimsVerified:false },
     safety:    { asset:'safety-relay.png',     w:22.5, h:99,  d:115, cat:'Safety',     label:'Safety Relay',    color:'#0F7A6C', bg:'#DDF1EE', pn:'PSR-SCP-24DC/ESD/4X1',  desc:'Safety relay dual channel 4 NO',       vendor:'Phoenix Contact',     mount:'rail', powerW:4,  dimsVerified:false },
@@ -874,8 +883,20 @@
     }
     const spec = (t) => specs[t] || BLANK_COMPONENT;
 
+    /* ── Sumber 24 V ────────────────────────────────────────────────────
+       Kalau kamu memilih supply sendiri dari library, itulah yang dipakai —
+       engine berhenti menambahkan satu secara otomatis, persis seperti terminal
+       block di rail 4. Dulu supply tambahan tetap digambar dan masuk BOM tapi
+       kapasitasnya diabaikan, sehingga utilization tidak pernah berubah.
+
+       `psu` adalah slot otomatis itu sendiri, jadi menambahkannya berarti "satu
+       unit lagi dengan model yang sama" — bukan pilihan manual. Yang mematikan
+       pemilihan otomatis hanya katalog eksplisit (psu_5a/10a/20a/40a). */
+    const psuExtras = c.extras.filter((e) =>
+      e.type !== 'psu' && db[e.type] && num(db[e.type].psuA, 0) > 0);
+    const psuManual = psuExtras.length > 0;
     /* ── thermal (needs a size; size needs a layout; so: layout first) ── */
-    const rail1 = ['mccb', 'spd', 'psu']
+    const rail1 = ['mccb', 'spd'].concat(psuManual ? [] : ['psu'])
       .concat(fill(dol, 'contactor'), fill(dol, 'overload'));
     /* An Ethernet switch only earns its place if there is something to network */
     const needsEth = hasPlc || c.hmi > 0;
@@ -1009,10 +1030,34 @@
       warnings.push({ level: 'error', code: 'TOO_WIDE',
         msg: 'A single component is wider than the usable backplate width. ' +
              'Increase the cabinet width.' });
-    if (psuPick.undersized)
-      warnings.push({ level: 'error', code: 'PSU_SHORT',
-        msg: 'No supply in the table covers ' + dc.aTotal.toFixed(1) +
-             ' A at ' + Math.round(A.psuMaxUtil * 100) + '% utilisation.' });
+    /* ── Kapasitas 24 V dari supply yang BENAR-BENAR terpasang ────────── */
+    const psuUnits = layout.items
+      .filter((i) => num(specs[i.type].psuA, 0) > 0)
+      .map((i) => ({ tag: i.tag, pn: specs[i.type].pn,
+                     a: i.type === 'psu' ? psuPick.ratedA : num(specs[i.type].psuA, 0) }));
+    const psuCapacity = psuUnits.reduce((t, u) => t + u.a, 0);
+    const psuDerated = psuCapacity * psuPick.derate;
+    const psuUtil = psuDerated > 0 ? (dc.aTotal / psuDerated) * 100 : Infinity;
+    /* Dua supply bisa berarti kapasitas ganda ATAU cadangan N+1 — engine tidak
+       bisa tahu. Kapasitas dijumlahkan, tapi utilization saat satu unit mati
+       ikut dilaporkan supaya pilihannya sadar, bukan diasumsikan. */
+    const psuRedundantUtil = psuUnits.length > 1
+      ? (dc.aTotal / ((psuCapacity - Math.max.apply(null, psuUnits.map((u) => u.a))) *
+                      psuPick.derate)) * 100
+      : null;
+
+    if (!psuUnits.length)
+      warnings.push({ level: 'error', code: 'PSU_MISSING',
+        msg: 'Tidak ada sumber 24 V di panel, padahal beban kontrol ' +
+             dc.aTotal.toFixed(1) + ' A. Tambahkan power supply dari Components library.' });
+    else if (psuUtil > A.psuMaxUtil * 100 + 0.01)
+      warnings.push({ level: psuUtil > 100 ? 'error' : 'warn', code: 'PSU_SHORT',
+        msg: 'Beban 24 V ' + dc.aTotal.toFixed(1) + ' A terhadap kapasitas terpasang ' +
+             psuCapacity + ' A = ' + Math.round(psuUtil) + '% ' +
+             (psuUtil > 100 ? '— melebihi kapasitas.' : '— di atas batas ' +
+              Math.round(A.psuMaxUtil * 100) + '%.') +
+             (psuManual ? ' Tambah/besarkan supply yang kamu pilih.'
+                        : ' Tidak ada supply di tabel yang cukup.') });
     if (th.method === 'cooling-unit')
       warnings.push({ level: 'warn', code: 'COOLING_UNIT', msg: th.note });
 
@@ -1066,7 +1111,10 @@
       dcAmps: dc.aTotal, dcDetail: dc,
       totalW: totalPIn, totalVA: totalS, systemPf,
       flcA, startA, peakA: flcA,
-      psu: psuPick, psuA: psuPick.ratedA, util: psuPick.utilPct,
+      /* util sekarang mengikuti kapasitas TERPASANG, bukan satu unit hasil
+         pemilihan otomatis — menambah supply benar-benar menurunkannya. */
+      psu: psuPick, psuA: psuCapacity, util: psuUtil,
+      psuUnits, psuCapacity, psuManual, psuRedundantUtil,
       mccb, driveMcb, controlMcb, starter, driveA,
       /* thermal */
       heat: heat.totalW, heatDetail: heat, thermal: th,

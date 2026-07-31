@@ -526,7 +526,7 @@
                 <tr><td>Recommended PSU</td><td class="accent" id="r-psu">—</td></tr>
               </table>
               <div class="util"><i id="r-util-bar" style="width:0%"></i></div>
-              <div style="font-size:11px;color:var(--gray-500);margin-top:4px;">PSU utilization <span id="r-util">—</span> (cap <span id="r-util-cap">70</span>%)</div>
+              <div style="font-size:11px;color:var(--gray-500);margin-top:4px;">PSU utilization <span id="r-util">—</span> (cap <span id="r-util-cap">70</span>%)<span id="r-util-nmin1"></span></div>
             </div>
           </section>
           <section class="card">
@@ -1508,10 +1508,20 @@ function generate(save){
   set('r-start',R.startA.toFixed(1)+' A');
   set('r-mccb',R.mccb.pn);
   set('r-dc',Math.round(R.dcLoad)+' W ('+R.dcAmps.toFixed(1)+' A)');
-  set('r-psu',R.psu.pn.replace('QUINT4-PS/1AC/','')+' · '+R.psu.ratedA+' A');
+  set('r-psu', R.psuUnits.length
+    ? (R.psuUnits.length>1
+        ? `${R.psuUnits.length} unit · ${R.psuCapacity} A total`
+        : R.psuUnits[0].pn.replace('QUINT4-PS/1AC/','')+' · '+R.psuCapacity+' A')
+      + (R.psuManual?' (dipilih)':'')
+    : 'tidak ada');
   set('r-util',Math.round(R.util)+'%');
   set('r-util-cap',Math.round(R.assumptions.psuMaxUtil*100));
-  document.getElementById('r-util-bar').style.width=Math.min(100,R.util)+'%';
+  set('r-util-nmin1', R.psuRedundantUtil!=null
+    ? ` · ${Math.round(R.psuRedundantUtil)}% bila 1 unit mati` : '');
+  const bar=document.getElementById('r-util-bar');
+  bar.style.width=Math.min(100,R.util)+'%';
+  bar.style.background = R.util>100 ? 'var(--red-600)'
+    : R.util>R.assumptions.psuMaxUtil*100 ? 'var(--amber-700)' : 'var(--blue-500)';
   set('r-heat',R.heat+' W');
   set('r-ae',R.thermal.Ae.toFixed(2)+' m²');
   set('r-temp',R.thermal.naturalDT.toFixed(1)+' K → '+R.temp+' °C');
@@ -2564,8 +2574,14 @@ function renderCalc(){
         <td>${esc(R.starter.contactor.pn)} + ${esc(R.starter.overload.pn)}</td></tr>`:''}
      <tr><td>24 VDC internal / field</td><td>${Math.round(R.dcInternalW)} / ${Math.round(R.dcExternalW)} W</td></tr>
      <tr><td>24 VDC total</td><td>${Math.round(R.dcLoad)} W (${R.dcAmps.toFixed(2)} A)</td></tr>
-     <tr><td>PSU required at ${Math.round(A.psuMaxUtil*100)}% cap</td><td>${R.psu.requiredA.toFixed(2)} A</td></tr>
-     <tr><td>PSU selected</td><td class="accent">${esc(R.psu.pn)} (${Math.round(R.util)}%)</td></tr>`;
+     <tr><td>Kapasitas 24 V minimum (cap ${Math.round(A.psuMaxUtil*100)}%)</td><td>${R.psu.requiredA.toFixed(2)} A</td></tr>
+     ${R.psuUnits.map((u,i)=>`<tr><td>${i?'':'Supply terpasang'}</td>
+        <td>${esc(u.tag)} · ${esc(u.pn)} — ${u.a} A</td></tr>`).join('')
+       || '<tr><td>Supply terpasang</td><td style="color:var(--red-600);">tidak ada</td></tr>'}
+     <tr><td>Total kapasitas${R.psuManual?' (dipilih manual)':' (otomatis)'}</td>
+       <td class="accent">${R.psuCapacity} A → ${Math.round(R.util)}% terpakai</td></tr>
+     ${R.psuRedundantUtil!=null?`<tr><td>Bila 1 unit mati (N−1)</td>
+       <td>${Math.round(R.psuRedundantUtil)}%${R.psuRedundantUtil>100?' — beban tidak tertampung':''}</td></tr>`:''}`;
 
   document.getElementById('calc-heat').innerHTML=
     R.heatDetail.lines.map(l=>`<tr><td>${esc(l.name)}</td><td>${l.w} W</td></tr>`).join('')+
@@ -2950,7 +2966,10 @@ function reportHtml(){
       <tr><td>Full-load current</td><td>${R.flcA.toFixed(1)} A</td><td>Temp rise / inside</td><td>${R.thermal.naturalDT.toFixed(1)} K / ${R.temp} °C</td></tr>
       <tr><td>Starting current</td><td>${R.startA.toFixed(1)} A</td><td>Cooling</td><td>${esc(R.thermal.note)}</td></tr>
       <tr><td>Incoming breaker</td><td>${esc(R.mccb.pn)}</td><td>Terminal / wires</td><td>${R.termPoints} / ${R.wires}</td></tr>
-      <tr><td>PSU</td><td>${esc(R.psu.pn)} (${Math.round(R.util)}%)</td><td>Rail spare</td><td>${Math.round(R.railFreeMm)} mm</td></tr></table>
+      <tr><td>Supply 24 V</td><td>${R.psuUnits.length
+          ? `${R.psuUnits.length} × ${R.psuCapacity} A total (${Math.round(R.util)}%)`
+          : '<b style="color:var(--red-600);">tidak ada</b>'}</td>
+        <td>Rail spare</td><td>${Math.round(R.railFreeMm)} mm</td></tr></table>
     ${R.warnings.length?`<h3>Temuan review (${R.warnings.length})</h3>
     <table class="data"><tr><th>Level</th><th>Kode</th><th>Temuan</th></tr>
       ${R.warnings.map(w=>`<tr><td style="color:${WARN_COLOR[w.level]};">${w.level}</td>
