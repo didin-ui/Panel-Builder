@@ -75,6 +75,12 @@
       gap: 15,      /* horizontal clearance between components on a rail */
       pad: 20,      /* backplate margin */
       gapV: 12,     /* vertical clearance between rails and ducts */
+      /* Drive (VFD/servo) membuang panas lewat heatsink vertikal dan butuh
+         ruang napas di atas & bawah — manual Mitsubishi FR-D700 dan MR-J4
+         meminta ~100 mm. Rail biasa cukup gapV; rail berisi drive dipaksa
+         memakai angka ini. Dulu semua rail memakai 12 mm, sehingga rail drive
+         yang lolos di layar tidak bisa dirakit. */
+      driveClearance: 100,
       ductH: 45,    /* wire duct height */
       tstripH: 40,  /* terminal strip band height */
     },
@@ -906,6 +912,7 @@
        konvergen dengan kolom cadangannya. */
     const layout = buildLayout({ rail1, rail2, rail3, rail4 }, {
       W, PAD, GAP, GAPV, DUCT, TSTRIP, spec, platePos: c.platePos,
+      driveClearance: L.driveClearance,
     });
     const maxDepth = Math.max.apply(null,
       layout.items.map((i) => spec(i.type).d).concat([100]));
@@ -949,6 +956,25 @@
         msg: 'The backplate needs ' + Math.round(layout.needH) + ' mm of height but the ' +
              'selected panel is ' + dims.W + '×' + dims.H + ' mm. Choose a taller size, ' +
              'a wider one so rails pack better, or switch the size back to Auto.' });
+    /* Drive yang dipindah manual bisa mendarat di rail biasa yang jaraknya cuma
+       gapV — layout otomatis menjaga clearance, penempatan manual tidak. */
+    const tightDrives = [];
+    for (const it of layout.items) {
+      if (spec(it.type).cat !== 'Drives') continue;
+      const row = layout.rows.find((r) => r.list && Math.abs(r.railY - it.y) < 1);
+      if (row && (row.clearance || 0) < L.driveClearance) tightDrives.push(it.tag);
+    }
+    if (tightDrives.length)
+      warnings.push({ level: 'warn', code: 'DRIVE_CLEARANCE',
+        msg: 'Drive ' + tightDrives.join(', ') + ' berada di rail dengan jarak ' +
+             'kurang dari ' + L.driveClearance + ' mm. Heatsink butuh ruang napas ' +
+             'atas–bawah; pindahkan kembali ke rail drive.' });
+    for (const [what, list] of [['pintu', door.overlaps], ['panel sisi', side.overlaps]])
+      if (list && list.length)
+        warnings.push({ level: 'warn', code: 'DEVICE_OVERLAP',
+          msg: 'Perangkat bertumpuk di ' + what + ': ' + list.slice(0, 6).join(', ') +
+               (list.length > 6 ? ` (+${list.length - 6} lagi)` : '') +
+               '. Dua lubang di titik yang sama tidak bisa dibor.' });
     if (layout.overlaps.length)
       warnings.push({ level: 'warn', code: 'PLATE_OVERLAP',
         msg: 'Komponen bertumpuk setelah digeser manual: ' +
@@ -1074,10 +1100,14 @@
         if (chunk.some((t) => spec(t).w > usableW)) overflow = true;
         railLengthMm += W - PAD * 2;
         railUsedMm += Math.max(0, used);
-        rows.push({ list: chunk, h: rowH, railY: y + rowH / 2,
+        /* Rail berisi drive butuh ruang napas untuk heatsink-nya. */
+        const hasDrive = chunk.some((t) => spec(t).cat === 'Drives');
+        const clear = hasDrive ? Math.max(GAPV, o.driveClearance || 0) : GAPV;
+        if (hasDrive) y += clear - GAPV;            /* ruang di ATAS rail drive */
+        rows.push({ list: chunk, h: rowH, railY: y + rowH / 2, clearance: clear,
                     name: title + (chunks.length > 1 ? ' (' + (i + 1) + '/' +
                           chunks.length + ')' : '') });
-        y += rowH + GAPV;
+        y += rowH + clear;                          /* dan di BAWAHnya */
       });
     };
     const emitBand = (kind, h, label) => {
@@ -1256,7 +1286,20 @@
     const draggedOutside = placed.filter((it) => it.manual && isOutside(it))
       .map((it) => it.tag);
 
+    /* Tumpang tindih di pintu: dicegah saat menggeser, tapi masih bisa masuk
+       lewat proyek lama atau komponen yang dimensinya diperbesar di library. */
+    const overlaps = [];
+    for (let i = 0; i < placed.length; i++)
+      for (let j = i + 1; j < placed.length; j++) {
+        const a = placed[i], b = placed[j];
+        const da = spec(a.type), db = spec(b.type);
+        if (Math.abs(a.x - b.x) < (da.w + db.w) / 2 - 0.51 &&
+            Math.abs(a.y - b.y) < (da.h + db.h) / 2 - 0.51)
+          overlaps.push(a.tag + '/' + b.tag);
+      }
+
     return { items: placed, zones, margin: M, manual, outside, draggedOutside,
+             overlaps,
              neededH: Math.max(ext.h + M, M + est.h + M),
              neededW: ext.w + M,
              fits: ext.h <= H && ext.w <= W && !outside.length };
@@ -1313,8 +1356,21 @@
     const widest = items.reduce((mx, it) => Math.max(mx, spec(it.type).w), 0);
     const neededH = Math.max(stackNeed(rightList), stackNeed(leftList));
 
+    /* Sama seperti pintu — hanya perangkat di SISI yang sama yang bisa bentrok. */
+    const overlaps = [];
+    for (const side of ['left', 'right']) {
+      const g = items.filter((i) => i.side === side);
+      for (let i = 0; i < g.length; i++)
+        for (let j = i + 1; j < g.length; j++) {
+          const a = g[i], b = g[j], da = spec(a.type), db = spec(b.type);
+          if (Math.abs(a.x - b.x) < (da.w + db.w) / 2 - 0.51 &&
+              Math.abs(a.y - b.y) < (da.h + db.h) / 2 - 0.51)
+            overlaps.push(a.tag + '/' + b.tag);
+        }
+    }
+
     return {
-      items,
+      items, overlaps,
       left: items.filter((i) => i.side === 'left'),
       right: items.filter((i) => i.side === 'right'),
       margin: M, manual, outside, draggedOutside, neededH, widest,

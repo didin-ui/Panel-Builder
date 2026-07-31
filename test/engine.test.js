@@ -60,15 +60,15 @@ describe('golden — reference machine (24DI/16DO/4AI/2AO, 3 VFD, 2 servo, 6 mot
 
   test('thermal', () => {
     assert.equal(r.heat, 403);
-    assert.equal(r.thermal.Ae.toFixed(3), '1.996');
+    assert.equal(r.thermal.Ae.toFixed(3), '2.328');
     assert.equal(r.thermal.method, 'forced');
     assert.equal(r.fans, 2);
-    assert.equal(Math.round(r.thermal.requiredCfm), 67);
+    assert.equal(Math.round(r.thermal.requiredCfm), 63);
     assert.equal(r.temp, 35);
   });
 
   test('enclosure and schedules', () => {
-    assert.deepEqual([r.W, r.H, r.D], [800, 1000, 300]);
+    assert.deepEqual([r.W, r.H, r.D], [800, 1200, 300]);
     assert.equal(r.termPoints, 92);
     assert.equal(r.wires, 119);
     assert.equal(r.bom.length, 59);
@@ -1410,6 +1410,105 @@ describe('side panels — where the exhaust fan actually lives', () => {
     const used = rail1.list.reduce((t, k) => t + r.specs[k].w, 0);
     assert.ok(used <= r.W - r.assumptions.layout.pad * 2,
       'rail 1 should now be able to use the full backplate width');
+  });
+});
+
+describe('drive thermal clearance', () => {
+  test('the drives rail gets breathing room, ordinary rails do not', () => {
+    const r = R();
+    const rows = r.rows.filter((x) => x.list);
+    const drives = rows.find((x) => /DRIVES/.test(x.name));
+    assert.ok(drives, 'fixture needs a drives rail');
+    assert.equal(drives.clearance, E.ASSUMPTIONS.layout.driveClearance);
+    for (const row of rows)
+      if (!/DRIVES/.test(row.name))
+        assert.equal(row.clearance, E.ASSUMPTIONS.layout.gapV,
+          row.name + ' should use the ordinary gap');
+  });
+
+  test('the clearance is real space, not just a number', () => {
+    const r = R();
+    const rows = r.rows.filter((x) => x.list);
+    const i = rows.findIndex((x) => /DRIVES/.test(x.name));
+    assert.ok(i > 0, 'need a rail above the drives');
+    const above = rows[i - 1], drive = rows[i];
+    const gap = (drive.railY - drive.h / 2) - (above.railY + above.h / 2);
+    assert.ok(gap >= E.ASSUMPTIONS.layout.driveClearance - 0.01,
+      `only ${Math.round(gap)} mm above the drives rail`);
+  });
+
+  test('a panel with drives is taller than one without', () => {
+    const withDrives = R({ vfd: 3, servo: 2, motor: 6 });
+    const without = R({ vfd: 0, servo: 0, motor: 6 });
+    assert.ok(withDrives.needH > without.needH,
+      'clearance did not affect the required height');
+  });
+
+  test('no clearance is reserved when there are no drives', () => {
+    const r = R({ vfd: 0, servo: 0, motor: 6 });
+    for (const row of r.rows.filter((x) => x.list))
+      assert.equal(row.clearance, E.ASSUMPTIONS.layout.gapV);
+    assert.ok(!r.warnings.some((w) => w.code === 'DRIVE_CLEARANCE'));
+  });
+
+  test('a drive dragged onto a cramped rail is reported', () => {
+    const base = R();
+    const rows = base.railRows;
+    /* pindahkan VFD ke rail 1 (incoming), yang jaraknya cuma gapV */
+    const r = R({ platePos: { 'vfd#1': { x: 400, row: rows[0] } } });
+    const w = r.warnings.find((x) => x.code === 'DRIVE_CLEARANCE');
+    assert.ok(w && w.level === 'warn', 'cramped drive not reported');
+    assert.match(w.msg, /T1/);
+    assert.match(w.msg, new RegExp(String(E.ASSUMPTIONS.layout.driveClearance)));
+  });
+
+  test('the clearance is tunable like the other layout parameters', () => {
+    const tight = E.compute(cfg(), { layout: { driveClearance: 12 } });
+    const loose = E.compute(cfg(), { layout: { driveClearance: 200 } });
+    assert.ok(loose.needH > tight.needH, 'the setting has no effect');
+    assert.equal(tight.rows.find((x) => x.list && /DRIVES/.test(x.name)).clearance, 12);
+  });
+});
+
+describe('front cover & side panels — overlap is reported', () => {
+  test('the generated layouts never overlap', () => {
+    for (const c of [{}, { hmi: 4 }, { motor: 9 }, { cabW: 1200, cabH: 1200 }]) {
+      const r = R(c);
+      assert.deepEqual(r.door.overlaps, [], 'door overlap in ' + JSON.stringify(c));
+      assert.deepEqual(r.side.overlaps, [], 'side overlap in ' + JSON.stringify(c));
+    }
+  });
+
+  test('two door devices in the same place are named', () => {
+    const auto = R();
+    const est = auto.door.items.find((i) => i.type === 'estop');
+    const r = R({ doorPos: { 'pb_start#1': { x: est.x, y: est.y } } });
+    assert.deepEqual(r.door.overlaps, ['S1/S3']);
+    const w = r.warnings.find((x) => x.code === 'DEVICE_OVERLAP');
+    assert.ok(w, 'no warning raised');
+    assert.match(w.msg, /pintu/);
+    assert.match(w.msg, /dibor/);
+  });
+
+  test('side devices only clash with the same side', () => {
+    const auto = R();
+    const e1 = auto.side.right.find((i) => i.type === 'fan');
+    /* pindah ke posisi yang sama TAPI sisi berbeda — tidak boleh dianggap bentrok */
+    const across = R({ sidePos: { 'fan#2': { x: e1.x, y: e1.y, side: 'left' } } });
+    assert.deepEqual(across.side.overlaps, [],
+      'devices on opposite sides cannot collide');
+    /* sisi yang sama -> bentrok */
+    const same = R({ sidePos: { 'fan#2': { x: e1.x, y: e1.y, side: 'right' } } });
+    assert.deepEqual(same.side.overlaps, ['E1/E2']);
+  });
+
+  test('touching is allowed, only intrusion is reported', () => {
+    const auto = R();
+    const est = auto.door.items.find((i) => i.type === 'estop');
+    const de = auto.specs.estop, ds = auto.specs.pb_start;
+    /* tepat bersentuhan di tepi kanan E-stop */
+    const r = R({ doorPos: { 'pb_start#1': { x: est.x + de.w / 2 + ds.w / 2, y: est.y } } });
+    assert.deepEqual(r.door.overlaps, [], 'touching must not count as overlapping');
   });
 });
 

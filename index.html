@@ -1574,7 +1574,10 @@ function updateChip(){
 function flaggedTags(){
   const t=new Set();
   if(!R) return t;
-  for(const pair of R.overlaps||[]) for(const tag of String(pair).split('/')) t.add(tag);
+  const pairs=[].concat(R.overlaps||[],
+                        (R.door&&R.door.overlaps)||[],
+                        (R.side&&R.side.overlaps)||[]);
+  for(const pair of pairs) for(const tag of String(pair).split('/')) t.add(tag);
   for(const tag of (R.door&&R.door.outside)||[]) t.add(tag);
   for(const tag of (R.side&&R.side.outside)||[]) t.add(tag);
   return t;
@@ -1656,8 +1659,17 @@ function attachSideDrag(which){
         const dx=(ev.clientX-startX)/zoom, dy=(ev.clientY-startY)/zoom;
         nx=Math.round((ox+dx)/DOOR_SNAP)*DOOR_SNAP;
         ny=Math.round((oy+dy)/DOOR_SNAP)*DOOR_SNAP;
-        nx=Math.min(R.D-d.w/2, Math.max(d.w/2, nx));
-        ny=Math.min(R.H-d.h/2, Math.max(d.h/2, ny));
+        /* hanya perangkat di SISI YANG SAMA yang jadi penghalang */
+        const same=R.side.items.filter(x=>x.side===which);
+        const spot=freeSpot2D(nx, ny, d.w, d.h,
+          blocksOn(same, id, R.specs), R.D, R.H, DOOR_SNAP);
+        if(!spot){
+          el.classList.add('blocked');
+          set('toolbar-meta',`${it.tag} — tidak ada ruang kosong di sisi ${which}`);
+          return;
+        }
+        el.classList.remove('blocked');
+        nx=spot.x; ny=spot.y;
         el.style.left=(nx-d.w/2)+'px'; el.style.top=(ny-d.h/2)+'px';
         set('toolbar-meta',`${it.tag} → X ${nx} / Y ${ny} mm (${which} side)`);
       };
@@ -1765,8 +1777,17 @@ function attachDoorDrag(originX, originY){
         let nx=Math.round((ox+dx)/DOOR_SNAP)*DOOR_SNAP;
         let ny=Math.round((oy+dy)/DOOR_SNAP)*DOOR_SNAP;
         /* jaga di dalam pintu */
-        nx=Math.min(R.W-d.w/2, Math.max(d.w/2, nx));
-        ny=Math.min(R.H-d.h/2, Math.max(d.h/2, ny));
+        /* titik bebas terdekat — perangkat pintu tidak boleh saling menumpuk,
+           dua lubang di titik yang sama tidak bisa dibor */
+        const spot=freeSpot2D(nx, ny, d.w, d.h,
+          blocksOn(R.door.items, id, R.specs), R.W, R.H, DOOR_SNAP);
+        if(!spot){
+          el.classList.add('blocked');
+          set('toolbar-meta',`${it.tag} — tidak ada ruang kosong di pintu`);
+          return;
+        }
+        el.classList.remove('blocked');
+        nx=spot.x; ny=spot.y;
         el.style.left=(nx-d.w/2)+'px'; el.style.top=(ny-d.h/2)+'px';
         el.dataset.nx=nx; el.dataset.ny=ny;
         set('toolbar-meta',`${it.tag} → X ${nx} / Y ${ny} mm`);
@@ -1890,6 +1911,49 @@ function freeSlotX(want, w, occupied, minX, maxX){
   }
   return best===null?null:Math.round(best/PLATE_STEP)*PLATE_STEP;
 }
+/* ── Anti-tumpang tindih 2D (front cover & panel sisi) ────────────────────
+   Di rail cukup menggeser kiri/kanan; di bidang bebas tidak ada arah yang
+   jelas, jadi dicari titik bebas TERDEKAT dari posisi yang diminta: kalau
+   posisi itu bentrok, kandidatnya adalah menempel di keempat sisi tiap
+   penghalang, lalu diambil yang paling dekat. */
+function rectsOverlap(a, b){
+  return a.x1 < b.x2-0.01 && a.x2 > b.x1+0.01 && a.y1 < b.y2-0.01 && a.y2 > b.y1+0.01;
+}
+function freeSpot2D(wantX, wantY, w, h, blocks, maxX, maxY, snap){
+  const clampX=x=>Math.min(maxX-w/2, Math.max(w/2, x));
+  const clampY=y=>Math.min(maxY-h/2, Math.max(h/2, y));
+  const box=(x,y)=>({x1:x-w/2, x2:x+w/2, y1:y-h/2, y2:y+h/2});
+  const hits=(x,y)=>blocks.some(b=>rectsOverlap(box(x,y),b));
+  const q=v=>Math.round(v/snap)*snap;
+
+  let x=clampX(wantX), y=clampY(wantY);
+  if(!hits(x,y)) return {x:q(x), y:q(y)};
+
+  /* kandidat: menempel di tiap sisi tiap penghalang */
+  const cand=[];
+  for(const b of blocks){
+    cand.push({x:clampX(b.x1-w/2), y:clampY(y)});   /* kiri  */
+    cand.push({x:clampX(b.x2+w/2), y:clampY(y)});   /* kanan */
+    cand.push({x:clampX(x), y:clampY(b.y1-h/2)});   /* atas  */
+    cand.push({x:clampX(x), y:clampY(b.y2+h/2)});   /* bawah */
+  }
+  let best=null, bestD=Infinity;
+  for(const c of cand){
+    const cx=q(c.x), cy=q(c.y);
+    if(hits(cx,cy)) continue;
+    const d=(cx-wantX)**2+(cy-wantY)**2;
+    if(d<bestD){ bestD=d; best={x:cx, y:cy}; }
+  }
+  return best;                                       /* null = tidak ada tempat */
+}
+/* Kotak yang ditempati perangkat lain di bidang yang sama. */
+function blocksOn(list, skipId, specs){
+  return list.filter(i=>i.id!==skipId).map(i=>{
+    const d=specs[i.type];
+    return {x1:i.x-d.w/2, x2:i.x+d.w/2, y1:i.y-d.h/2, y2:i.y+d.h/2};
+  });
+}
+
 /* Komponen lain yang berbagi jalur vertikal dengan kotak [y0,y1]. Memakai
    geometri, bukan nomor rail, supaya tumpukan kontaktor+overload ikut terhitung. */
 function occupiedAt(y0, y1, skipIds){
@@ -3025,13 +3089,16 @@ function nudgeSelected(dx, dy, mult){
     (p.cfg.platePos||(p.cfg.platePos={}))[it.id]={x, row};
   }else{
     const step=DOOR_SNAP*mult;
-    const maxX = sel.mode==='door' ? R.W : R.D;
-    const nx=Math.min(maxX-d.w/2, Math.max(d.w/2, it.x+dx*step));
-    const ny=Math.min(R.H-d.h/2, Math.max(d.h/2, it.y+dy*step));
-    if(nx===it.x && ny===it.y) return;
+    const door=sel.mode==='door';
+    const maxX = door ? R.W : R.D;
+    const peers = door ? R.door.items : R.side.items.filter(x=>x.side===it.side);
+    const spot=freeSpot2D(it.x+dx*step, it.y+dy*step, d.w, d.h,
+      blocksOn(peers, it.id, R.specs), maxX, R.H, DOOR_SNAP);
+    if(!spot){ toast('Tidak ada ruang kosong di bidang itu','err'); return; }
+    if(spot.x===it.x && spot.y===it.y) return;
     pushHistory(`geser ${it.tag}`);
-    if(sel.mode==='door') (p.cfg.doorPos||(p.cfg.doorPos={}))[it.id]={x:nx,y:ny};
-    else (p.cfg.sidePos||(p.cfg.sidePos={}))[it.id]={x:nx,y:ny,side:it.side};
+    if(door) (p.cfg.doorPos||(p.cfg.doorPos={}))[it.id]={x:spot.x,y:spot.y};
+    else (p.cfg.sidePos||(p.cfg.sidePos={}))[it.id]={x:spot.x,y:spot.y,side:it.side};
   }
   p.updated=Date.now(); persist();
   generate(false); setDrawMode(drawMode); showSelection();

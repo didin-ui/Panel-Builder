@@ -278,9 +278,18 @@ step; **do not treat the size column as a calculated result.**
 `gap 15` between components · `pad 20` backplate margin · `gapV 12` between rails
 · `ductH 45` · `tstripH 40` (mm). Tunable in the Layout Generator view.
 
-**Not modelled:** manufacturer-specific thermal clearance. VFDs typically want
-100 mm above and below for airflow; the engine currently applies the uniform
-`gapV`. Do not treat drive spacing as compliant with the drive manual.
+### Clearance termal drive
+
+Rail yang berisi drive memakai `driveClearance` (100 mm) di atas dan di bawah,
+bukan `gapV` 12 mm seperti rail biasa — angka itu dari manual FR-D700 dan MR-J4,
+yang meminta ruang napas untuk heatsink vertikal. Konsekuensinya jujur: panel
+ber-drive jadi lebih tinggi (mesin acuan 843 → 1009 mm, kabinet 1000 → 1200 mm).
+
+Layout otomatis selalu menjaga jarak ini. Penempatan manual bisa memindahkan
+drive ke rail biasa, dan itu dilaporkan lewat `DRIVE_CLEARANCE`.
+
+**Masih belum dimodelkan:** clearance samping antar drive, dan derating ketika
+drive dipasang berdampingan rapat.
 
 ---
 
