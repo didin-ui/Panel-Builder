@@ -117,6 +117,10 @@
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
   .btn-generate{width:100%;margin-top:6px;background:var(--blue-500);color:#fff;border:none;border-radius:var(--radius);padding:11px 0;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
   .btn-generate:hover{background:var(--blue-600);}
+  /* Sejajar dengan Generate panel dan Save project di kolom yang sama, tapi
+     sekunder — ini tindakan sesekali, bukan tombol utama. */
+  .btn-add{width:100%;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:7px;padding:9px 0;font-weight:600;color:var(--blue-600);border-color:var(--blue-100);background:var(--blue-50);}
+  .btn-add:hover{background:var(--blue-100);border-color:var(--blue-500);}
   .cab-head{display:flex;justify-content:space-between;align-items:center;gap:10px;}
   .chip{font-size:11px;color:var(--gray-700);background:var(--gray-100);border:1px solid var(--gray-200);border-radius:6px;padding:3px 9px;white-space:nowrap;}
   .cab-tools{display:flex;align-items:center;gap:6px;padding:8px 14px;border-bottom:1px solid var(--gray-100);}
@@ -469,6 +473,12 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/></svg>
               Generate panel
             </button>
+            <button class="btn btn-add" onclick="addToProject()"
+              title="Ambil komponen apa pun dari library dan letakkan di layout ini">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              Tambah komponen
+            </button>
             <button class="btn" style="width:100%;margin-top:8px;" onclick="saveProject(true)">Save project</button>
           </div>
         </section>
@@ -493,8 +503,6 @@
             <button class="tbtn" id="btn-undo" onclick="undo()" disabled>↶</button>
             <button class="tbtn" id="btn-redo" onclick="redo()" disabled>↷</button>
             <div class="sep"></div>
-            <button class="btn" style="padding:5px 10px;" onclick="addToProject()"
-              title="Ambil komponen apa pun dari library dan letakkan di layout ini">+ Komponen</button>
             <button class="btn" style="padding:5px 10px;" onclick="printLayout()">Export drawing (PDF)</button>
             <button class="btn" style="padding:5px 10px;" id="btn-reset-pos"
               onclick="resetActiveLayout()">Reset posisi</button>

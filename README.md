@@ -120,7 +120,8 @@ Menu **Components library** bisa dipakai untuk mengelola database komponen:
   Komponen yang ditambahkan muncul di gambar, bisa ditarik posisinya, masuk BOM,
   dan konsumsi 24 V-nya ikut dihitung. Satu komponen boleh dipakai di beberapa
   tujuan sekaligus — BOM menjumlahkan semuanya.
-  Tombol **+ Komponen** di toolbar Panel designer membuka modal yang sama, tapi
+  Tombol **Tambah komponen** di Panel designer — di kolom kiri, antara
+  **Generate panel** dan **Save project** — membuka modal yang sama, tapi
   komponennya dipilih di situ juga — jadi tidak perlu bolak-balik ke menu
   Components library hanya untuk menambah satu terminal. Keduanya memakai satu
   fungsi yang sama, supaya aturan penempatan dan penggabungan jumlah tidak
