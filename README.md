@@ -350,6 +350,13 @@ Layout PDF mengikuti pola yang sama, tanpa halaman kalkulasi.
 > Header/footer bawaan browser (URL + judul halaman) bukan bagian dokumen ini.
 > Matikan di dialog print: **More settings → Headers and footers**.
 
+## Library siap pakai
+
+Folder [`library/`](library/) berisi file JSON yang bisa langsung di-import:
+Autonics (temperature controller), Haiwell, MEAN WELL, Omron, Weintek dan
+Siemens — 168 komponen, semuanya `dimsVerified: false`. Catatan per brand ada
+di [library/README.md](library/README.md).
+
 ## Tukar-menukar library antar pengguna
 **Components library → Export** membuka dialog untuk memilih komponen mana yang
 mau dibagikan. Yang tercentang awal adalah komponen **custom** dan yang **kamu

@@ -1890,10 +1890,14 @@
     'mount', 'powerW', 'dimsVerified', 'custom', 'generic', 'round',
     'isPlc', 'plcName', 'builtinDi', 'builtinDo', 'maxExp',
     'expDi', 'expDo', 'expAi', 'expAo', 'channels',
+    /* psuA = kapasitas keluaran 24 V. Tanpa ini, PSU yang di-import masuk
+       dengan kapasitas NOL tanpa pesan apa pun: utilisasi PSU melonjak dan
+       panel dinyatakan kekurangan daya padahal supply-nya ada di layout. */
+    'psuA',
     'hasImage', 'imgVersion',
   ];
   const NUM_FIELDS = ['w', 'h', 'd', 'powerW', 'builtinDi', 'builtinDo', 'maxExp',
-                      'imgVersion', 'channels'];
+                      'imgVersion', 'channels', 'psuA'];
   const BOOL_FIELDS = ['dimsVerified', 'custom', 'generic', 'round', 'isPlc', 'hasImage'];
 
   /* Bangun objek yang siap di-JSON.stringify. `keys` = komponen yang dipilih. */

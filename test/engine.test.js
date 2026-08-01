@@ -275,6 +275,49 @@ describe('invariant — layout bookkeeping', () => {
 });
 
 /* ════════════════════════════════════════════════════════════════════ */
+describe('tukar library membawa semua yang berpengaruh ke hitungan', () => {
+  /* psuA sempat tertinggal dari LIB_FIELDS. Akibatnya PSU yang di-import
+     masuk dengan kapasitas NOL tanpa pesan apa pun: utilisasi melonjak dan
+     panel dinyatakan kekurangan daya padahal supply-nya terpasang. */
+  test('psuA selamat melewati export lalu import', () => {
+    const src = { mw: { w: 63, h: 125, d: 100, cat: 'Power', mount: 'rail',
+                        pn: 'SDR-240-24', desc: 'MEAN WELL 10 A', psuA: 10 } };
+    const file = E.exportLibrary(src, ['mw'], {});
+    assert.equal(file.components.mw.psuA, 10, 'hilang saat export');
+    const back = E.validateLibraryFile(file, {});
+    assert.ok(back.ok, back.error);
+    assert.equal(back.components.mw.psuA, 10, 'hilang saat import');
+  });
+
+  test('PSU hasil import benar-benar menambah kapasitas 24 V', () => {
+    const comps = { mw: { w: 63, h: 125, d: 100, cat: 'Power', mount: 'rail',
+                          pn: 'SDR-240-24', desc: 'MEAN WELL 10 A',
+                          vendor: 'MEAN WELL', psuA: 10, powerW: 0 } };
+    const r = E.compute(E.normalizeCfg({
+      extras: [{ type: 'mw', qty: 2, place: 'plate', rail: 1 }],
+    }), { components: comps });
+    assert.equal(r.psuCapacity, 20, 'dua unit 10 A tidak jadi 20 A');
+    assert.equal(r.psuUnits.length, 2);
+    assert.ok(r.psuUnits.every((u) => u.pn === 'SDR-240-24'));
+  });
+
+  test('setiap field yang dipakai COMPONENT_DB ikut terbawa', () => {
+    /* Penjaga: field baru di COMPONENT_DB yang lupa didaftarkan akan
+       menghilang diam-diam saat pengguna bertukar library. */
+    const used = new Set();
+    for (const k of Object.keys(E.COMPONENT_DB))
+      for (const f of Object.keys(E.COMPONENT_DB[k])) used.add(f);
+    const file = E.exportLibrary({}, Object.keys(E.COMPONENT_DB), {});
+    const carried = new Set();
+    for (const k of Object.keys(file.components))
+      for (const f of Object.keys(file.components[k])) carried.add(f);
+    const lost = [...used].filter((f) => !carried.has(f) &&
+      f !== 'hasImage' && f !== 'imgVersion').sort();
+    assert.deepEqual(lost, [], 'field hilang saat tukar library: ' + lost.join(', '));
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════ */
 describe('drive dipasang di backplate, bukan DIN rail', () => {
   /* Di panel sungguhan VFD dan servo amplifier dibaut ke plat belakang lewat
      lubang di heatsink-nya; tidak ada klip DIN di badannya. Menggambar rail di
