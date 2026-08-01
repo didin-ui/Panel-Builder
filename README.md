@@ -94,6 +94,10 @@ pada penyimpanan berikutnya.
   gambar kedua layout, tabel koordinat, kalkulasi, BOM, temuan review).
   Semua komponen punya tag (Q1, G1, S1, H1, HMI1 …) yang sama di gambar,
   tabel koordinat, dan BOM.
+  Tombol **DWG / DXF / STEP** dihapus: itu placeholder yang tidak melakukan
+  apa-apa. Tombol yang tidak berfungsi lebih buruk daripada tidak ada tombol —
+  orang merencanakan pekerjaannya dengan asumsi fitur itu tersedia. Export CAD
+  butuh backend tersendiri; kalau dibuat nanti, tombolnya kembali.
 - **PLC → No PLC** — untuk panel tanpa PLC (relay logic / motor starter). CPU,
   modul I/O, dan Ethernet switch tidak dipasang; kontaktor dikomando dari tombol
   pintu lewat kontak latching. Angka I/O tetap tersimpan, jadi memilih PLC lagi
@@ -116,6 +120,11 @@ Menu **Components library** bisa dipakai untuk mengelola database komponen:
   Komponen yang ditambahkan muncul di gambar, bisa ditarik posisinya, masuk BOM,
   dan konsumsi 24 V-nya ikut dihitung. Satu komponen boleh dipakai di beberapa
   tujuan sekaligus — BOM menjumlahkan semuanya.
+  Tombol **+ Komponen** di toolbar Panel designer membuka modal yang sama, tapi
+  komponennya dipilih di situ juga — jadi tidak perlu bolak-balik ke menu
+  Components library hanya untuk menambah satu terminal. Keduanya memakai satu
+  fungsi yang sama, supaya aturan penempatan dan penggabungan jumlah tidak
+  perlu dijaga di dua tempat.
 - **Tab Front cover** — 35 perangkat pintu tersedia: pushbutton (berbagai warna,
   ada yang lampu), mushroom, E-stop (putar / kunci), selector 2–3 posisi & kunci,
   pilot lamp 5 warna, potensiometer, buzzer, beacon, HMI 4"/7"/10", ampere &
@@ -324,11 +333,13 @@ valid. CPU tanpa I/O bawaan diturunkan dari status PLC supaya tidak merusak
 hitungan modul ekspansi.
 
 ## Catatan navigasi
-- **Design review** hanya tampil di Panel designer — isinya membahas layout
-  yang sedang digambar, jadi di halaman lain hanya menghalangi. Panel ini
-  merangkum peringatan dan angka dari `engine.js`; **tidak ada model bahasa di
-  belakangnya**. Sebelumnya dilabeli "AI design review", yang membuat orang
-  mengira ada penilaian AI padahal isinya hasil hitungan deterministik.
+- **Popup Design review sudah dibuang.** Panel melayang di kanan bawah itu
+  mengulang angka yang sudah ada di kartu **Power calculation** — PSU,
+  utilisasi, panas, MCCB — dan menutupinya. Peringatan tetap ada di blok
+  peringatan kartu Cabinet, dan ringkasan errornya tetap di toolbar bawah.
+  Tidak ada informasi yang hilang, hanya tidak lagi ditampilkan dua kali.
+  (Panel itu memang tidak pernah memakai model bahasa; isinya hitungan
+  `engine.js`.)
 - **Layout generator** kini bagian dari **Settings** (bukan menu sidebar
   sendiri), karena isinya parameter global yang jarang diubah. Tautan lama
   `#layoutgen` otomatis diarahkan ke Settings.

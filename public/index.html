@@ -219,12 +219,6 @@
   .toolbar{position:fixed;left:216px;right:0;bottom:0;background:var(--paper);border-top:1px solid var(--gray-200);display:flex;align-items:center;gap:8px;padding:10px 20px;z-index:20;}
   .toolbar span.lbl{font-size:11.5px;color:var(--gray-500);margin-right:2px;}
   .toolbar .meta{margin-left:auto;font-size:11.5px;color:var(--gray-500);}
-  .ai{position:fixed;right:20px;bottom:64px;width:296px;background:var(--paper);border:1px solid var(--gray-300);border-radius:14px;box-shadow:0 12px 32px rgba(18,56,94,.14);overflow:hidden;z-index:30;}
-  .ai.min .ai-b{display:none;}
-  .ai-h{display:flex;align-items:center;gap:8px;background:var(--blue-600);color:#fff;padding:10px 13px;font-size:12.5px;font-weight:600;cursor:pointer;}
-  .ai-b{padding:12px 13px;}
-  .ai-msg{background:var(--blue-50);border:1px solid var(--blue-100);border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.55;}
-  .ai-in{display:flex;align-items:center;gap:8px;margin-top:10px;border:1px solid var(--gray-300);border-radius:var(--radius);padding:7px 11px;color:var(--gray-500);font-size:12px;}
 
   /* Modal */
   .mask{position:fixed;inset:0;background:rgba(18,56,94,.42);backdrop-filter:blur(2px);
@@ -356,7 +350,6 @@
   }
   @media (max-width:1160px){
     .workspace,.dash-grid{grid-template-columns:1fr;}
-    .ai{position:static;width:auto;margin-top:14px;box-shadow:none;}
     .toolbar{left:0;}
   }
 </style>
@@ -500,6 +493,8 @@
             <button class="tbtn" id="btn-undo" onclick="undo()" disabled>↶</button>
             <button class="tbtn" id="btn-redo" onclick="redo()" disabled>↷</button>
             <div class="sep"></div>
+            <button class="btn" style="padding:5px 10px;" onclick="addToProject()"
+              title="Ambil komponen apa pun dari library dan letakkan di layout ini">+ Komponen</button>
             <button class="btn" style="padding:5px 10px;" onclick="printLayout()">Export drawing (PDF)</button>
             <button class="btn" style="padding:5px 10px;" id="btn-reset-pos"
               onclick="resetActiveLayout()">Reset posisi</button>
@@ -716,22 +711,8 @@
   <button class="btn" onclick="printLayout()" title="Hanya gambar layout (backplate + front cover)">Layout PDF</button>
   <button class="btn" onclick="printReport()" title="Laporan lengkap termasuk gambar, BOM, dan skedul">Report PDF</button>
   <button class="btn" onclick="exportBomCsv()">Excel/CSV</button>
-  <button class="btn" title="Placeholder — butuh backend CAD">DWG</button>
-  <button class="btn" title="Placeholder — butuh backend CAD">DXF</button>
-  <button class="btn" title="Placeholder — butuh backend CAD">STEP</button>
   <span class="meta" id="toolbar-meta">—</span>
 </footer>
-
-<div class="ai" id="ai-panel">
-  <div class="ai-h" onclick="document.getElementById('ai-panel').classList.toggle('min')">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/></svg>
-    Design review <span style="margin-left:auto;">—</span>
-  </div>
-  <div class="ai-b">
-    <div class="ai-msg" id="ai-msg">Buka Panel designer lalu klik Generate panel.</div>
-    <div class="ai-in">Dihitung oleh engine — bukan pendapat, bukan model bahasa.</div>
-  </div>
-</div>
 
 <script src="engine.js"></script>
 <script>
@@ -867,10 +848,6 @@ function go(id){
   location.hash = id;
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active', v.id==='view-'+id));
   document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active', a.dataset.view===id));
-  /* Design review membahas layout yang sedang digambar, jadi hanya relevan
-     di Panel designer — di halaman lain dia cuma menghalangi. */
-  const ai=document.getElementById('ai-panel');
-  if(ai) ai.style.display = id==='designer' ? '' : 'none';
   /* Nama proyek aktif hanya bermakna di Panel designer. Di halaman lain blok itu
      dikosongkan sama sekali — daftar proyek sudah menandai yang aktif dengan
      badge Active. */
@@ -1693,13 +1670,6 @@ function generate(save){
   set('s-comp',R.totalQty); set('s-term',R.termPoints); set('s-wire',R.wires);
   set('toolbar-meta',`${R.items.length} components placed · ${R.bom.length} BOM lines · `+
     (errs?`${errs} error${errs>1?'s':''}`:'no errors'));
-  document.querySelector('.ai-h span').textContent = errs?`${errs} ⛔`:'OK';
-  set('ai-msg',
-    `PSU ${R.psu.ratedA} A at ${Math.round(R.util)}% (cap ${Math.round(R.assumptions.psuMaxUtil*100)}%). `+
-    `${R.heat} W internal over ${R.thermal.Ae.toFixed(2)} m² → `+
-    `${R.thermal.naturalDT.toFixed(1)} K natural rise. ${R.thermal.note} `+
-    `Incoming ${R.mccb.pn} covers ${R.flcA.toFixed(1)} A FLC (${R.startA.toFixed(1)} A starting).`+
-    (R.warnings.length?` ${R.warnings.length} item(s) need review — see Cabinet card.`:''));
   draw(); zoomFit();
   hydrateImages(visibleImageKeys());             /* hanya gambar yang tampil */
 }
@@ -2645,41 +2615,69 @@ async function deleteComponent(key){
   persist(); renderLibrary(); toast('Komponen dihapus');
 }
 /* Tambahkan komponen library ke layout proyek aktif */
+const DEST_OPTIONS=[['door','Front cover — pintu panel'],
+                    ['rail1','Dalam panel · Rail 1 — incoming / power'],
+                    ['rail2','Dalam panel · Rail 2 — control'],
+                    ['rail3','Dalam panel · Baris 3 — drives (dibaut ke backplate)'],
+                    ['rail4','Dalam panel · Rail 4 — terminal block'],
+                    ['left','Left side — intake / ventilasi'],
+                    ['right','Right side — exhaust / ventilasi']];
+/* Default cerdas: perangkat pintu → front cover, terminal block → rail 4. */
+const defaultDest=(d)=> d.mount==='door' ? 'door' : (d.cat==='Terminals' ? 'rail4' : 'rail2');
+
+/* Dipanggil dari dua tempat: tombol "+ Panel" di Components library (key sudah
+   diketahui) dan tombol "+ Komponen" di Panel designer (key dipilih di modal
+   ini juga). Satu fungsi untuk keduanya — kalau dipisah, aturan penempatan dan
+   penggabungan qty harus dijaga di dua tempat sekaligus. */
 async function addToProject(key){
-  const d=libDb()[key], p=activeProject();
-  /* Default cerdas: perangkat pintu → front cover, terminal block → rail 4. */
-  const isDoor=d.mount==='door';
-  const defDest=isDoor?'door':(d.cat==='Terminals'?'rail4':'rail2');
-  const v=await modalForm({title:'Tambah ke panel', submitLabel:'Tambahkan',
-    intro:`<b>${esc(d.desc)}</b> — ${d.w} × ${d.h} × ${d.d} mm${d.generic?' · part number masih generik ◇':''}.
-      Komponen akan ikut ditempatkan di layout, masuk BOM, wiring, dan konsumsi
-      24 V-nya (${d.powerW||0} W) ikut dihitung.`,
-    fields:[
-      {id:'qty', label:'Jumlah', type:'number', value:1, min:1, max:60, required:true},
-      {id:'dest',label:'Ditempatkan di', type:'select', value:defDest, full:true,
-       options:[['door','Front cover — pintu panel'],
-                ['rail1','Dalam panel · Rail 1 — incoming / power'],
-                ['rail2','Dalam panel · Rail 2 — control'],
-                ['rail3','Dalam panel · Baris 3 — drives (dibaut ke backplate)'],
-                ['rail4','Dalam panel · Rail 4 — terminal block'],
-                ['left','Left side — intake / ventilasi'],
-                ['right','Right side — exhaust / ventilasi']]},
-    ],
-    validate:v=>v.dest!=='door' && d.mount==='door'
-      ? null   /* diizinkan: kadang perangkat pintu dipasang di plat samping */
-      : null});
+  const db=libDb(), p=activeProject();
+  const pick=!key;                              /* true = dipilih di dalam modal */
+  const d=pick?null:db[key];
+  if(!pick && !d) return toast('Komponen itu tidak ada di library','err');
+
+  const options=Object.keys(db)
+    .map(k=>({k, d:db[k]}))
+    .sort((a,b)=>(a.d.cat+' '+a.d.desc).localeCompare(b.d.cat+' '+b.d.desc))
+    .map(x=>[x.k, `${x.d.cat} · ${x.d.desc}${x.d.pn?' · '+x.d.pn:''}`]);
+
+  const fields=[];
+  if(pick) fields.push({id:'key', label:'Komponen', type:'select', full:true,
+                        value:options[0] && options[0][0], options});
+  fields.push({id:'qty', label:'Jumlah', type:'number', value:1, min:1, max:60, required:true});
+  fields.push({id:'dest',label:'Ditempatkan di', type:'select', full:true,
+               value:pick?'rail2':defaultDest(d), options:DEST_OPTIONS});
+
+  const v=await modalForm({title:'Tambah komponen ke panel', submitLabel:'Tambahkan',
+    intro:pick
+      ? `Ambil komponen apa pun dari library dan letakkan di layout proyek aktif.
+         Komponen ikut digambar, masuk BOM dan wiring, dan konsumsi 24 V-nya
+         ikut dihitung. Posisinya bisa digeser setelah ditambahkan.`
+      : `<b>${esc(d.desc)}</b> — ${d.w} × ${d.h} × ${d.d} mm${d.generic?' · part number masih generik ◇':''}.
+         Komponen akan ikut ditempatkan di layout, masuk BOM, wiring, dan konsumsi
+         24 V-nya (${d.powerW||0} W) ikut dihitung.`,
+    fields});
   if(!v) return;
+
+  const type=pick?v.key:key;
+  const spec=db[type];
+  if(!spec) return toast('Komponen itu tidak ada di library','err');
   const onRail=/^rail\d$/.test(v.dest);
   const place=onRail?'plate':v.dest;            /* door | left | right | plate */
   const rail=onRail?+v.dest.slice(4):2;
   const extras=p.cfg.extras||(p.cfg.extras=[]);
-  const found=extras.find(e=>e.type===key && e.place===place &&
+  const found=extras.find(e=>e.type===type && e.place===place &&
                             (place!=='plate'||e.rail===rail));
-  pushHistory(`tambah ${d.desc}`);
-  if(found) found.qty+=v.qty; else extras.push({type:key, qty:v.qty, place, rail});
+  pushHistory(`tambah ${spec.desc}`);
+  if(found) found.qty+=v.qty; else extras.push({type, qty:v.qty, place, rail});
   p.cfg=PanelEngine.normalizeCfg(p.cfg); p.updated=Date.now(); persist();
   const where={door:'front cover',left:'left side',right:'right side'}[place]||('rail '+rail);
-  toast(`${v.qty} × "${d.desc}" → ${where}`,'ok');
+  toast(`${v.qty} × "${spec.desc}" → ${where}`,'ok');
+  /* Kalau ditambahkan dari Panel designer, langsung tampak — bukan baru muncul
+     setelah user menekan Generate lagi. */
+  if(document.getElementById('view-designer').classList.contains('active')){
+    fillCfgForm(p.cfg); generate(false);
+    setDrawMode(place==='plate'?'plate':place==='door'?'door':place);
+  }
 }
 function removeExtra(i){
   const p=activeProject();
