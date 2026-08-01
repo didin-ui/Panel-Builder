@@ -219,6 +219,11 @@
     },
   };
 
+  /* Tegangan bus kontrol. Selama ini angka 24 tertanam langsung di rumus
+     arus DC; sekarang satu tempat, dan dipakai juga untuk memutuskan supply
+     mana yang boleh menambah kapasitas. */
+  const DC_BUS_V = 24;
+
   /* ══════════ COMPONENT DATABASE ══════════
      w/h = front-view footprint (mm), d = depth off the backplate (mm).
      powerW = 24 V consumption for control gear, 0 where not applicable.
@@ -644,7 +649,7 @@
     return {
       internal, external, wInternal, wExternal,
       wTotal: wInternal + wExternal,
-      aTotal: (wInternal + wExternal) / 24,
+      aTotal: (wInternal + wExternal) / DC_BUS_V,
     };
   }
 
@@ -1144,11 +1149,20 @@
       warnings.push({ level: 'error', code: 'TOO_WIDE',
         msg: 'A single component is wider than the usable backplate width. ' +
              'Increase the cabinet width.' });
-    /* ── Kapasitas 24 V dari supply yang BENAR-BENAR terpasang ────────── */
-    const psuUnits = layout.items
+    /* ── Kapasitas 24 V dari supply yang BENAR-BENAR terpasang ──────────
+       Bus kontrol panel ini 24 V DC (dc.aTotal = watt / 24). Supply pada
+       tegangan lain — 12 V untuk sensor, 48 V untuk perangkat tertentu —
+       nyata ada di panel dan tetap masuk layout serta BOM, tapi TIDAK boleh
+       menambah kapasitas 24 V. Menjumlahkannya berarti panel dinyatakan
+       cukup daya padahal supply-nya tidak memberi makan beban itu.
+       psuV kosong dianggap 24 V, supaya library lama tetap terbaca. */
+    const allSupplies = layout.items
       .filter((i) => num(specs[i.type].psuA, 0) > 0)
       .map((i) => ({ tag: i.tag, pn: specs[i.type].pn,
+                     v: num(specs[i.type].psuV, DC_BUS_V),
                      a: i.type === 'psu' ? psuPick.ratedA : num(specs[i.type].psuA, 0) }));
+    const psuUnits = allSupplies.filter((u) => Math.abs(u.v - DC_BUS_V) < 0.01);
+    const psuOtherV = allSupplies.filter((u) => Math.abs(u.v - DC_BUS_V) >= 0.01);
     const psuCapacity = psuUnits.reduce((t, u) => t + u.a, 0);
     const psuDerated = psuCapacity * psuPick.derate;
     const psuUtil = psuDerated > 0 ? (dc.aTotal / psuDerated) * 100 : Infinity;
@@ -1172,6 +1186,12 @@
               Math.round(A.psuMaxUtil * 100) + '%.') +
              (psuManual ? ' Tambah/besarkan supply yang kamu pilih.'
                         : ' Tidak ada supply di tabel yang cukup.') });
+    if (psuOtherV.length)
+      warnings.push({ level: 'info', code: 'PSU_OTHER_VOLTAGE',
+        msg: psuOtherV.map((u) => u.tag + ' ' + u.pn + ' (' + u.v + ' V, ' + u.a + ' A)')
+               .join(', ') + ' — bukan ' + DC_BUS_V + ' V, jadi tidak menambah ' +
+             'kapasitas bus kontrol. Bebannya juga tidak dihitung di anggaran ' +
+             DC_BUS_V + ' V.' });
     if (th.method === 'cooling-unit')
       warnings.push({ level: 'warn', code: 'COOLING_UNIT', msg: th.note });
 
@@ -1228,7 +1248,7 @@
       /* util sekarang mengikuti kapasitas TERPASANG, bukan satu unit hasil
          pemilihan otomatis — menambah supply benar-benar menurunkannya. */
       psu: psuPick, psuA: psuCapacity, util: psuUtil,
-      psuUnits, psuCapacity, psuManual, psuRedundantUtil,
+      psuUnits, psuCapacity, psuManual, psuRedundantUtil, psuOtherV, dcBusV: DC_BUS_V,
       mccb, driveMcb, controlMcb, starter, driveA,
       /* thermal */
       heat: heat.totalW, heatDetail: heat, thermal: th,
@@ -1893,11 +1913,11 @@
     /* psuA = kapasitas keluaran 24 V. Tanpa ini, PSU yang di-import masuk
        dengan kapasitas NOL tanpa pesan apa pun: utilisasi PSU melonjak dan
        panel dinyatakan kekurangan daya padahal supply-nya ada di layout. */
-    'psuA',
+    'psuA', 'psuV', 'psuW',
     'hasImage', 'imgVersion',
   ];
   const NUM_FIELDS = ['w', 'h', 'd', 'powerW', 'builtinDi', 'builtinDo', 'maxExp',
-                      'imgVersion', 'channels', 'psuA'];
+                      'imgVersion', 'channels', 'psuA', 'psuV', 'psuW'];
   const BOOL_FIELDS = ['dimsVerified', 'custom', 'generic', 'round', 'isPlc', 'hasImage'];
 
   /* Bangun objek yang siap di-JSON.stringify. `keys` = komponen yang dipilih. */

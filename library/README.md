@@ -48,8 +48,11 @@ pabrikan menambahkan sufiks tegangan/output saat pemesanan. Lengkapi lewat
 
 27 model 24 VDC dari seri HDR, DR, NDR, SDR, EDR dan TDR (0,63 A – 40 A).
 
-`psuA` diisi, jadi supply ini **benar-benar ikut menghitung kapasitas 24 V**:
-tambahkan satu ke rail 1 dan utilisasi PSU langsung memakai kapasitas itu.
+`psuV` dan `psuW` diisi, jadi supply ini **benar-benar ikut menghitung
+kapasitas 24 V**: tambahkan satu ke rail 1 dan utilisasi PSU langsung memakai
+kapasitas itu. Kalau kamu menambah PSU sendiri lewat **+ Tambah komponen**,
+pilih kategori **Power** — kotak isian tegangan dan daya akan muncul, dan
+arusnya dihitung otomatis (240 W ÷ 24 V = 10 A).
 
 > Menambahkan PSU eksplisit **menggantikan** slot PSU otomatis, bukan menumpuk
 > di atasnya. Itu memang disengaja — kamu memilih supply-nya sendiri. Untuk

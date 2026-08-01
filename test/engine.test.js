@@ -301,6 +301,40 @@ describe('tukar library membawa semua yang berpengaruh ke hitungan', () => {
     assert.ok(r.psuUnits.every((u) => u.pn === 'SDR-240-24'));
   });
 
+  test('hanya supply pada tegangan bus yang menambah kapasitas', () => {
+    /* Bus kontrol 24 V. Supply 12 V memberi makan sensor, bukan relay dan
+       PLC — menjumlahkannya berarti panel dinyatakan cukup daya padahal
+       bebannya tidak disuplai sama sekali. */
+    const comps = {
+      s24: { w: 63, h: 125, d: 100, cat: 'Power', mount: 'rail', pn: 'SDR-240-24',
+             desc: '24 V 10 A', psuA: 10, psuV: 24, powerW: 0 },
+      s12: { w: 63, h: 125, d: 100, cat: 'Power', mount: 'rail', pn: 'SDR-240-12',
+             desc: '12 V 20 A', psuA: 20, psuV: 12, powerW: 0 },
+    };
+    const r = E.compute(E.normalizeCfg({
+      extras: [{ type: 's24', qty: 1, place: 'plate', rail: 1 },
+               { type: 's12', qty: 1, place: 'plate', rail: 1 }],
+    }), { components: comps });
+    assert.equal(r.psuCapacity, 10, '12 V ikut dijumlahkan ke bus 24 V');
+    assert.equal(r.psuOtherV.length, 1);
+    assert.equal(r.psuOtherV[0].v, 12);
+    assert.ok(r.warnings.some((w) => w.code === 'PSU_OTHER_VOLTAGE'),
+      'kapasitas dipotong tanpa keterangan');
+    /* tetap komponen nyata: ikut digambar dan ikut dibeli */
+    assert.ok(r.items.some((i) => i.type === 's12'), 'hilang dari layout');
+    assert.ok(r.bom.some((b) => b.pn === 'SDR-240-12'), 'hilang dari BOM');
+  });
+
+  test('psuV kosong dianggap 24 V — library lama tetap terbaca', () => {
+    const comps = { old: { w: 63, h: 125, d: 100, cat: 'Power', mount: 'rail',
+                           pn: 'LAMA', desc: 'tanpa psuV', psuA: 10, powerW: 0 } };
+    const r = E.compute(E.normalizeCfg({
+      extras: [{ type: 'old', qty: 1, place: 'plate', rail: 1 }],
+    }), { components: comps });
+    assert.equal(r.psuCapacity, 10, 'supply lama jadi tidak terhitung');
+    assert.equal(r.psuOtherV.length, 0);
+  });
+
   test('setiap field yang dipakai COMPONENT_DB ikut terbawa', () => {
     /* Penjaga: field baru di COMPONENT_DB yang lupa didaftarkan akan
        menghilang diam-diam saat pengguna bertukar library. */

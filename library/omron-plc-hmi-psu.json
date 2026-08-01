@@ -22,7 +22,9 @@
       "pn": "S8VK-C06024",
       "psuA": 2.5,
       "vendor": "Omron",
-      "desc": "Power supply 24 VDC 2.5 A — S8VK-C06024, S8VK-C"
+      "desc": "Power supply 24 VDC 2.5 A — S8VK-C06024, S8VK-C",
+      "psuV": 24,
+      "psuW": 60
     },
     "om_s8vkc12024": {
       "asset": "",
@@ -40,7 +42,9 @@
       "pn": "S8VK-C12024",
       "psuA": 5,
       "vendor": "Omron",
-      "desc": "Power supply 24 VDC 5 A — S8VK-C12024, S8VK-C"
+      "desc": "Power supply 24 VDC 5 A — S8VK-C12024, S8VK-C",
+      "psuV": 24,
+      "psuW": 120
     },
     "om_s8vkc24024": {
       "asset": "",
@@ -58,7 +62,9 @@
       "pn": "S8VK-C24024",
       "psuA": 10,
       "vendor": "Omron",
-      "desc": "Power supply 24 VDC 10 A — S8VK-C24024, S8VK-C"
+      "desc": "Power supply 24 VDC 10 A — S8VK-C24024, S8VK-C",
+      "psuV": 24,
+      "psuW": 240
     },
     "om_s8vkc48024": {
       "asset": "",
@@ -76,7 +82,9 @@
       "pn": "S8VK-C48024",
       "psuA": 20,
       "vendor": "Omron",
-      "desc": "Power supply 24 VDC 20 A — S8VK-C48024, S8VK-C"
+      "desc": "Power supply 24 VDC 20 A — S8VK-C48024, S8VK-C",
+      "psuV": 24,
+      "psuW": 480
     },
     "om_s8vkg06024": {
       "asset": "",
@@ -94,7 +102,9 @@
       "pn": "S8VK-G06024",
       "psuA": 2.5,
       "vendor": "Omron",
-      "desc": "Power supply 24 VDC 2.5 A — S8VK-G06024, S8VK-G, book shape"
+      "desc": "Power supply 24 VDC 2.5 A — S8VK-G06024, S8VK-G, book shape",
+      "psuV": 24,
+      "psuW": 60
     },
     "om_s8vkg12024": {
       "asset": "",
@@ -112,7 +122,9 @@
       "pn": "S8VK-G12024",
       "psuA": 5,
       "vendor": "Omron",
-      "desc": "Power supply 24 VDC 5 A — S8VK-G12024, S8VK-G, book shape"
+      "desc": "Power supply 24 VDC 5 A — S8VK-G12024, S8VK-G, book shape",
+      "psuV": 24,
+      "psuW": 120
     },
     "om_s8vkg24024": {
       "asset": "",
@@ -130,7 +142,9 @@
       "pn": "S8VK-G24024",
       "psuA": 10,
       "vendor": "Omron",
-      "desc": "Power supply 24 VDC 10 A — S8VK-G24024, S8VK-G, book shape"
+      "desc": "Power supply 24 VDC 10 A — S8VK-G24024, S8VK-G, book shape",
+      "psuV": 24,
+      "psuW": 240
     },
     "om_s8vkg48024": {
       "asset": "",
@@ -148,7 +162,9 @@
       "pn": "S8VK-G48024",
       "psuA": 20,
       "vendor": "Omron",
-      "desc": "Power supply 24 VDC 20 A — S8VK-G48024, S8VK-G, book shape"
+      "desc": "Power supply 24 VDC 20 A — S8VK-G48024, S8VK-G, book shape",
+      "psuV": 24,
+      "psuW": 480
     },
     "om_s8vks12024": {
       "asset": "",
@@ -166,7 +182,9 @@
       "pn": "S8VK-S12024",
       "psuA": 5,
       "vendor": "Omron",
-      "desc": "Power supply 24 VDC 5 A — S8VK-S12024, S8VK-S, boost 120%"
+      "desc": "Power supply 24 VDC 5 A — S8VK-S12024, S8VK-S, boost 120%",
+      "psuV": 24,
+      "psuW": 120
     },
     "om_s8vks24024": {
       "asset": "",
@@ -184,7 +202,9 @@
       "pn": "S8VK-S24024",
       "psuA": 10,
       "vendor": "Omron",
-      "desc": "Power supply 24 VDC 10 A — S8VK-S24024, S8VK-S, boost 120%"
+      "desc": "Power supply 24 VDC 10 A — S8VK-S24024, S8VK-S, boost 120%",
+      "psuV": 24,
+      "psuW": 240
     },
     "om_s8vks48024": {
       "asset": "",
@@ -202,7 +222,9 @@
       "pn": "S8VK-S48024",
       "psuA": 20,
       "vendor": "Omron",
-      "desc": "Power supply 24 VDC 20 A — S8VK-S48024, S8VK-S, boost 120%"
+      "desc": "Power supply 24 VDC 20 A — S8VK-S48024, S8VK-S, boost 120%",
+      "psuV": 24,
+      "psuW": 480
     },
     "om_s8vks96024": {
       "asset": "",
@@ -220,7 +242,9 @@
       "pn": "S8VK-S96024",
       "psuA": 40,
       "vendor": "Omron",
-      "desc": "Power supply 24 VDC 40 A — S8VK-S96024, S8VK-S, boost 120%"
+      "desc": "Power supply 24 VDC 40 A — S8VK-S96024, S8VK-S, boost 120%",
+      "psuV": 24,
+      "psuW": 960
     },
     "om_cp1en14dra": {
       "asset": "",

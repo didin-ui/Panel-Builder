@@ -348,6 +348,36 @@ drive ke rail biasa, dan itu dilaporkan lewat `DRIVE_CLEARANCE`.
 **Masih belum dimodelkan:** clearance samping antar drive, dan derating ketika
 drive dipasang berdampingan rapat.
 
+### Kapasitas 24 V: tegangan menentukan siapa yang boleh ikut dijumlahkan
+
+Bus kontrol panel ini **24 V DC** (`DC_BUS_V`); arus beban DC = watt / 24.
+Sebuah komponen dihitung sebagai sumber 24 V hanya kalau `psuV` = 24.
+
+Supply 12 V untuk sensor atau 48 V untuk perangkat tertentu memang ada di
+panel: ia tetap digambar, tetap masuk BOM, tetap memakan lebar rail. Yang
+tidak boleh adalah kapasitasnya ikut dijumlahkan ke bus 24 V — itu membuat
+panel dinyatakan cukup daya padahal supply-nya tidak memberi makan beban itu
+sama sekali. Supply bertegangan lain dilaporkan lewat `psuOtherV` dan
+peringatan `PSU_OTHER_VOLTAGE`, jadi kapasitas yang dipotong selalu ada
+keterangannya.
+
+`psuV` kosong dianggap 24 V, supaya library yang dibuat sebelum field ini ada
+tetap terbaca sama persis.
+
+**Kapasitas diisi lewat daya, bukan arus.** Form Components library meminta
+tegangan keluaran dan daya keluaran, lalu `psuA = W / V` — itu cara pabrikan
+menamai produknya (SDR-240-24 = 240 W pada 24 V = 10 A), jadi angkanya bisa
+disalin langsung dari label tanpa menghitung dulu.
+
+Sebelumnya `psuA` sama sekali tidak bisa diisi dari UI. PSU yang dibuat lewat
+**+ Tambah komponen** masuk dengan kapasitas nol, dan yang lebih buruk:
+menyunting PSU hasil import — sekadar membetulkan lebarnya — ikut **menghapus**
+kapasitasnya, karena override disimpan sebagai diff dari field yang ada di
+form. Dua-duanya berakhir sama: power calculation berhenti bergerak tanpa
+pesan apa pun. Ini kegagalan yang sekelas dengan `hasImage` yang hilang saat
+import; polanya sama — data yang berpengaruh ke hitungan disimpan di tempat
+yang bisa terhapus oleh jalur tulis yang tidak tahu apa-apa tentangnya.
+
 ### Drive dibaut ke backplate, bukan diklip ke DIN rail
 
 VFD dan servo amplifier punya `mount: 'plate'`. Di panel sungguhan badan drive

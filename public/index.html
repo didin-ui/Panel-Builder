@@ -2555,6 +2555,26 @@ function componentEditor(key,isNew){
           (EXP-DI16 dst) — edit komponen itu untuk memasukkan kode vendor.
         </small>
       </div>
+      <!-- Kategori Power: tanpa isian ini, PSU yang kamu tambahkan sendiri
+           masuk dengan kapasitas nol dan power calculation tidak bergerak. -->
+      <div id="ce-psubox" style="grid-column:1/-1;display:${base.cat==='Power'?'block':'none'};
+        background:var(--blue-50);border:1px solid var(--blue-100);border-radius:8px;padding:10px 12px;">
+        <div class="grid2" style="align-items:start;">
+          ${f('psuV','Tegangan keluaran (V DC)',base.psuV??24,'type="number" min="1" max="600" step="0.1"')}
+          ${f('psuW','Daya keluaran (W)',
+              base.psuW ?? (base.psuA ? +(base.psuA*(base.psuV??24)).toFixed(1) : ''),
+              'type="number" min="0" max="20000" step="1" placeholder="mis. 240"')}
+        </div>
+        <div id="ce-psucalc" style="font-family:'IBM Plex Mono',monospace;font-size:11px;
+          color:var(--blue-600);margin-top:2px;">—</div>
+        <small style="font-size:10.5px;color:var(--gray-500);line-height:1.6;display:block;">
+          Arus dihitung dari daya ÷ tegangan, sesuai cara pabrikan menamai
+          produknya (SDR-240-24 = 240 W pada 24 V = 10 A). Hanya supply pada
+          tegangan bus kontrol <b>24 V DC</b> yang menambah kapasitas 24 V;
+          supply 12 V atau 48 V tetap masuk layout dan BOM, tapi dilaporkan
+          terpisah supaya tidak diam-diam ikut dihitung.
+        </small>
+      </div>
       <div class="field" style="grid-column:1/-1;">
         <label>Gambar komponen</label>
         <div class="drop" id="ce-drop">
@@ -2596,6 +2616,20 @@ function componentEditor(key,isNew){
         load(e.dataTransfer.files[0]);});
       const plcBox=m.querySelector('#ce-plcbox'), isPlcCb=m.querySelector('#ce-isplc');
       isPlcCb.onchange=()=>{ plcBox.style.display=isPlcCb.checked?'block':'none'; };
+      /* Isian kapasitas hanya relevan untuk kategori Power */
+      const psuBox=m.querySelector('#ce-psubox'), catSel=m.querySelector('#ce-cat'),
+            psuV=m.querySelector('#ce-psuV'), psuW=m.querySelector('#ce-psuW'),
+            psuCalc=m.querySelector('#ce-psucalc');
+      const showPsu=()=>{ psuBox.style.display=catSel.value==='Power'?'block':'none'; };
+      const calcPsu=()=>{
+        const v=+psuV.value, w=+psuW.value;
+        psuCalc.textContent = (v>0 && w>0)
+          ? `${w} W ÷ ${v} V = ${(w/v).toFixed(2)} A` +
+            (Math.abs(v-24)>0.01 ? '  ·  bukan 24 V — tidak menambah kapasitas bus kontrol' : '')
+          : 'Isi tegangan dan daya supaya kapasitasnya ikut dihitung.';
+      };
+      catSel.onchange=showPsu; psuV.oninput=calcPsu; psuW.oninput=calcPsu;
+      showPsu(); calcPsu();
       const clr=m.querySelector('#ce-clear');
       if(clr) clr.onclick=()=>{ image=''; imageCleared=true; prev.style.display='none';
         msg.textContent='Klik atau jatuhkan gambar di sini'; clr.remove(); };
@@ -2618,6 +2652,20 @@ function componentEditor(key,isNew){
         const next={desc, pn:g('pn'), vendor:g('vendor'), cat:g('cat'), mount:g('mount'),
           w:n('w'), h:n('h'), d:n('d'), powerW:n('powerW')||0,
           dimsVerified:m.querySelector('#ce-verified').checked};
+        /* Kapasitas supply. Kalau tidak ikut di `next`, diff di bawah akan
+           MEMBUANGNYA — persis seperti hasImage dulu: PSU yang cuma dibetulkan
+           lebarnya kehilangan kapasitasnya dan power calculation berhenti
+           bergerak tanpa pesan apa pun. */
+        if(next.cat==='Power'){
+          const v=n('psuV'), w=n('psuW');
+          if(v!=null && v>0 && w!=null && w>0){
+            next.psuV=v;
+            next.psuA=+(w/v).toFixed(3);
+            next.psuW=w;
+          }else if(w!=null && w>0){
+            return modalError('Tegangan keluaran harus lebih besar dari 0.');
+          }
+        }
         if(isPlcCb.checked){
           next.isPlc=true;
           next.plcName=g('plcname')||desc;
