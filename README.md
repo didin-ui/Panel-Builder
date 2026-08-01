@@ -245,6 +245,15 @@ proyeknya hilang.
 memicu 2000 request ke `/api/image`. Gambar di gambar panel sengaja tetap
 eager: lazy bisa membuat gambar kosong saat dicetak.
 
+> **Jangan gabungkan `loading="lazy"` dengan menyembunyikan gambarnya sampai
+> `onload`.** Gambar `display:none` tidak pernah dimuat browser — ia tidak
+> dirender, jadi tidak pernah dianggap mendekati viewport, jadi `onload` tidak
+> pernah jalan, jadi kelas yang memunculkannya tidak pernah ditambah. Saling
+> mengunci, dan seluruh kartu library tampil kosong. Kartu library sekarang
+> memasang `has-img` saat render — kita sudah tahu byte-nya ada dari indeks
+> gambar — dan hanya MENCABUTNYA lewat `onerror`. Ada tes yang gagal kalau
+> kombinasi itu muncul lagi di mana pun.
+
 **Gambar tidak lagi dimuat semua saat startup.** `hydrateImages()` dulu menarik
 setiap gambar dari IndexedDB jadi blob URL — 2000 gambar × ±140 KB ≈ 280 MB
 ditahan di memori sebelum satupun dilihat, plus 2000 transaksi berurutan yang

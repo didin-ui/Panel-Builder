@@ -212,8 +212,15 @@
   .lib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;}
   .lib-card{background:var(--paper);border:1px solid var(--gray-200);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;}
   .lib-img{height:110px;background:var(--gray-100);border-radius:8px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;}
-  .lib-img img{max-width:80%;max-height:90%;object-fit:contain;display:none;}
-  .lib-img.has-img img{display:block;}
+  /* JANGAN sembunyikan gambar ini dengan display:none sampai onload. Gambar
+     loading="lazy" yang display:none TIDAK PERNAH dimuat browser — ia tidak
+     dirender, jadi tidak pernah dianggap mendekati viewport, jadi onload tidak
+     pernah jalan, jadi kelasnya tidak pernah ditambah. Saling mengunci, dan
+     seluruh kartu library tampil kosong. Sekarang has-img dipasang saat render
+     (kita sudah tahu byte-nya ada dari imageIndex) dan hanya DICABUT oleh
+     onerror kalau gambarnya ternyata gagal dimuat. */
+  .lib-img img{max-width:80%;max-height:90%;object-fit:contain;display:block;}
+  .lib-img:not(.has-img) img{display:none;}
   .lib-img.has-img .lph{display:none;}
   .lph{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--gray-500);text-align:center;padding:6px;line-height:1.5;border:1.5px dashed var(--gray-300);border-radius:6px;margin:8px;}
   .lib-card b{font-size:12px;font-weight:600;}
@@ -2428,10 +2435,10 @@ function renderLibrary(){
     if(d.dimsVerified) badges.push('<span class="badge b-green">dims ✓</span>');
     if(d.generic)   badges.push('<span class="badge b-red" title="Part number masih generik — ganti dengan kode vendor">◇ generik</span>');
     return `<div class="lib-card">
-      <div class="lib-img${src?'':' no-src'}">
+      <div class="lib-img${src?' has-img':' no-src'}">
         <div class="lph">${esc(d.asset||d.pn||x.key)}<br>${d.w} × ${d.h} × ${d.d} mm</div>
         ${src?`<img src="${esc(src)}" alt="${esc(d.desc)}" loading="lazy" decoding="async"
-               onload="this.parentNode.classList.add('has-img')">`:''}
+               onerror="this.parentNode.classList.remove('has-img')">`:''}
       </div>
       <b>${esc(d.desc)}</b>
       <small><span class="pn">${esc(d.pn||'—')}</span><br>
