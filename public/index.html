@@ -831,8 +831,13 @@ async function connectDb(){
     setDbStatus(true);
     persist();                                   /* dorong seed awal ke DB bila DB kosong */
     flushPendingImages();                        /* kirim gambar yang dibuat saat offline */
+    loadImageIndex();                            /* gambar mana yang byte-nya benar-benar ada */
     return true;
-  }catch(e){ setDbStatus(false); return false; }
+  }catch(e){
+    setDbStatus(false);
+    loadImageIndex();      /* tanpa server, IndexedDB masih bisa jadi sumber */
+    return false;
+  }
 }
 function activeProject(){ return state.projects.find(p=>p.id===state.activeId) || state.projects[0]; }
 
@@ -1065,8 +1070,49 @@ function imgSrc(d,key){
   const k = own ? key : ((d && d.baseKey) || key);
   if(k && blobUrls[k]) return blobUrls[k];
   if(d.image) return d.image;                       /* data URI lama, masih di memori */
-  if(k && d.hasImage) return `api/image/${encodeURIComponent(k)}?v=${d.imgVersion||0}`;
+  /* Sumber kebenaran "punya gambar" adalah tempat byte-nya berada, BUKAN flag
+     hasImage di dalam override library — lihat catatan di imageIndex. */
+  if(k && (imageIndex.has(k) || d.hasImage)){
+    /* Cache-buster: ambil yang paling baru dari keduanya. Kalau memakai yang
+       lebih tua, browser bisa menyajikan gambar lama dari cache-nya. */
+    const v=Math.max(imageIndex.get(k)||0, d.imgVersion||0);
+    return `api/image/${encodeURIComponent(k)}?v=${v}`;
+  }
   return d.asset ? 'assets/components/'+d.asset : '';
+}
+
+/* ── Indeks gambar ──────────────────────────────────────────────────────
+   Key yang byte gambarnya benar-benar ada, diturunkan dari tempat byte itu
+   disimpan: tabel images di server dan IndexedDB.
+
+   Dulu satu-satunya penanda adalah `hasImage` di dalam override library, dan
+   itu salah tempat: penanda tidak ikut byte-nya, ia ikut override — jadi
+   setiap jalur yang mengganti override menghapusnya sekalian. Import library
+   melakukan persis itu (`components[k] = Object.assign({}, ...)`), sehingga
+   komponen yang gambarnya sudah diunggah tapi tidak ikut di file import
+   kehilangan penandanya sementara byte-nya tetap tinggal di database.
+
+   Akibatnya bukan kotak kosong yang jujur, tapi lebih buruk: imgSrc jatuh ke
+   `assets/components/<asset>.png` yang tidak ada di instalasi ini, jadi
+   <img>-nya 404, `onload` tidak pernah jalan, dan placeholder-nya tetap
+   terlihat seolah gambarnya memang belum pernah diunggah. Di panelbuilder.db
+   nyata: 59 gambar tersimpan, hanya 26 yang masih bertanda — 33 gambar
+   tak terlihat padahal utuh, termasuk FX5-4AD.
+
+   Dengan indeks ini tidak ada lagi penanda yang bisa hilang: kalau byte-nya
+   ada, gambarnya tampil. */
+const imageIndex=new Map();                       /* key → versi (untuk cache-bust) */
+async function loadImageIndex(){
+  const before=imageIndex.size;
+  /* IndexedDB dulu: berguna juga saat server mati */
+  try{ for(const k of await idbKeys()) if(!imageIndex.has(k)) imageIndex.set(k,0); }catch(e){}
+  if(dbMode){
+    try{
+      const r=await fetch('api/images');
+      if(r.ok) for(const row of await r.json()) imageIndex.set(row.key, row.updated||0);
+    }catch(e){}
+  }
+  if(imageIndex.size!==before) redrawImages();
 }
 
 /* Decode sendiri, jangan lewat fetch(dataUrl) — decoding base64 tidak ada
@@ -1089,6 +1135,7 @@ async function saveImage(key, dataUrl){
   const patch=state.library.components[key]||(state.library.components[key]={});
   invalidateLibDb();
   patch.hasImage=true; patch.imgVersion=Date.now();
+  imageIndex.set(key, patch.imgVersion);           /* indeks ikut, jangan sampai basi */
   delete patch.image;                               /* jangan pernah simpan byte di state */
   const ok=await pushImage(key,dataUrl);
   persist();
@@ -1114,6 +1161,7 @@ async function pushImage(key, dataUrl){
 async function deleteImage(key){
   dropBlobUrl(key);
   try{ await idbDel(key); }catch(e){}
+  imageIndex.delete(key);
   const patch=state.library.components[key];
   if(patch){ delete patch.hasImage; delete patch.imgVersion; delete patch.image; }
   if(dbMode) try{ await fetch('api/image/'+encodeURIComponent(key),{method:'DELETE'}); }catch(e){}

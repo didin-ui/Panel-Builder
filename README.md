@@ -162,6 +162,35 @@ Gambar **tidak** disimpan di dalam JSON library dan **tidak** masuk localStorage
 | `kv.library` | hanya penanda `hasImage` + `imgVersion` (~1 KB total) |
 | localStorage | proyek + settings saja (~50 KB) |
 
+### Yang menentukan sebuah komponen "punya gambar"
+
+**Keberadaan byte-nya**, bukan penanda di dalam library. Saat terhubung, klien
+membaca `GET /api/images` (dan key IndexedDB) ke sebuah indeks; `imgSrc()`
+memakai indeks itu.
+
+Dulu satu-satunya penanda adalah `hasImage` di dalam override library, dan itu
+salah tempat: penanda tidak ikut byte-nya, ia ikut override — jadi setiap jalur
+yang mengganti override menghapusnya sekalian. Import library melakukan persis
+itu (`components[k] = Object.assign({}, ...)`), sehingga komponen yang gambarnya
+sudah diunggah tapi tidak ikut di file import kehilangan penandanya sementara
+byte-nya tetap tinggal di database.
+
+Akibatnya bukan kotak kosong yang jujur, tapi lebih buruk: `imgSrc` jatuh ke
+`assets/components/<asset>.png` yang tidak ada di instalasi ini, jadi `<img>`-nya
+404, `onload` tidak pernah jalan, dan placeholder-nya tetap terlihat — persis
+seperti gambarnya memang belum pernah diunggah. Di `panelbuilder.db` nyata:
+**59 gambar tersimpan, hanya 26 yang masih bertanda** — 33 gambar utuh tapi
+tak terlihat, termasuk FX5-4AD.
+
+Selama ini tertutupi karena `hydrateImages()` memuat SEMUA gambar dari
+IndexedDB saat startup, jadi `blobUrls` menambalnya. Begitu hidrasi dibuat
+malas (demi memori — lihat bagian Skala), tambalan itu hilang dan bug lamanya
+muncul. Tidak ada data yang hilang; yang hilang hanya penandanya.
+
+Penanda `hasImage` masih ditulis untuk kompatibilitas, tapi tidak ada lagi yang
+bergantung padanya sendirian. Cache-buster memakai versi terbaru antara indeks
+dan komponen, supaya browser tidak menyajikan gambar usang.
+
 Alurnya: unggah → disusutkan ke maks 360 px → masuk IndexedDB → `PUT /api/image/<key>`.
 Kalau server mati, gambar ditandai *pending* dan otomatis diunggah saat server
 muncul lagi. Render memakai `api/image/<key>?v=<imgVersion>`, jadi browser
