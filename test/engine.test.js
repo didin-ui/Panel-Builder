@@ -275,6 +275,67 @@ describe('invariant — layout bookkeeping', () => {
 });
 
 /* ════════════════════════════════════════════════════════════════════ */
+describe('ukuran kabinet katalog', () => {
+  test('ukuran berdiri yang baru ada dan portrait', () => {
+    const want = [[1400, 800, 400], [1600, 800, 400], [1800, 800, 500],
+                  [1800, 1000, 600], [2000, 800, 600]];
+    for (const [h, w, d] of want) {
+      const z = E.STD_SIZES.find((x) => x.h === h && x.w === w && x.d === d);
+      assert.ok(z, `${h}×${w}×${d} tidak ada di katalog`);
+      assert.ok(z.h > z.w, `${h}×${w} bukan portrait`);
+    }
+  });
+
+  test('setiap ukuran katalog tinggi dan lebarnya standar', () => {
+    for (const z of E.STD_SIZES) {
+      assert.ok(E.STD_HEIGHTS.includes(z.h) || z.h === 400,
+        z.h + ' bukan tinggi standar');
+      assert.ok(E.STD_WIDTHS.includes(z.w) || z.w === 300,
+        z.w + ' bukan lebar standar');
+      if (z.d) assert.ok(E.STD_DEPTHS.includes(z.d), z.d + ' bukan kedalaman standar');
+    }
+  });
+
+  test('kedalaman katalog dipakai apa adanya, bukan dihitung ulang', () => {
+    /* Memilih 1800 × 1000 × 600 lalu dilaporkan 250 mm berarti aplikasi
+       menyebut kabinet yang berbeda dari yang dipesan. */
+    const r = R({ cabH: 1800, cabW: 1000, cabD: 600 });
+    assert.deepEqual([r.W, r.H, r.D], [1000, 1800, 600]);
+    assert.equal(r.dims.fixedD, true);
+    assert.ok(r.bom.some((b) => b.pn === 'ENC-1000x1800x600-IP55'),
+      'BOM menyebut kabinet lain: ' + r.bom.filter((b) => /^ENC-/.test(b.pn)).map((b) => b.pn));
+  });
+
+  test('tanpa cabD kedalaman tetap dihitung — proyek lama tidak berubah', () => {
+    const before = R({ cabH: 1200, cabW: 800 });
+    assert.equal(before.dims.fixedD, false);
+    /* dihitung dari komponen terdalam + ruang kabel, dibulatkan ke rak standar */
+    assert.ok(E.STD_DEPTHS.includes(before.D), before.D + ' bukan kedalaman standar');
+    assert.ok(before.D >= before.dims.needD, 'kedalaman hasil hitungan terlalu dangkal');
+    /* dan ukuran katalog lama memang tidak membawa kedalaman */
+    for (const z of E.STD_SIZES.filter((x) => x.h <= 1200))
+      assert.equal(z.d, undefined, `${z.h}×${z.w} tiba-tiba membawa kedalaman`);
+  });
+
+  test('kabinet katalog yang terlalu dangkal dilaporkan, bukan dibesarkan', () => {
+    /* PSU 40 A dalamnya 145 mm; + 80 mm ruang kabel = 225 mm. */
+    const r = R({ cabH: 1400, cabW: 800, cabD: 200,
+                  extras: [{ type: 'psu_40a', qty: 1, place: 'plate', rail: 1 }] });
+    assert.equal(r.D, 200, 'kedalaman diam-diam dibesarkan');
+    assert.ok(r.warnings.some((w) => w.code === 'PANEL_TOO_SHALLOW'),
+      'tidak ada peringatan padahal isinya tidak muat');
+  });
+
+  test('kabinet berdiri ikut menaikkan Ae — bukan sekadar angka di BOM', () => {
+    const tall = R({ cabH: 2000, cabW: 800, cabD: 600 });
+    const small = R({ cabH: 1200, cabW: 800 });
+    assert.ok(tall.thermal.Ae > small.thermal.Ae,
+      `Ae tidak ikut tumbuh: ${tall.thermal.Ae} vs ${small.thermal.Ae}`);
+    assert.equal(tall.dims.freeStanding, true);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════ */
 describe('tukar library membawa semua yang berpengaruh ke hitungan', () => {
   /* psuA sempat tertinggal dari LIB_FIELDS. Akibatnya PSU yang di-import
      masuk dengan kapasitas NOL tanpa pesan apa pun: utilisasi melonjak dan
@@ -651,8 +712,10 @@ describe('library — resolveDb', () => {
 /* ════════════════════════════════════════════════════════════════════ */
 describe('panel size — catalogue H×W vs automatic', () => {
   test('the offered sizes are the ones the designer lists, height first', () => {
-    assert.deepEqual(E.STD_SIZES.map((s) => s.h + 'x' + s.w),
-      ['400x300', '500x400', '600x400', '800x600', '1000x800', '1200x800']);
+    assert.deepEqual(E.STD_SIZES.map((s) => s.h + 'x' + s.w + (s.d ? 'x' + s.d : '')),
+      ['400x300', '500x400', '600x400', '800x600', '1000x800', '1200x800',
+       '1400x800x400', '1600x800x400', '1800x800x500', '1800x1000x600',
+       '2000x800x600']);
   });
 
   test('every catalogue size is portrait — taller than wide', () => {

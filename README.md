@@ -70,10 +70,25 @@ pada penyimpanan berikutnya.
 - **Panel size (Tinggi × Lebar)** — ditulis **tinggi dulu**, seperti katalog
   enclosure: `400 × 300` = 400 tinggi × 300 lebar, jadi selalu **portrait**.
   Pilih `Auto` (tinggi dihitung dari layout, tetap dijaga portrait) atau ukuran
-  katalog: 400×300, 500×400, 600×400, 800×600, 1000×800, 1200×800 mm. Ukuran yang
-  dipilih dipakai apa adanya; kalau isinya tidak muat, muncul error
-  `PANEL_TOO_SMALL` yang menyebutkan tinggi yang dibutuhkan. Panel lebih sempit
-  biasanya butuh lebih tinggi karena rail terpaksa wrap.
+  katalog. Ukuran yang dipilih dipakai apa adanya; kalau isinya tidak muat,
+  muncul error `PANEL_TOO_SMALL` yang menyebutkan tinggi yang dibutuhkan. Panel
+  lebih sempit biasanya butuh lebih tinggi karena rail terpaksa wrap.
+
+  | Wall mount | Berdiri (T × L × D) |
+  |---|---|
+  | 400 × 300 | 1400 × 800 × 400 |
+  | 500 × 400 | 1600 × 800 × 400 |
+  | 600 × 400 | 1800 × 800 × 500 |
+  | 800 × 600 | 1800 × 1000 × 600 |
+  | 1000 × 800 | 2000 × 800 × 600 |
+  | 1200 × 800 | |
+
+  Ukuran berdiri membawa **kedalamannya sendiri**, dan kedalaman itu dipakai apa
+  adanya — memilih 1800 × 1000 × 600 lalu dilaporkan 250 mm berarti aplikasi
+  menyebut kabinet yang berbeda dari yang dipesan. Kalau komponen terdalam plus
+  80 mm ruang kabel tidak muat, itu error `PANEL_TOO_SHALLOW`, bukan kedalaman
+  yang diam-diam dibesarkan. Ukuran wall mount tidak membawa kedalaman, jadi
+  kedalamannya tetap dihitung dari isi panel seperti sebelumnya.
 - **4 tab gambar** — **2D panel layout** (backplate: rail, duct, terminal),
   **Front cover** (E-stop, HMI, tombol ON/OFF, selector, pilot lamp),
   **Left side** dan **Right side** (ventilasi). Semua perangkat masuk BOM,

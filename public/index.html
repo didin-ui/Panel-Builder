@@ -1423,7 +1423,9 @@ function renderProjects(){
       <th>Rev</th><th>Updated</th><th class="act"></th></tr></thead><tbody>` +
     ((db)=>rows.map(p=>{                         /* db sekali, bukan sekali per baris */
       const c=PanelEngine.normalizeCfg(p.cfg), L=plcLabel(c, db);
-      const size=c.cabH>0?`${c.cabH} × ${c.cabW} mm`:`auto · L ${c.cabW} mm`;
+      const size=c.cabH>0
+        ? `${c.cabH} × ${c.cabW}${c.cabD>0?' × '+c.cabD:''} mm`
+        : `auto · L ${c.cabW} mm`;
       const active=p.id===state.activeId;
       return `<tr class="click${active?' on':''}" onclick="openProject(${p.id})"
           title="Buka ${esc(p.name)}">
@@ -1470,7 +1472,8 @@ async function newProject(){
            [m.key, `${m.name} · ${m.di}DI/${m.do_}DO`]))},
       {id:'size',     label:'Panel size (T × L)', type:'select', value:'auto',
        options:[['auto','Auto — dari layout']].concat(
-         PanelEngine.STD_SIZES.map(s=>[`${s.h}x${s.w}`, `${s.h} × ${s.w} mm`]))},
+         PanelEngine.STD_SIZES.map(z=>[sizeValue(z),
+           z.d ? `${z.h} × ${z.w} × ${z.d} mm` : `${z.h} × ${z.w} mm`]))},
     ],
     validate:v=>state.projects.some(p=>p.name.toLowerCase()===v.name.toLowerCase())
       ? 'Sudah ada proyek dengan nama itu.' : null,
@@ -1534,11 +1537,20 @@ function readCfgForm(){
 /* Nilai dropdown: "auto" atau "TxL" — tinggi dulu, seperti katalog enclosure,
    jadi 400×300 berarti 400 tinggi × 300 lebar (portrait). */
 function sizeFromValue(s){
-  if(s==='auto') return {cabW:600, cabH:0};
-  const [h,w]=String(s).split('x').map(Number);
-  return {cabW:w||600, cabH:h||0};
+  if(s==='auto') return {cabW:600, cabH:0, cabD:0};
+  /* "1800x1000x600" — bagian ketiga opsional; ukuran lama tanpa kedalaman
+     tetap terbaca dan kedalamannya tetap dihitung dari isi panel. */
+  const [h,w,d]=String(s).split('x').map(Number);
+  return {cabW:w||600, cabH:h||0, cabD:d||0};
 }
-function sizeToValue(c){ return c.cabH>0 ? `${c.cabH}x${c.cabW}` : 'auto'; }
+const sizeValue=(z)=> z.d ? `${z.h}x${z.w}x${z.d}` : `${z.h}x${z.w}`;
+const sizeLabel=(z)=> z.d
+  ? `${z.h} × ${z.w} × ${z.d} mm — T${z.h} × L${z.w} × D${z.d}`
+  : `${z.h} × ${z.w} mm — T${z.h} × L${z.w}`;
+function sizeToValue(c){
+  if(!(c.cabH>0)) return 'auto';
+  return c.cabD>0 ? `${c.cabH}x${c.cabW}x${c.cabD}` : `${c.cabH}x${c.cabW}`;
+}
 /* Dropdown PLC dibangun dari library: setiap komponen ber-isPlc muncul di sini,
    termasuk yang kamu tambahkan sendiri. Satu sumber, jadi selalu berkorelasi. */
 function buildPlcOptions(){
@@ -1567,8 +1579,8 @@ function updatePlcInfo(){
     : 'Model tidak ada di library.';
 }
 function buildSizeOptions(){
-  const opts=PanelEngine.STD_SIZES.map(s=>
-    `<option value="${s.h}x${s.w}">${s.h} × ${s.w} mm — T${s.h} × L${s.w}</option>`).join('');
+  const opts=PanelEngine.STD_SIZES.map(z=>
+    `<option value="${sizeValue(z)}">${esc(sizeLabel(z))}</option>`).join('');
   const el=document.getElementById('cfg-size');
   if(el) el.innerHTML=`<option value="auto">Auto — tinggi dari layout</option>`+opts;
   return opts;

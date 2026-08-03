@@ -97,7 +97,7 @@
   /* ══════════ STANDARD SIZES ══════════ */
   const STD_HEIGHTS = [500, 600, 700, 800, 1000, 1200, 1400, 1600, 1800, 2000];
   const STD_WIDTHS  = [400, 600, 800, 1000, 1200];
-  const STD_DEPTHS  = [200, 250, 300, 400];
+  const STD_DEPTHS  = [200, 250, 300, 400, 500, 600];
   /* Catalogue sizes the designer offers, written the way enclosure catalogues
      write them: HEIGHT first, then width — so 400×300 is 400 tall by 300 wide,
      a portrait panel. cabH = 0 keeps automatic sizing, where the height comes
@@ -109,6 +109,16 @@
     { h: 800,  w: 600 },
     { h: 1000, w: 800 },
     { h: 1200, w: 800 },
+    /* Kabinet berdiri. Ukuran ini datang dari katalog lengkap dengan
+       KEDALAMANNYA, jadi `d` ikut dibawa — memilih 1800 × 1000 × 600 lalu
+       dilaporkan 250 mm berarti aplikasi menyebut kabinet yang berbeda dari
+       yang dipesan. Entri tanpa `d` tetap memakai kedalaman hasil hitungan,
+       jadi proyek lama tidak berubah. */
+    { h: 1400, w: 800,  d: 400 },
+    { h: 1600, w: 800,  d: 400 },
+    { h: 1800, w: 800,  d: 500 },
+    { h: 1800, w: 1000, d: 600 },
+    { h: 2000, w: 800,  d: 600 },
   ];
 
   /* Wiring clearance in front of the deepest component, mm */
@@ -438,6 +448,7 @@
     ambientC: 30,     /* design ambient outside the enclosure */
     cabW: 800,        /* per-project, was a global setting */
     cabH: 0,          /* 0 = derive height from the layout; else a fixed size */
+    cabD: 0,          /* 0 = derive depth from the deepest component */
     /* Daftar beban bermotor — SUMBER KEBENARAN untuk arus, proteksi, panas dan
        ukuran drive. [{kind:'vfd'|'servo'|'dol', kW, qty}]. Kalau kosong, ia
        disintesis dari hitungan lama (vfd/servo/motor) memakai rating asumsi,
@@ -485,6 +496,7 @@
     c.ambientC = num(c.ambientC, 30);
     c.cabW = num(c.cabW, 800);
     c.cabH = Math.max(0, num(c.cabH, 0));
+    c.cabD = Math.max(0, num(c.cabD, 0));
     /* Proyek lama menyimpan nama tampilan ('Mitsubishi FX5U'); sekarang yang
        disimpan adalah key komponen, supaya dropdown dan library satu sumber. */
     if (LEGACY_PLC[c.plc]) c.plc = LEGACY_PLC[c.plc];
@@ -1062,8 +1074,14 @@
          rounds up to the next standard size. */
       H: c.cabH > 0 ? c.cabH
                     : pickAtLeast(STD_HEIGHTS.map((h) => ({ h })), layout.needH, 'h').h,
-      D: pickAtLeast(STD_DEPTHS.map((d) => ({ d })), maxDepth + DEPTH_CLEARANCE, 'd').d,
+      /* Kedalaman katalog dipakai apa adanya; kalau isinya tidak muat,
+          itu dilaporkan sebagai error, bukan diam-diam dibesarkan. */
+      D: c.cabD > 0 ? c.cabD
+                    : pickAtLeast(STD_DEPTHS.map((d) => ({ d })),
+                                  maxDepth + DEPTH_CLEARANCE, 'd').d,
       fixedH: c.cabH > 0,
+      fixedD: c.cabD > 0,
+      needD: maxDepth + DEPTH_CLEARANCE,
     };
     if (!dims.fixedH && layout.needH > STD_HEIGHTS[STD_HEIGHTS.length - 1]) {
       dims.H = Math.ceil(layout.needH / 100) * 100;
@@ -1096,6 +1114,13 @@
         msg: 'The backplate needs ' + Math.round(layout.needH) + ' mm of height but the ' +
              'selected panel is ' + dims.W + '×' + dims.H + ' mm. Choose a taller size, ' +
              'a wider one so rails pack better, or switch the size back to Auto.' });
+    /* Kedalaman katalog yang terlalu dangkal sama fatalnya dengan tinggi yang
+       kurang — pintunya tidak akan menutup. Jangan dibesarkan diam-diam. */
+    if (dims.fixedD && dims.needD > dims.D)
+      warnings.push({ level: 'error', code: 'PANEL_TOO_SHALLOW',
+        msg: 'Komponen terdalam plus ' + DEPTH_CLEARANCE + ' mm ruang kabel butuh ' +
+             Math.round(dims.needD) + ' mm, tapi kabinet yang dipilih ' + dims.D +
+             ' mm. Pilih ukuran yang lebih dalam atau kembalikan ke Auto.' });
     /* Drive yang dipindah manual bisa mendarat di rail biasa yang jaraknya cuma
        gapV — layout otomatis menjaga clearance, penempatan manual tidak. */
     const tightDrives = [];
