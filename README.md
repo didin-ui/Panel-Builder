@@ -1,7 +1,26 @@
 # Panel Builder Assistant — Menjalankan dengan Database
 
 ## Kebutuhan
-Node.js 18+ (cek: `node -v`)
+**Node.js 22 atau 24** — cek dengan `node -v`.
+
+Batas itu bukan selera. `better-sqlite3` adalah modul native, dan hanya versi
+Node tertentu yang punya binary siap pakai. Di luar itu npm terpaksa
+mengkompilasi sendiri, yang di Windows menuntut Visual Studio Build Tools dan
+Python — dan biasanya gagal.
+
+| Node | ABI | Binary siap pakai |
+|---|---|---|
+| 18, 20 | 108, 115 | tidak (dan keduanya sudah EOL) |
+| **22** | 127 | ya |
+| **24** | 137 | ya |
+| 25, 26 | 141, 147 | ya |
+
+Sebelum menyalahkan aplikasinya, jalankan:
+```
+npm run preflight
+```
+Itu memeriksa versi Node, modul nativenya, akses tulis ke database, dan port —
+lalu menyebutkan mana yang bermasalah.
 
 ## Struktur
 | File | Isi |
@@ -10,7 +29,8 @@ Node.js 18+ (cek: `node -v`)
 | `public/index.html` | UI + render. Tidak menghitung apa pun sendiri. |
 | `public/assets/` | Gambar komponen dan tekstur. |
 | `server.js` | API penyimpanan (Express + SQLite). Di luar `public/`, jadi tidak ikut dilayani. |
-| `test/engine.test.js` | 280 assertion, jalankan `npm test`. |
+| `scripts/preflight.js` | Pemeriksaan lingkungan: `npm run preflight`. |
+| `test/engine.test.js` | 291 assertion, jalankan `npm test`. |
 | `ASSET-LIST.md` | Ukuran piksel semua gambar & tekstur. |
 | `ENGINEERING.md` | Dasar perhitungan: rumus, konstanta, standar, dan batasannya. |
 
@@ -35,8 +55,10 @@ npm test
 
 ## Langkah
 ```
-cd panel-builder
+git clone https://github.com/didin-ui/Panel-Builder.git
+cd Panel-Builder
 npm install
+npm run preflight
 npm start
 ```
 Buka **http://localhost:3100** — indikator di kiri bawah sidebar harus berubah menjadi
@@ -59,6 +81,44 @@ HOST=0.0.0.0 npm start
 ```
 Itu keputusan sadar — lakukan hanya di jaringan yang ente percaya, dan pasang
 autentikasi sebelum dipakai di luar itu.
+
+## Kalau `npm install` gagal di PC lain
+
+Hampir selalu satu penyebab: **versi Node**.
+
+`better-sqlite3` memasang dirinya dengan `prebuild-install || node-gyp rebuild`.
+Kalau ada binary siap pakai untuk versi Node kamu, ia diunduh dan selesai dalam
+hitungan detik. Kalau tidak ada, ia jatuh ke `node-gyp` yang butuh compiler C++,
+dan yang muncul di layar adalah puluhan baris error gyp yang **tidak pernah
+menyebut kata "Node"** — jadi mudah disangka aplikasinya yang rusak.
+
+Cek dulu:
+```
+node -v
+```
+Kalau bukan v22.x atau v24.x, itu penyebabnya. Pasang Node 22 atau 24 LTS dari
+[nodejs.org](https://nodejs.org), lalu:
+```
+rm -rf node_modules package-lock.json
+npm install
+```
+
+Penyebab lain yang mungkin:
+
+| Gejala | Sebab | Perbaikan |
+|---|---|---|
+| `EBADENGINE` saat install | Node di bawah 22 | pasang Node 22/24 |
+| tumpukan error `gyp ERR!` | tidak ada prebuild untuk versi Node itu | sama seperti di atas |
+| `ERR_DLOPEN_FAILED` saat `npm start` | node_modules dibangun untuk Node versi lain | hapus `node_modules`, install ulang |
+| `EADDRINUSE` | port 3100 dipakai proses lain | `PORT=3200 npm start` |
+| `SQLITE_CANTOPEN` | folder tidak bisa ditulis | pindahkan ke folder milik user, bukan folder sistem seperti Program Files |
+| unduhan prebuild ter-block | proxy / firewall kantor | `npm config set proxy ...` atau salin `node_modules` dari PC yang berhasil |
+
+`npm run preflight` memeriksa semua ini sekaligus dan menyebut mana yang salah.
+
+> Database **tidak** ikut di repo (`.gitignore` memblokir `*.db` — isinya data
+> proyek dan customer). Di PC baru `panelbuilder.db` dibuat otomatis dan kosong;
+> itu normal. Untuk membawa data, salin file `.db`-nya secara manual.
 
 ## Mode tanpa server
 `public/index.html` tetap bisa dibuka langsung (double-click) tanpa `npm start` —

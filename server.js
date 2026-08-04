@@ -1,9 +1,24 @@
 /* Panel Builder Assistant — backend penyimpanan
    Node.js + Express + better-sqlite3. Database: panelbuilder.db (dibuat otomatis). */
-const express = require('express');
-const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
+
+/* better-sqlite3 adalah modul native: kalau versi Node-nya tidak punya binary
+   siap pakai, npm mengkompilasi sendiri dan di Windows biasanya gagal. Yang
+   sampai ke user cuma tumpukan error node-gyp yang tidak pernah menyebut kata
+   "Node". Tangkap di sini dan katakan apa yang sebenarnya salah. */
+let express, Database;
+try {
+  express = require('express');
+  Database = require('better-sqlite3');
+} catch (e) {
+  console.error('\n  Gagal memuat dependensi.\n');
+  console.error('  ' + e.message.split('\n')[0] + '\n');
+  console.error(`  Node yang dipakai: ${process.version} (ABI ${process.versions.modules})`);
+  console.error('  Yang didukung   : Node 22 atau 24\n');
+  console.error('  Jalankan  npm run preflight  untuk pemeriksaan lengkap.\n');
+  process.exit(1);
+}
 
 const db = new Database(path.join(__dirname, 'panelbuilder.db'));
 db.pragma('journal_mode = WAL');
